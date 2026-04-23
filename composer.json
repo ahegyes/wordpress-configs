@@ -1,0 +1,58 @@
+{
+  "name": "deep-web-solutions/wordpress-configs",
+  "type": "library",
+
+  "description": "A collection of shared configuration files for DWS WordPress projects.",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Contributors",
+      "homepage": "https://github.com/ahegyes/wordpress-configs/graphs/contributors"
+    }
+  ],
+
+  "require": {
+    "php": ">=8.5",
+    "ext-json": "*",
+
+    "wp-coding-standards/wpcs": "^3",
+    "phpcompatibility/phpcompatibility-wp": "^3@alpha",
+
+    "phpmd/phpmd": "^3",
+
+    "phpstan/phpstan": "^2",
+    "phpstan/extension-installer": "^1",
+    "phpstan/phpstan-deprecation-rules": "^2",
+    "phpstan/phpstan-strict-rules": "^2",
+    "johnbillion/wp-compat": "^1",
+    "szepeviktor/phpstan-wordpress": "^2",
+    "swissspidy/phpstan-no-private": "^1"
+  },
+
+  "require-dev": {
+    "composer/composer": "^2"
+  },
+
+  "autoload": {
+    "classmap": [
+      "composer"
+    ]
+  },
+
+  "scripts": {
+    "generate-autoloader": "@composer dump-autoload --ignore-platform-reqs -o",
+
+    "packages-install": "@composer install --ignore-platform-reqs --no-interaction",
+    "packages-update": [
+      "@composer clear-cache",
+      "@composer update --prefer-stable --ignore-platform-reqs --no-interaction"
+    ]
+  },
+  "config": {
+    "allow-plugins": {
+      "composer/*": true,
+      "dealerdirect/phpcodesniffer-composer-installer": true,
+      "phpstan/extension-installer": true
+    }
+  }
+}
