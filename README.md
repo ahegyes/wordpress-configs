@@ -9,19 +9,20 @@ A collection of shared configuration files for WordPress projects. Provides base
 
 ## Installation
 
-```bash
-composer require --dev deep-web-solutions/wordpress-configs
-```
-
-For projects not published on Packagist, add the repository first:
+Add the VCS repository and require the package as a dev dependency:
 
 ```json
 {
     "repositories": [
         { "type": "vcs", "url": "https://github.com/ahegyes/wordpress-configs.git" }
-    ]
+    ],
+    "require-dev": {
+        "deep-web-solutions/wordpress-configs": "dev-trunk"
+    }
 }
 ```
+
+Reusable CI workflows are referenced via `@trunk` directly from GitHub (see [Reusable CI Workflows](#reusable-ci-workflows) below).
 
 ## What's Included
 
@@ -328,6 +329,76 @@ The three pieces above (`FindWPCoreCalls`, `ScopePhpDependencies`, `wordpress-ba
 ```
 
 The result: your plugin's `vendor/` is scoped under `YourPlugin_Deps\` (or whatever prefix you choose), but WordPress functions (`add_action()`, `wp_filesystem()`, etc.) and PSR interfaces remain unprefixed and work correctly at runtime.
+
+## Reusable CI Workflows
+
+Seven reusable GitHub Actions workflows live in `.github/workflows/`. Plugins call them via `workflow_call` and compose them into their own pipelines. All seven trigger only on `workflow_call` — they don't run on pushes to this repo.
+
+| Workflow                              | Purpose                                          | Key Inputs                                         |
+|---------------------------------------|--------------------------------------------------|----------------------------------------------------|
+| `reusable-php-syntax-check.yml`       | `php -l` matrix across PHP versions              | `plugin-path`, `php-versions[]`                    |
+| `reusable-php-qa.yml`                 | PHPCS + PHPMD + PHPStan (parallel jobs)          | `plugin-path`, `php-version`                       |
+| `reusable-js-css-lint.yml`            | ESLint + Stylelint via npm scripts               | `plugin-path`, `node-version`                      |
+| `reusable-phpunit.yml`                | PHPUnit + wp-env startup                         | `plugin-path`, `php-version`, `wp-version`         |
+| `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `plugin-path`, `plugin-slug`, `php-version`        |
+| `reusable-block-json-check.yml`       | Validates block.json against wp.org schema       | `plugin-path`, `node-version`                      |
+| `reusable-release.yml`                | Build → test built artifact → deploy to wp.org   | `plugin-slug`, `plugin-path`, `php-version` + secrets |
+
+### Plugin orchestrators
+
+Plugins typically split their CI into three concern-focused workflows that call the reusables.
+
+**`.github/workflows/quality.yml`** — runs on every push/PR:
+
+```yaml
+name: Quality
+on: [push, pull_request]
+
+jobs:
+  syntax:
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-php-syntax-check.yml@trunk
+    with:
+      php-versions: '["8.5","8.6"]'
+  qa:
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-php-qa.yml@trunk
+  block-json:
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-block-json-check.yml@trunk
+  lint-js-css:
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-js-css-lint.yml@trunk
+```
+
+**`.github/workflows/tests.yml`** — runs on every push/PR:
+
+```yaml
+name: Tests
+on: [push, pull_request]
+
+jobs:
+  phpunit:
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-phpunit.yml@trunk
+  e2e:
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-playwright-e2e.yml@trunk
+    with:
+      plugin-slug: your-plugin-slug
+```
+
+**`.github/workflows/release.yml`** — runs on version tags:
+
+```yaml
+name: Release
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-release.yml@trunk
+    with:
+      plugin-slug: your-plugin-slug
+    secrets:
+      SVN_USERNAME: ${{ secrets.WP_ORG_SVN_USERNAME }}
+      SVN_PASSWORD: ${{ secrets.WP_ORG_SVN_PASSWORD }}
+```
 
 ## Typical Composer Scripts
 

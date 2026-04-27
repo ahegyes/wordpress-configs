@@ -1,0 +1,41 @@
+name: JS/CSS Lint
+
+on:
+  workflow_call:
+    inputs:
+      plugin-path:
+        description: 'Path to the plugin (relative to repo root)'
+        type: string
+        required: false
+        default: '.'
+      node-version:
+        description: 'Node.js version'
+        type: string
+        required: false
+        default: 'lts/*'
+
+jobs:
+  lint:
+    name: Lint JS/CSS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+          cache-dependency-path: ${{ inputs.plugin-path }}/package-lock.json
+
+      - name: Install npm dependencies
+        working-directory: ${{ inputs.plugin-path }}
+        run: npm ci
+
+      - name: Lint JavaScript
+        working-directory: ${{ inputs.plugin-path }}
+        run: npm run lint:js
+
+      - name: Lint CSS
+        working-directory: ${{ inputs.plugin-path }}
+        run: npm run lint:css

@@ -1,0 +1,55 @@
+name: PHPUnit
+
+on:
+  workflow_call:
+    inputs:
+      plugin-path:
+        description: 'Path to the plugin (relative to repo root)'
+        type: string
+        required: false
+        default: '.'
+      php-version:
+        description: 'PHP version to run tests against'
+        type: string
+        required: false
+        default: '8.5'
+      wp-version:
+        description: 'WordPress version to run tests against (passed via WP_ENV_CORE)'
+        type: string
+        required: false
+        default: 'latest'
+
+jobs:
+  phpunit:
+    name: PHPUnit (PHP ${{ inputs.php-version }} / WP ${{ inputs.wp-version }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Setup Node.js (for wp-env)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Install Composer dependencies
+        uses: ramsey/composer-install@v3
+        with:
+          working-directory: ${{ inputs.plugin-path }}
+          composer-options: '--prefer-dist'
+
+      - name: Start wp-env
+        working-directory: ${{ inputs.plugin-path }}
+        env:
+          WP_ENV_CORE: WordPress/WordPress#${{ inputs.wp-version == 'latest' && 'master' || format('tags/{0}', inputs.wp-version) }}
+        run: npx --yes @wordpress/env start
+
+      - name: Run PHPUnit
+        working-directory: ${{ inputs.plugin-path }}
+        run: composer test

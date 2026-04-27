@@ -1,0 +1,74 @@
+name: Playwright E2E
+
+on:
+  workflow_call:
+    inputs:
+      plugin-path:
+        description: 'Path to the plugin (relative to repo root)'
+        type: string
+        required: false
+        default: '.'
+      plugin-slug:
+        description: 'Plugin slug — used to locate the built plugin under wp-content/plugins'
+        type: string
+        required: true
+      php-version:
+        description: 'PHP version'
+        type: string
+        required: false
+        default: '8.5'
+
+jobs:
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+          cache-dependency-path: ${{ inputs.plugin-path }}/package-lock.json
+
+      - name: Install Composer dependencies (production only)
+        uses: ramsey/composer-install@v3
+        with:
+          working-directory: ${{ inputs.plugin-path }}
+          composer-options: '--prefer-dist --no-dev'
+
+      - name: Install npm dependencies
+        working-directory: ${{ inputs.plugin-path }}
+        run: npm ci
+
+      - name: Build assets
+        working-directory: ${{ inputs.plugin-path }}
+        run: npm run build
+
+      - name: Install Playwright browsers
+        working-directory: ${{ inputs.plugin-path }}
+        run: npx playwright install --with-deps chromium
+
+      - name: Start wp-env
+        working-directory: ${{ inputs.plugin-path }}
+        run: npx --yes @wordpress/env start
+
+      - name: Run Playwright tests
+        working-directory: ${{ inputs.plugin-path }}
+        run: npx playwright test
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ inputs.plugin-slug }}
+          path: ${{ inputs.plugin-path }}/playwright-report
+          retention-days: 7

@@ -1,0 +1,49 @@
+name: block.json Schema Check
+
+on:
+  workflow_call:
+    inputs:
+      plugin-path:
+        description: 'Path to the plugin (relative to repo root)'
+        type: string
+        required: false
+        default: '.'
+      node-version:
+        description: 'Node.js version'
+        type: string
+        required: false
+        default: 'lts/*'
+
+jobs:
+  validate:
+    name: Validate block.json files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Find block.json files
+        id: find-blocks
+        working-directory: ${{ inputs.plugin-path }}
+        run: |
+          files=$(find . -path ./node_modules -prune -o -path ./vendor -prune -o -name 'block.json' -print | tr '\n' ' ')
+          if [ -z "$files" ]; then
+            echo "No block.json files found — nothing to validate."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "files=$files" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate against WordPress block.json schema
+        if: steps.find-blocks.outputs.found == 'true'
+        working-directory: ${{ inputs.plugin-path }}
+        run: |
+          npx --yes ajv-cli validate \
+            -s https://schemas.wp.org/trunk/block.json \
+            -d '${{ steps.find-blocks.outputs.files }}' \
+            --strict=false

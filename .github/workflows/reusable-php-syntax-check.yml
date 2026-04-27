@@ -1,0 +1,43 @@
+name: PHP Syntax Check
+
+on:
+  workflow_call:
+    inputs:
+      plugin-path:
+        description: 'Path to the plugin (relative to repo root)'
+        type: string
+        required: false
+        default: '.'
+      php-versions:
+        description: 'JSON array of PHP versions to check (e.g. [\"8.5\",\"8.6\"])'
+        type: string
+        required: false
+        default: '["8.5"]'
+
+jobs:
+  syntax:
+    name: Syntax (PHP ${{ matrix.php-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ${{ fromJSON(inputs.php-versions) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: none
+          tools: none
+
+      - name: Check PHP syntax
+        working-directory: ${{ inputs.plugin-path }}
+        run: |
+          find . \
+            -path ./vendor -prune -o \
+            -path ./node_modules -prune -o \
+            -name '*.php' -print0 \
+          | xargs -0 -n1 -P4 php -l
