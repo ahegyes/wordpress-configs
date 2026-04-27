@@ -27,6 +27,13 @@ final class FindWPCoreCallsTest extends TestCase {
 	private string $vendor_dir;
 
 	protected function setUp(): void {
+		// Clear all env vars FindWPCoreCalls reads, so each test starts from a known state.
+		// Notably `CI` is set by GitHub Actions; without this, tests that need the script
+		// to run (most of them) would hit the CI-skip branch.
+		foreach ( self::ENV_VARS as $var ) {
+			putenv( $var );
+		}
+
 		$this->project_dir = sys_get_temp_dir() . '/dws-wp-configs-test-' . uniqid();
 		$this->vendor_dir  = $this->project_dir . '/vendor';
 		mkdir( $this->vendor_dir . '/php-stubs/wordpress-stubs', 0755, true );
