@@ -1,5 +1,5 @@
-# Created by https://www.toptal.com/developers/gitignore/api/node,yarn,linux,macos,windows,composer,sublimetext,phpstorm+all,visualstudiocode
-# Edit at https://www.toptal.com/developers/gitignore?templates=node,yarn,linux,macos,windows,composer,sublimetext,phpstorm+all,visualstudiocode
+# Created by https://www.toptal.com/developers/gitignore/api/node,yarn,linux,macos,windows,composer,sublimetext,phpstorm+all,visualstudiocode,phpunit
+# Edit at https://www.toptal.com/developers/gitignore?templates=node,yarn,linux,macos,windows,composer,sublimetext,phpstorm+all,visualstudiocode,phpunit
 
 ### Composer ###
 composer.phar
@@ -285,6 +285,21 @@ fabric.properties
 !.idea/codeStyles
 !.idea/runConfigurations
 
+### PHPUnit ###
+# Covers PHPUnit
+# Reference: https://phpunit.de/
+
+# Generated files
+.phpunit.result.cache
+.phpunit.cache
+
+# PHPUnit
+/app/phpunit.xml
+/phpunit.xml
+
+# Build data
+/build/
+
 ### SublimeText ###
 # Cache files for Sublime Text
 *.tmlanguage.cache
@@ -380,4 +395,4 @@ $RECYCLE.BIN/
 # and uncomment the following lines
 # .pnp.*
 
-# End of https://www.toptal.com/developers/gitignore/api/node,yarn,linux,macos,windows,composer,sublimetext,phpstorm+all,visualstudiocode
+# End of https://www.toptal.com/developers/gitignore/api/node,yarn,linux,macos,windows,composer,sublimetext,phpstorm+all,visualstudiocode,phpunit
