@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class WordpressScoperConfigTest extends TestCase {
 
-	private const CONFIG_FILE = __DIR__ . '/../../php-scoper/wordpress-base.inc.php';
+	private const CONFIG_FILE = __DIR__ . '/../../php/php-scoper/wordpress-base.inc.php';
 
 	private string $project_dir;
 

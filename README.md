@@ -17,7 +17,7 @@ Add the VCS repository and require the package as a dev dependency:
         { "type": "vcs", "url": "https://github.com/ahegyes/wordpress-configs.git" }
     ],
     "require-dev": {
-        "deep-web-solutions/wordpress-configs": "dev-trunk"
+        "ahegyes/wordpress-configs": "dev-trunk"
     }
 }
 ```
@@ -32,7 +32,7 @@ Base configuration files that your project extends. Create thin project-level co
 
 #### PHPCS (WordPress Coding Standards)
 
-`quality-assurance/phpcs.dist.xml` — WordPress-Extra + WordPress-Docs + PHPCompatibilityWP.
+`php/quality-assurance/phpcs.dist.xml` — WordPress-Extra + WordPress-Docs + PHPCompatibilityWP.
 
 | Setting              | Value |
 |----------------------|-------|
@@ -47,7 +47,7 @@ Create a `.phpcs.xml` in your project:
 <ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/squizlabs/php_codesniffer/phpcs.xsd">
     <!-- Extend the shared ruleset. -->
-    <rule ref="./vendor/deep-web-solutions/wordpress-configs/quality-assurance/phpcs.dist.xml"/>
+    <rule ref="./vendor/ahegyes/wordpress-configs/php/quality-assurance/phpcs.dist.xml"/>
 
     <!-- Check that the proper text domain(s) is used everywhere. -->
     <rule ref="WordPress.WP.I18n">
@@ -79,7 +79,7 @@ vendor/bin/phpcbf --standard=./.phpcs.xml --basepath=. ./ -v      # Auto-fix
 
 #### PHPMD (PHP Mess Detector)
 
-`quality-assurance/phpmd.dist.xml` — cleancode, codesize, design, naming, unusedcode rulesets.
+`php/quality-assurance/phpmd.dist.xml` — cleancode, codesize, design, naming, unusedcode rulesets.
 
 | Ruleset     | Notable Customizations                              |
 |-------------|-----------------------------------------------------|
@@ -94,7 +94,7 @@ Create a `.phpmd.xml` in your project:
 <ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="https://phpmd.org/xml/ruleset_xml_schema_1.0.0.xsd">
     <!-- Extend the shared ruleset. -->
-    <rule ref="./vendor/deep-web-solutions/wordpress-configs/quality-assurance/phpmd.dist.xml"/>
+    <rule ref="./vendor/ahegyes/wordpress-configs/php/quality-assurance/phpmd.dist.xml"/>
 
     <!-- What NOT to scan. -->
     <exclude-pattern>*/tests/*</exclude-pattern>
@@ -111,7 +111,7 @@ vendor/bin/phpmd ./ ansi ./.phpmd.xml -v
 
 #### PHPStan (Static Analysis)
 
-`quality-assurance/phpstan.dist.neon` — level 8, WordPress stubs, auto-discovered paths.
+`php/quality-assurance/phpstan.dist.neon` — level 8, WordPress stubs, auto-discovered paths.
 
 | Setting                          | Value                                          |
 |----------------------------------|-------------------------------------------------|
@@ -124,7 +124,7 @@ Create a `.phpstan.neon` in your project:
 
 ```neon
 includes:
-    - vendor/deep-web-solutions/wordpress-configs/quality-assurance/phpstan.dist.neon
+    - vendor/ahegyes/wordpress-configs/php/quality-assurance/phpstan.dist.neon
 
 parameters:
     scanDirectories:
@@ -157,7 +157,7 @@ The bundled `phpstan.dist.neon.php` auto-discovers paths to analyse:
 
 #### FindWPCoreCalls
 
-`composer/FindWPCoreCalls.php` — Composer post-autoload-dump hook that compiles a list of WordPress Core functions and classes referenced by the consuming project.
+`php/composer/FindWPCoreCalls.php` — Composer post-autoload-dump hook that compiles a list of WordPress Core functions and classes referenced by the consuming project.
 
 The output JSON (`wp-core-calls.json`) is consumed by the [php-scoper base config](#php-scoper-base-config) to leave WP references unprefixed when scoping the project's vendor dependencies.
 
@@ -184,7 +184,7 @@ The generator scans your project's PHP files (excluding `vendor/`, `node_modules
 
 #### ScopePhpDependencies
 
-`composer/ScopePhpDependencies.php` — Composer hooks for scoping third-party PHP dependencies via [php-scoper](https://github.com/humbug/php-scoper).
+`php/composer/ScopePhpDependencies.php` — Composer hooks for scoping third-party PHP dependencies via [php-scoper](https://github.com/humbug/php-scoper).
 
 This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your project's dev dependencies. Intended for third-party libraries (PDF generators, HTTP clients, DI containers, etc.) that may conflict with other plugins on the same WordPress site.
 
@@ -214,7 +214,7 @@ This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your
 
 ### php-scoper Base Config
 
-`php-scoper/wordpress-base.inc.php` — a base php-scoper config tailored for WordPress plugins. Returns a closure that builds a complete config with sensible defaults for WordPress.
+`php/php-scoper/wordpress-base.inc.php` — a base php-scoper config tailored for WordPress plugins. Returns a closure that builds a complete config with sensible defaults for WordPress.
 
 **What it handles:**
 
@@ -229,7 +229,7 @@ This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your
 
 use Isolated\Symfony\Component\Finder\Finder;
 
-$build_config = require __DIR__ . '/vendor/deep-web-solutions/wordpress-configs/php-scoper/wordpress-base.inc.php';
+$build_config = require __DIR__ . '/vendor/ahegyes/wordpress-configs/php/php-scoper/wordpress-base.inc.php';
 
 return $build_config( array(
     'finders' => array(
@@ -265,7 +265,7 @@ Reference it in your `.wp-env.json`:
         "wp-content/plugins/your-plugin": "."
     },
     "lifecycleScripts": {
-        "afterStart": "vendor/deep-web-solutions/wordpress-configs/docker/wp-env-install-pdo_mysql.sh"
+        "afterStart": "vendor/ahegyes/wordpress-configs/docker/wp-env-install-pdo_mysql.sh"
     }
 }
 ```
@@ -280,6 +280,79 @@ Reference it in your `.wp-env.json`:
 | `*.yml`, `*.yaml`, `*.json` | Spaces | 2   |
 | `*.md`          | Tabs         | — (trailing whitespace preserved) |
 | `*.txt`         | Tabs         | — (CRLF line endings)             |
+
+### Node Baselines
+
+Shared baseline configurations for Node-ecosystem tooling. Live in `node/` (parallel to `php/`). Plugins extend each via `extends`-style composition.
+
+The baselines assume the consuming plugin has installed `@wordpress/scripts` (which transitively brings `@wordpress/eslint-plugin`, `@wordpress/stylelint-config`, `@playwright/test`, etc.) — the standard modern WP plugin stack.
+
+#### TypeScript
+
+`node/tsconfig.base.json` — modern TS base targeting ES2022 with `bundler` module resolution (matches `@wordpress/scripts`). Strict mode on, `react-jsx` for blocks.
+
+Create a `tsconfig.json` in your project:
+
+```json
+{
+    "extends": "./vendor/ahegyes/wordpress-configs/node/tsconfig.base.json",
+    "include": ["client/**/*"],
+    "exclude": ["assets/**", "node_modules/**", "vendor/**"]
+}
+```
+
+#### ESLint
+
+`node/eslint.config.base.js` — legacy `.eslintrc` shareable config wrapping `plugin:@wordpress/eslint-plugin/recommended` plus DWS defaults. Legacy format used because `@wordpress/eslint-plugin` v22 + `@wordpress/scripts` consume `.eslintrc` natively; will revisit when @wordpress/eslint-plugin ships flat config.
+
+Create an `.eslintrc.js` in your project:
+
+```js
+module.exports = {
+    extends: [
+        require.resolve('@ahegyes/wordpress-configs/node/eslint.config.base.js'),
+    ],
+    rules: {
+        // Plugin-specific overrides go here.
+    },
+};
+```
+
+#### Stylelint
+
+`node/stylelint.config.base.js` — extends `@wordpress/stylelint-config/scss` with DWS defaults.
+
+Create a `stylelint.config.js` in your project:
+
+```js
+const dwsBase = require('@ahegyes/wordpress-configs/node/stylelint.config.base.js');
+
+module.exports = {
+    ...dwsBase,
+    rules: {
+        ...dwsBase.rules,
+        // Plugin-specific overrides go here.
+    },
+};
+```
+
+#### Playwright
+
+`node/playwright.config.base.js` — extends `@wordpress/scripts/config/playwright.config.js` (the canonical Playwright config from `@wordpress/scripts`), adjusting `testDir` to `tests/e2e/` to match DWS plugin layout. Inherits everything else: baseURL `http://localhost:8889`, viewport, headless Chromium, screenshots on failure, retries in CI, auto-start of wp-env, etc.
+
+Create a `playwright.config.js` in your project:
+
+```js
+const { defineConfig } = require('@playwright/test');
+const baseConfig = require('@ahegyes/wordpress-configs/node/playwright.config.base.js');
+
+module.exports = defineConfig({
+    ...baseConfig,
+    // Plugin-specific overrides go here.
+});
+```
+
+For test fixtures (admin login, block editor helpers, REST request utilities), import from `@wordpress/e2e-test-utils-playwright` in your test files — it provides extended `test`, `admin`, `editor`, `pageUtils`, and `requestUtils` fixtures designed for WordPress E2E testing.
 
 ## Dependency Scoping Workflow
 

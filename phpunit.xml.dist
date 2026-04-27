@@ -16,7 +16,7 @@
     </testsuites>
     <source>
         <include>
-            <directory>composer</directory>
+            <directory>php/composer</directory>
         </include>
     </source>
 </phpunit>

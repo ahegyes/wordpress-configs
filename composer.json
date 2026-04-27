@@ -1,5 +1,5 @@
 {
-  "name": "deep-web-solutions/wordpress-configs",
+  "name": "ahegyes/wordpress-configs",
   "type": "library",
 
   "description": "A collection of shared configuration files for DWS WordPress projects.",
@@ -43,7 +43,7 @@
 
   "autoload": {
     "classmap": [
-      "composer"
+      "php/composer"
     ]
   },
   "autoload-dev": {
