@@ -20,8 +20,6 @@
     "wp-coding-standards/wpcs": "^3",
     "phpcompatibility/phpcompatibility-wp": "^3@alpha",
 
-    "phpmd/phpmd": "^3",
-
     "phpstan/phpstan": "^2",
     "phpstan/extension-installer": "^1",
     "phpstan/phpstan-deprecation-rules": "^2",

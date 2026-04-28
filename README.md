@@ -1,6 +1,6 @@
 # WordPress Configs
 
-A collection of shared configuration files for WordPress projects. Provides base configs for PHPCS, PHPMD, and PHPStan, Composer helpers for dependency scoping, a php-scoper base config tailored for WordPress plugins, and Docker utilities for wp-env testing.
+A collection of shared configuration files for WordPress projects. Provides base configs for PHPCS and PHPStan, Composer helpers for dependency scoping, a php-scoper base config tailored for WordPress plugins, and Docker utilities for wp-env testing.
 
 ## Requirements
 
@@ -75,38 +75,6 @@ Run:
 ```bash
 vendor/bin/phpcs --standard=./.phpcs.xml --basepath=. ./ -v       # Check
 vendor/bin/phpcbf --standard=./.phpcs.xml --basepath=. ./ -v      # Auto-fix
-```
-
-#### PHPMD (PHP Mess Detector)
-
-`php/quality-assurance/phpmd.dist.xml` — cleancode, codesize, design, naming, unusedcode rulesets.
-
-| Ruleset     | Notable Customizations                              |
-|-------------|-----------------------------------------------------|
-| cleancode   | `StaticAccess` and `ElseExpression` excluded        |
-| naming      | `LongVariable` max raised to 25 characters          |
-| unusedcode  | `UnusedFormalParameter` excluded (covered by PHPCS)  |
-
-Create a `.phpmd.xml` in your project:
-
-```xml
-<?xml version="1.0"?>
-<ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:noNamespaceSchemaLocation="https://phpmd.org/xml/ruleset_xml_schema_1.0.0.xsd">
-    <!-- Extend the shared ruleset. -->
-    <rule ref="./vendor/ahegyes/wordpress-configs/php/quality-assurance/phpmd.dist.xml"/>
-
-    <!-- What NOT to scan. -->
-    <exclude-pattern>*/tests/*</exclude-pattern>
-    <exclude-pattern>*/vendor/*</exclude-pattern>
-    <exclude-pattern>*/node_modules/*</exclude-pattern>
-</ruleset>
-```
-
-Run:
-
-```bash
-vendor/bin/phpmd ./ ansi ./.phpmd.xml -v
 ```
 
 #### PHPStan (Static Analysis)
@@ -410,7 +378,7 @@ Seven reusable GitHub Actions workflows live in `.github/workflows/`. Plugins ca
 | Workflow                              | Purpose                                          | Key Inputs                                         |
 |---------------------------------------|--------------------------------------------------|----------------------------------------------------|
 | `reusable-php-syntax-check.yml`       | `php -l` matrix across PHP versions              | `plugin-path`, `php-versions[]`                    |
-| `reusable-php-qa.yml`                 | PHPCS + PHPMD + PHPStan (parallel jobs)          | `plugin-path`, `php-version`                       |
+| `reusable-php-qa.yml`                 | PHPCS + PHPStan (parallel jobs)                  | `plugin-path`, `php-version`                       |
 | `reusable-js-css-lint.yml`            | ESLint + Stylelint via npm scripts               | `plugin-path`, `node-version`                      |
 | `reusable-phpunit.yml`                | PHPUnit + wp-env startup                         | `plugin-path`, `php-version`, `wp-version`         |
 | `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `plugin-path`, `plugin-slug`, `php-version`        |
@@ -481,9 +449,8 @@ Add these to your project's `composer.json` for a consistent dev workflow:
 {
     "scripts": {
         "format:php": "phpcbf --standard=./.phpcs.xml --basepath=. ./ -v",
-        "lint:php": ["@lint:php:phpcs", "@lint:php:phpmd", "@lint:php:phpstan"],
+        "lint:php": ["@lint:php:phpcs", "@lint:php:phpstan"],
         "lint:php:phpcs": "phpcs --standard=./.phpcs.xml --basepath=. ./ -v",
-        "lint:php:phpmd": "phpmd ./ ansi ./.phpmd.xml -v",
         "lint:php:phpstan": "phpstan analyse -c ./.phpstan.neon -v --memory-limit=1G"
     }
 }
