@@ -3,7 +3,7 @@
  *
  * Plugins extend this in their own `stylelint.config.js`:
  *
- *     const dwsBase = require('@deep-web-solutions/wordpress-configs/node/stylelint.config.base.js');
+ *     const dwsBase = require('@ahegyes/wordpress-configs/node/stylelint.config.base.js');
  *     module.exports = {
  *         ...dwsBase,
  *         rules: { ...dwsBase.rules, 'plugin-specific-rule': 'error' },
