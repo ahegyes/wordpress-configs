@@ -1,6 +1,6 @@
 # WordPress Configs
 
-A collection of shared configuration files for WordPress projects. Provides base configs for PHPCS and PHPStan, Composer helpers for dependency scoping, a php-scoper base config tailored for WordPress plugins, and Docker utilities for wp-env testing.
+A collection of shared configuration files for WordPress projects. Provides base configs for PHPCS and PHPStan, Composer helpers for dependency scoping, a php-scoper base config tailored for WordPress plugins, Docker utilities for wp-env testing, and a transitive `roave/security-advisories` install that fails `composer install --dev` on any known CVE in the dep graph.
 
 ## Requirements
 
