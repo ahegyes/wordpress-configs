@@ -218,26 +218,6 @@ return $build_config( array(
 | `exclude_functions`  | Additional functions to leave unprefixed                          |
 | `patchers`           | Additional patcher callables (run after the WP-reference stripper) |
 
-### Docker Utilities
-
-#### wp-env PDO MySQL
-
-`docker/wp-env-install-pdo_mysql.sh` — installs the `pdo_mysql` PHP extension in wp-env Docker containers. Required for Codeception/WPBrowser database operations.
-
-Reference it in your `.wp-env.json`:
-
-```json
-{
-    "phpVersion": "8.5",
-    "mappings": {
-        "wp-content/plugins/your-plugin": "."
-    },
-    "lifecycleScripts": {
-        "afterStart": "vendor/ahegyes/wordpress-configs/docker/wp-env-install-pdo_mysql.sh"
-    }
-}
-```
-
 ### Editor Config
 
 `.editorconfig` — copy to your project root or reference in your editor's settings.
