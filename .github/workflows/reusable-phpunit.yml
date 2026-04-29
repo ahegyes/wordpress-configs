@@ -14,14 +14,29 @@ on:
         required: false
         default: '8.5'
       wp-version:
-        description: 'WordPress version to run tests against (passed via WP_ENV_CORE)'
+        description: 'WordPress version tag (e.g., "6.9.4"). Leave empty to defer to the consumer plugin''s .wp-env.json `core` setting (or wp-env''s default latest stable).'
         type: string
         required: false
-        default: 'latest'
+        default: ''
+      wp-env-core:
+        description: 'Full WP_ENV_CORE value. Overrides wp-version when set. Accepts repo refs (Org/Repo#ref) or zip URLs.'
+        type: string
+        required: false
+        default: ''
+      composer-script:
+        description: 'Composer script to invoke for the test run (e.g., test, test:integration).'
+        type: string
+        required: false
+        default: 'test'
+      node-version:
+        description: 'Node.js version for wp-env CLI'
+        type: string
+        required: false
+        default: 'lts/*'
 
 jobs:
   phpunit:
-    name: PHPUnit (PHP ${{ inputs.php-version }} / WP ${{ inputs.wp-version }})
+    name: PHPUnit (PHP ${{ inputs.php-version }} / WP ${{ inputs.wp-env-core != '' && inputs.wp-env-core || inputs.wp-version != '' && inputs.wp-version || 'consumer-default' }})
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -36,7 +51,7 @@ jobs:
       - name: Setup Node.js (for wp-env)
         uses: actions/setup-node@v5
         with:
-          node-version: 'lts/*'
+          node-version: ${{ inputs.node-version }}
 
       - name: Install Composer dependencies
         uses: ramsey/composer-install@v3
@@ -44,12 +59,24 @@ jobs:
           working-directory: ${{ inputs.plugin-path }}
           composer-options: '--prefer-dist'
 
+      - name: Install npm dependencies
+        working-directory: ${{ inputs.plugin-path }}
+        run: npm ci
+
       - name: Start wp-env
         working-directory: ${{ inputs.plugin-path }}
         env:
-          WP_ENV_CORE: WordPress/WordPress#${{ inputs.wp-version == 'latest' && 'master' || format('tags/{0}', inputs.wp-version) }}
+          # Override priority: wp-env-core (full value) > wp-version (formatted as tag).
+          # If both empty, WP_ENV_CORE is empty and wp-env falls back to the consumer's
+          # .wp-env.json `core` setting.
+          WP_ENV_CORE: ${{ inputs.wp-env-core != '' && inputs.wp-env-core || (inputs.wp-version != '' && format('WordPress/WordPress#tags/{0}', inputs.wp-version)) || '' }}
         run: npx --yes @wordpress/env start
 
-      - name: Run PHPUnit
+      - name: Run tests
         working-directory: ${{ inputs.plugin-path }}
-        run: composer test
+        run: composer ${{ inputs.composer-script }}
+
+      - name: Stop wp-env
+        if: always()
+        working-directory: ${{ inputs.plugin-path }}
+        run: npx --yes @wordpress/env stop
