@@ -18,6 +18,8 @@ foreach ( array( "$maybePluginFile.php", 'functions-bootstrap.php', 'functions.p
 
 if ( is_file( "$workingDirectory/$maybePluginFile.php" ) ) {
 	$config['parameters']['WPCompat']['pluginFile'] = "$workingDirectory/$maybePluginFile.php";
+} elseif ( ! is_file( "$workingDirectory/plugin.php" ) && ! is_file( "$workingDirectory/style.css" ) ) {
+	$config['parameters']['WPCompat']['requiresAtLeast'] = '7.0';
 }
 
 return $config;
