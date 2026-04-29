@@ -13,6 +13,16 @@ on:
         type: string
         required: false
         default: '8.5'
+      phpcs-config:
+        description: 'Path to PHPCS ruleset file (relative to plugin-path)'
+        type: string
+        required: false
+        default: './phpcs.xml'
+      phpstan-config:
+        description: 'Path to PHPStan config file (relative to plugin-path)'
+        type: string
+        required: false
+        default: './phpstan.neon'
 
 jobs:
   phpcs:
@@ -31,7 +41,7 @@ jobs:
           composer-options: '--prefer-dist'
       - name: Run PHPCS
         working-directory: ${{ inputs.plugin-path }}
-        run: vendor/bin/phpcs --standard=./.phpcs.xml --basepath=. ./ -v --report=full
+        run: vendor/bin/phpcs --standard=${{ inputs.phpcs-config }} --basepath=. ./ -v --report=full
 
   phpstan:
     name: PHPStan
@@ -49,4 +59,4 @@ jobs:
           composer-options: '--prefer-dist'
       - name: Run PHPStan
         working-directory: ${{ inputs.plugin-path }}
-        run: vendor/bin/phpstan analyse -c ./.phpstan.neon -v --memory-limit=1G --no-progress
+        run: vendor/bin/phpstan analyse -c ${{ inputs.phpstan-config }} -v --memory-limit=1G --no-progress
