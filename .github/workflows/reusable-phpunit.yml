@@ -33,6 +33,11 @@ on:
         type: string
         required: false
         default: 'lts/*'
+      wp-env-config-file:
+        description: 'Path to a wp-env config file (relative to plugin-path). Leave empty to use the default .wp-env.json. Use a separate file per environment (e.g., .wp-env.tests.json) to migrate off the deprecated implicit dev/tests split.'
+        type: string
+        required: false
+        default: ''
 
 jobs:
   phpunit:
@@ -68,9 +73,9 @@ jobs:
         env:
           # Override priority: wp-env-core (full value) > wp-version (formatted as tag).
           # If both empty, WP_ENV_CORE is empty and wp-env falls back to the consumer's
-          # .wp-env.json `core` setting.
+          # config file `core` setting.
           WP_ENV_CORE: ${{ inputs.wp-env-core != '' && inputs.wp-env-core || (inputs.wp-version != '' && format('WordPress/WordPress#tags/{0}', inputs.wp-version)) || '' }}
-        run: npx --yes @wordpress/env start
+        run: npx --yes @wordpress/env ${{ inputs.wp-env-config-file != '' && format('--config {0}', inputs.wp-env-config-file) || '' }} start
 
       - name: Run tests
         working-directory: ${{ inputs.plugin-path }}
@@ -79,4 +84,4 @@ jobs:
       - name: Stop wp-env
         if: always()
         working-directory: ${{ inputs.plugin-path }}
-        run: npx --yes @wordpress/env stop
+        run: npx --yes @wordpress/env ${{ inputs.wp-env-config-file != '' && format('--config {0}', inputs.wp-env-config-file) || '' }} stop
