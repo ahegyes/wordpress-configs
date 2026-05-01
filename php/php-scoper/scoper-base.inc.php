@@ -7,8 +7,8 @@ use Isolated\Symfony\Component\Finder\Finder;
  * `scoping-exclusions.json` (written by CollectScopingStubs) from the project
  * root and builds the full php-scoper config, merging plugin overrides on top.
  *
- * `Psr\*` is always excluded — scoping PSR namespaces per-plugin yields
- * incompatible interface declarations across plugins on the same site.
+ * `Psr\*` is always excluded — scoping it would give each package its own
+ * incompatible copy of the standard interfaces, breaking cross-package interop.
  *
  * @param array{
  *     project_dir?: string,

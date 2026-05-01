@@ -26,7 +26,7 @@ class CollectScopingStubs {
 	public static function postAutoloadDump( \Composer\Script\Event $event ): void {
 		$console_io  = $event->getIO();
 		$vendor_dir  = $event->getComposer()->getConfig()->get( 'vendor-dir' );
-		$project_dir = dirname( $vendor_dir );
+		$project_dir = dirname( \Composer\Factory::getComposerFile() );
 
 		if ( ! $event->isDevMode() ) {
 			$console_io->write( 'Not collecting scoping stubs due to not being in dev mode.' );
@@ -56,7 +56,7 @@ class CollectScopingStubs {
 			}
 		}
 
-		$output_dir  = getenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR' ) ?: $project_dir;
+		$output_dir  = getenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR' ) ?: dirname( $vendor_dir );
 		$output_file = getenv( 'SCOPING_EXCLUSIONS_OUTPUT_FILE' ) ?: 'scoping-exclusions.json';
 		file_put_contents(
 			"$output_dir/$output_file",

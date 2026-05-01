@@ -32,12 +32,13 @@ class ScopePhpDependencies {
 	 * @return  void
 	 */
 	public static function preAutoloadDump( Event $event ): void {
-		$console_io = $event->getIO();
-		$vendor_dir = $event->getComposer()->getConfig()->get( 'vendor-dir' );
+		$console_io    = $event->getIO();
+		$composer_file = \Composer\Factory::getComposerFile();
+		$project_dir   = dirname( $composer_file );
 
 		$console_io->write( 'Making sure autoloaded files exist...' );
 
-		$composer_config = file_get_contents( dirname( $vendor_dir ) . '/composer.json' );
+		$composer_config = file_get_contents( $composer_file );
 		$composer_config = json_decode( $composer_config, true, 512, JSON_THROW_ON_ERROR );
 
 		$autoloaded_files       = $composer_config['autoload']['files'] ?? array();
@@ -48,7 +49,7 @@ class ScopePhpDependencies {
 		}
 
 		foreach ( $autoloaded_files as $file ) {
-			$file = dirname( $vendor_dir ) . DIRECTORY_SEPARATOR . $file;
+			$file = $project_dir . DIRECTORY_SEPARATOR . $file;
 			if ( ! file_exists( $file ) ) {
 				$file_directory = dirname( $file );
 				if ( ! is_dir( $file_directory ) && ! mkdir( $file_directory, 0755, true ) && ! is_dir( $file_directory ) ) {
@@ -61,7 +62,7 @@ class ScopePhpDependencies {
 		}
 
 		foreach ( $autoloaded_directories as $directory ) {
-			$directory = dirname( $vendor_dir ) . DIRECTORY_SEPARATOR . $directory;
+			$directory = $project_dir . DIRECTORY_SEPARATOR . $directory;
 			if ( ! is_dir( $directory ) && ! mkdir( $directory, 0755, true ) && ! is_dir( $directory ) ) {
 				throw new \RuntimeException( sprintf( 'Directory "%s" was not created', $directory ) );
 			}

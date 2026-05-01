@@ -16,6 +16,7 @@ final class CollectScopingStubsTest extends TestCase {
 
 	private const FIXTURES_DIR = __DIR__ . '/../fixtures/collect-scoping-stubs';
 	private const ENV_VARS     = array(
+		'COMPOSER',
 		'SCOPING_EXCLUSIONS_OUTPUT_DIR',
 		'SCOPING_EXCLUSIONS_OUTPUT_FILE',
 	);
@@ -34,6 +35,8 @@ final class CollectScopingStubsTest extends TestCase {
 		$this->project_dir = sys_get_temp_dir() . '/dws-wp-configs-test-' . uniqid();
 		$this->vendor_dir  = $this->project_dir . '/vendor';
 		mkdir( $this->vendor_dir, 0755, true );
+
+		putenv( 'COMPOSER=' . $this->project_dir . '/composer.json' );
 	}
 
 	protected function tearDown(): void {

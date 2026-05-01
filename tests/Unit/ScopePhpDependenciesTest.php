@@ -21,9 +21,12 @@ final class ScopePhpDependenciesTest extends TestCase {
 		$this->project_dir = sys_get_temp_dir() . '/dws-wp-configs-scope-' . uniqid();
 		$this->vendor_dir  = $this->project_dir . '/vendor';
 		mkdir( $this->vendor_dir, 0755, true );
+
+		putenv( 'COMPOSER=' . $this->project_dir . '/composer.json' );
 	}
 
 	protected function tearDown(): void {
+		putenv( 'COMPOSER' );
 		$this->rrmdir( $this->project_dir );
 	}
 
