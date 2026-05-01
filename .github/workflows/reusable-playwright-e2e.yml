@@ -9,7 +9,7 @@ on:
         required: false
         default: '.'
       plugin-slug:
-        description: 'Plugin slug — used to locate the built plugin under wp-content/plugins'
+        description: 'Plugin slug — used to label the failure-report artifact'
         type: string
         required: true
       php-version:
@@ -17,6 +17,31 @@ on:
         type: string
         required: false
         default: '8.5'
+      node-version:
+        description: 'Node.js version'
+        type: string
+        required: false
+        default: 'lts/*'
+      composer-options:
+        description: 'Composer install options. Plugins with a scoping pipeline that bakes deps into dependencies/ via post-autoload-dump need to omit --no-dev so the framework + PHP-DI install and scoping runs.'
+        type: string
+        required: false
+        default: '--prefer-dist --no-dev'
+      build-script:
+        description: 'npm script to build assets before starting wp-env. Leave empty to skip (plugins without a frontend build).'
+        type: string
+        required: false
+        default: 'build'
+      wp-env-config-file:
+        description: 'Path to a wp-env config file (relative to plugin-path). Leave empty to use the default .wp-env.json.'
+        type: string
+        required: false
+        default: ''
+      playwright-script:
+        description: 'npm script that runs the Playwright suite. Override when the plugin wires test:e2e or similar.'
+        type: string
+        required: false
+        default: 'test:e2e'
 
 jobs:
   e2e:
@@ -35,23 +60,24 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: 'lts/*'
+          node-version: ${{ inputs.node-version }}
           cache: 'npm'
           cache-dependency-path: ${{ inputs.plugin-path }}/package-lock.json
 
-      - name: Install Composer dependencies (production only)
+      - name: Install Composer dependencies
         uses: ramsey/composer-install@v3
         with:
           working-directory: ${{ inputs.plugin-path }}
-          composer-options: '--prefer-dist --no-dev'
+          composer-options: ${{ inputs.composer-options }}
 
       - name: Install npm dependencies
         working-directory: ${{ inputs.plugin-path }}
         run: npm ci
 
       - name: Build assets
+        if: inputs.build-script != ''
         working-directory: ${{ inputs.plugin-path }}
-        run: npm run build
+        run: npm run ${{ inputs.build-script }}
 
       - name: Install Playwright browsers
         working-directory: ${{ inputs.plugin-path }}
@@ -59,11 +85,11 @@ jobs:
 
       - name: Start wp-env
         working-directory: ${{ inputs.plugin-path }}
-        run: npx --yes @wordpress/env start
+        run: npx --yes @wordpress/env ${{ inputs.wp-env-config-file != '' && format('--config {0}', inputs.wp-env-config-file) || '' }} start
 
       - name: Run Playwright tests
         working-directory: ${{ inputs.plugin-path }}
-        run: npx playwright test
+        run: npm run ${{ inputs.playwright-script }}
 
       - name: Upload Playwright report on failure
         if: failure()
@@ -72,3 +98,8 @@ jobs:
           name: playwright-report-${{ inputs.plugin-slug }}
           path: ${{ inputs.plugin-path }}/playwright-report
           retention-days: 7
+
+      - name: Stop wp-env
+        if: always()
+        working-directory: ${{ inputs.plugin-path }}
+        run: npx --yes @wordpress/env ${{ inputs.wp-env-config-file != '' && format('--config {0}', inputs.wp-env-config-file) || '' }} stop
