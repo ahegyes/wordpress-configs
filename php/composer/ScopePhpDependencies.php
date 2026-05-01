@@ -5,14 +5,15 @@ namespace DeepWebSolutions\Config\Composer;
 use Composer\Script\Event;
 
 /**
- * Static Composer commands to scope third-party PHP dependencies via php-scoper.
+ * Composer event handlers wrapping the php-scoper invocation.
  *
- * This is opt-in: only triggers if php-scoper is installed in the consuming project's
- * dev dependencies. Plugins that don't need scoping simply don't install php-scoper.
+ * `preAutoloadDump` creates placeholder files/directories for any `dependencies/`
+ * paths declared in the consumer's `autoload.files`/`autoload.classmap`, so the
+ * autoloader dump doesn't fail before scoping has populated those paths.
  *
- * Note: This is intended for third-party libraries (PDF generators, HTTP clients, etc.)
- * that may conflict across plugins. The DWS framework itself uses a load-latest-version
- * pattern and should NOT be scoped.
+ * `postAutoloadDump` dispatches the consumer's `scope-php-dependencies` script
+ * once `humbug/php-scoper` is installed and dev mode is on. The script itself
+ * (defined per-consumer) runs the actual `php-scoper add-prefix`.
  */
 class ScopePhpDependencies {
 	/**
