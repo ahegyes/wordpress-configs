@@ -1,6 +1,6 @@
 # WordPress Configs
 
-A collection of shared configuration files for WordPress projects. Provides base configs for PHPCS and PHPStan, Composer helpers for dependency scoping, a php-scoper base config tailored for WordPress plugins, Docker utilities for wp-env testing, and a transitive `roave/security-advisories` install that fails `composer install --dev` on any known CVE in the dep graph.
+A collection of shared configuration files for WordPress projects. Provides base configs for PHPCS and PHPStan, Composer helpers for dependency scoping, a catalog-agnostic php-scoper base config for the WordPress ecosystem, Docker utilities for wp-env testing, and a transitive `roave/security-advisories` install that fails `composer install --dev` on any known CVE in the dep graph.
 
 ## Requirements
 
@@ -123,11 +123,21 @@ The bundled `phpstan.dist.neon.php` auto-discovers paths to analyse:
 
 ### Composer Helpers
 
-#### FindWPCoreCalls
+#### CollectScopingStubs
 
-`php/composer/FindWPCoreCalls.php` — Composer post-autoload-dump hook that compiles a list of WordPress Core functions and classes referenced by the consuming project.
+`php/composer/CollectScopingStubs.php` — Composer post-autoload-dump hook that aggregates per-package stubs-catalog declarations and writes the unioned symbol set to a JSON file the [php-scoper base config](#php-scoper-base-config) consumes.
 
-The output JSON (`wp-core-calls.json`) is consumed by the [php-scoper base config](#php-scoper-base-config) to leave WP references unprefixed when scoping the project's vendor dependencies.
+Each Composer package in the dep graph (and the consuming project itself) declares the stubs catalogs covering its scoped code's external references via `extra.scoping-stubs` in its own `composer.json`:
+
+```json
+{
+    "extra": {
+        "scoping-stubs": ["php-stubs/wordpress-stubs"]
+    }
+}
+```
+
+The hook walks `vendor/<vendor>/<package>/composer.json` plus the project root, parses each declared stubs file (convention: `vendor/<vendor>/<package>/<package>.php`), unions every class/function it finds, and writes `scoping-exclusions.json`.
 
 **Wire it in your project's `composer.json`:**
 
@@ -135,7 +145,7 @@ The output JSON (`wp-core-calls.json`) is consumed by the [php-scoper base confi
 {
     "scripts": {
         "post-autoload-dump": [
-            "DeepWebSolutions\\Config\\Composer\\FindWPCoreCalls::postAutoloadDump"
+            "DeepWebSolutions\\Config\\Composer\\CollectScopingStubs::postAutoloadDump"
         ]
     }
 }
@@ -143,12 +153,13 @@ The output JSON (`wp-core-calls.json`) is consumed by the [php-scoper base confi
 
 | When it runs | Behavior |
 |---|---|
-| Dev mode + non-CI + `php-stubs/wordpress-stubs` installed | Generates `wp-core-calls.json` at project root |
+| Dev mode + non-CI | Generates `scoping-exclusions.json` at project root |
 | Non-dev mode | Skipped |
 | `CI` env var set | Skipped |
-| WP stubs not installed | Skipped |
+| No `extra.scoping-stubs` declarations anywhere in the dep graph | Writes empty exclusion lists (no symbols to skip) |
+| Declared stubs package not installed | Skipped with a console warning, helper continues |
 
-The generator scans your project's PHP files (excluding `vendor/`, `node_modules/`, `languages/`, `tests/`) and cross-references every function call, class extension, type hint, instantiation, and static call against the WP Core stubs. Result is the minimal set of WP Core symbols your project actually uses.
+The contract is: **whichever package introduces references to external (non-prefixable) symbols is the package that declares the catalog covering them.** A consumer plugin doesn't need to enumerate WP usage — the framework packages it depends on declare `php-stubs/wordpress-stubs` and the helper picks that up automatically. A consumer that integrates with WooCommerce adds `php-stubs/woocommerce-stubs` to its own `composer.json`.
 
 #### ScopePhpDependencies
 
@@ -165,7 +176,7 @@ This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your
             "DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::preAutoloadDump"
         ],
         "post-autoload-dump": [
-            "DeepWebSolutions\\Config\\Composer\\FindWPCoreCalls::postAutoloadDump",
+            "DeepWebSolutions\\Config\\Composer\\CollectScopingStubs::postAutoloadDump",
             "DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::postAutoloadDump"
         ],
         "scope-php-dependencies": [
@@ -182,13 +193,13 @@ This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your
 
 ### php-scoper Base Config
 
-`php/php-scoper/wordpress-base.inc.php` — a base php-scoper config tailored for WordPress plugins. Returns a closure that builds a complete config with sensible defaults for WordPress.
+`php/php-scoper/scoper-base.inc.php` — a catalog-agnostic base php-scoper config for the WordPress ecosystem. Returns a closure that builds a complete config with sensible defaults.
 
 **What it handles:**
 
-- Reads `wp-core-calls.json` (generated by FindWPCoreCalls) and excludes those WP functions/classes from scoping
+- Reads `scoping-exclusions.json` (generated by CollectScopingStubs) and excludes those classes/functions from scoping
 - Excludes the `Psr\` namespace from scoping (PSR interfaces are designed for cross-plugin interop; scoping them per-plugin would create incompatible interface declarations)
-- Provides a default patcher that strips the scoping prefix from any WP function/class references inside scoped files
+- Provides a default patcher that strips the scoping prefix from any excluded-symbol references inside scoped files
 
 **Wire it in your project's `scoper.inc.php`:**
 
@@ -197,7 +208,7 @@ This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your
 
 use Isolated\Symfony\Component\Finder\Finder;
 
-$build_config = require __DIR__ . '/vendor/ahegyes/wordpress-configs/php/php-scoper/wordpress-base.inc.php';
+$build_config = require __DIR__ . '/vendor/ahegyes/wordpress-configs/php/php-scoper/scoper-base.inc.php';
 
 return $build_config( array(
     'finders' => array(
@@ -209,14 +220,14 @@ return $build_config( array(
 
 **Available overrides** (all optional, all merged with the defaults):
 
-| Key                  | Effect                                                            |
-|----------------------|-------------------------------------------------------------------|
-| `project_dir`        | Override where to look for `wp-core-calls.json` (defaults to cwd) |
-| `finders`            | Files to scope (most plugins always need to set this)             |
-| `exclude_namespaces` | Additional namespaces to leave unprefixed                         |
-| `exclude_classes`    | Additional classes to leave unprefixed                            |
-| `exclude_functions`  | Additional functions to leave unprefixed                          |
-| `patchers`           | Additional patcher callables (run after the WP-reference stripper) |
+| Key                  | Effect                                                                |
+|----------------------|-----------------------------------------------------------------------|
+| `project_dir`        | Override where to look for `scoping-exclusions.json` (defaults to cwd) |
+| `finders`            | Files to scope (most plugins always need to set this)                 |
+| `exclude_namespaces` | Additional namespaces to leave unprefixed                             |
+| `exclude_classes`    | Additional classes to leave unprefixed                                |
+| `exclude_functions`  | Additional functions to leave unprefixed                              |
+| `patchers`           | Additional patcher callables (run after the default reference-stripper) |
 
 ### Editor Config
 
@@ -304,7 +315,7 @@ For test fixtures (admin login, block editor helpers, REST request utilities), i
 
 ## Dependency Scoping Workflow
 
-The three pieces above (`FindWPCoreCalls`, `ScopePhpDependencies`, `wordpress-base.inc.php`) compose into a complete dependency-scoping pipeline:
+The three pieces above (`CollectScopingStubs`, `ScopePhpDependencies`, `scoper-base.inc.php`) compose into a complete dependency-scoping pipeline:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -326,11 +337,11 @@ The three pieces above (`FindWPCoreCalls`, `ScopePhpDependencies`, `wordpress-ba
 ┌─────────────────────────────────────────────────────────────┐
 │ post-autoload-dump fires                                    │
 │                                                             │
-│ FindWPCoreCalls::postAutoloadDump                           │
-│ • Parses wordpress-stubs.php (from vendor)                  │
-│ • Scans project source files                                │
-│ • Writes wp-core-calls.json with the WP Core symbols        │
-│   actually used by your plugin                              │
+│ CollectScopingStubs::postAutoloadDump                       │
+│ • Walks vendor/*/composer.json + project's composer.json    │
+│ • Reads every `extra.scoping-stubs` declaration             │
+│ • Parses each declared stubs file                           │
+│ • Writes scoping-exclusions.json with unioned symbols       │
 │                                                             │
 │ ScopePhpDependencies::postAutoloadDump                      │
 │ • Verifies php-scoper is installed + dev mode is on         │
@@ -342,14 +353,14 @@ The three pieces above (`FindWPCoreCalls`, `ScopePhpDependencies`, `wordpress-ba
 │ scope-php-dependencies script (you define this)             │
 │ • Runs `php-scoper add-prefix --config=scoper.inc.php ...`  │
 │                                                             │
-│ scoper.inc.php loads php-scoper/wordpress-base.inc.php      │
-│ • Reads wp-core-calls.json                                  │
-│ • Excludes WP refs + Psr\* from scoping                     │
-│ • Strips prefix from WP refs in scoped output               │
+│ scoper.inc.php loads php-scoper/scoper-base.inc.php         │
+│ • Reads scoping-exclusions.json                             │
+│ • Excludes declared symbols + Psr\* from scoping            │
+│ • Strips prefix from excluded refs in scoped output         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-The result: your plugin's `vendor/` is scoped under `YourPlugin_Deps\` (or whatever prefix you choose), but WordPress functions (`add_action()`, `wp_filesystem()`, etc.) and PSR interfaces remain unprefixed and work correctly at runtime.
+The result: your plugin's bundled deps end up scoped under `YourPlugin_Deps\` (or whatever prefix you choose), but every symbol from a declared catalog (e.g., WordPress functions, WC classes) and PSR interfaces remain unprefixed and resolve to their global definitions at runtime.
 
 ## Reusable CI Workflows
 
@@ -450,8 +461,8 @@ Tests live in `tests/Unit/` (PSR-4 autoloaded as `DeepWebSolutions\Config\Tests\
 
 | Test class                       | Covers                                       |
 |----------------------------------|----------------------------------------------|
-| `FindWPCoreCallsTest`            | WP-Core-symbol detection, env-var overrides, skip conditions |
+| `CollectScopingStubsTest`        | Declaration aggregation across vendor + project, multi-catalog union, dedup, missing-package handling, env-var overrides, skip conditions |
 | `ScopePhpDependenciesTest`       | Autoload path creation, dev-mode and php-scoper-installed gates |
-| `WordpressScoperConfigTest`      | Scoper config assembly, override merging, default patcher transformations |
+| `ScoperBaseConfigTest`           | Scoper config assembly, override merging, default patcher transformations |
 
 Test fixtures live in `tests/fixtures/<test-name>/` only when the data is multi-line or shared across multiple tests. Inline test data is preferred for small, scenario-specific inputs.

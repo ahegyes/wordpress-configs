@@ -1,8 +1,8 @@
 <?php
 
-// Minimal WordPress Core stubs for unit-testing FindWPCoreCalls.
+// Minimal WordPress Core stubs for unit-testing CollectScopingStubs.
 // Mimics the shape of wordpress-stubs.php — only the entries referenced by
-// fixture inputs need to exist here.
+// the test cases need to exist here.
 
 class WP_User_Meta_Session_Tokens {}
 class WP_Filesystem_Base {}

@@ -6,11 +6,11 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Tests for the php-scoper base config closure in `php-scoper/wordpress-base.inc.php`.
+ * Tests for the php-scoper base config closure in `php-scoper/scoper-base.inc.php`.
  */
-final class WordpressScoperConfigTest extends TestCase {
+final class ScoperBaseConfigTest extends TestCase {
 
-	private const CONFIG_FILE = __DIR__ . '/../../php/php-scoper/wordpress-base.inc.php';
+	private const CONFIG_FILE = __DIR__ . '/../../php/php-scoper/scoper-base.inc.php';
 
 	private string $project_dir;
 
@@ -35,12 +35,26 @@ final class WordpressScoperConfigTest extends TestCase {
 		self::assertArrayHasKey( 'exclude-namespaces', $config );
 		self::assertArrayHasKey( 'exclude-classes', $config );
 		self::assertArrayHasKey( 'exclude-functions', $config );
+		self::assertArrayHasKey( 'exclude-files', $config );
 		self::assertArrayHasKey( 'patchers', $config );
 	}
 
 	#[Test]
-	public function reads_wp_core_calls_json_into_excludes(): void {
-		$this->writeWpCoreCalls( array(
+	public function exclude_files_override_passes_through(): void {
+		$config = ( $this->build_config )( array(
+			'project_dir'   => $this->project_dir,
+			'exclude_files' => array( '/path/to/template.php', '/another/file.php' ),
+		) );
+
+		self::assertSame(
+			array( '/path/to/template.php', '/another/file.php' ),
+			$config['exclude-files']
+		);
+	}
+
+	#[Test]
+	public function reads_scoping_exclusions_into_excludes(): void {
+		$this->writeScopingExclusions( array(
 			'classes'   => array( 'WP_Post', 'WP_User' ),
 			'functions' => array( 'add_action', 'wp_filesystem' ),
 		) );
@@ -54,7 +68,7 @@ final class WordpressScoperConfigTest extends TestCase {
 	}
 
 	#[Test]
-	public function returns_empty_excludes_when_wp_core_calls_json_is_missing(): void {
+	public function returns_empty_excludes_when_scoping_exclusions_file_is_missing(): void {
 		$config = ( $this->build_config )( array( 'project_dir' => $this->project_dir ) );
 
 		self::assertSame( array(), $config['exclude-classes'] );
@@ -70,7 +84,7 @@ final class WordpressScoperConfigTest extends TestCase {
 
 	#[Test]
 	public function plugin_overrides_merge_into_excludes(): void {
-		$this->writeWpCoreCalls( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
 
 		$config = ( $this->build_config )( array(
 			'project_dir'        => $this->project_dir,
@@ -112,8 +126,8 @@ final class WordpressScoperConfigTest extends TestCase {
 	}
 
 	#[Test]
-	public function patcher_strips_prefix_from_wp_function_calls(): void {
-		$this->writeWpCoreCalls( array( 'classes' => array(), 'functions' => array( 'add_action' ) ) );
+	public function patcher_strips_prefix_from_excluded_function_calls(): void {
+		$this->writeScopingExclusions( array( 'classes' => array(), 'functions' => array( 'add_action' ) ) );
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = '<?php \\MyPrefix\\add_action(\'init\', $cb);';
@@ -124,8 +138,8 @@ final class WordpressScoperConfigTest extends TestCase {
 	}
 
 	#[Test]
-	public function patcher_strips_prefix_from_wp_class_references(): void {
-		$this->writeWpCoreCalls( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+	public function patcher_strips_prefix_from_excluded_class_references(): void {
+		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = '<?php $post = new \\MyPrefix\\WP_Post();';
@@ -137,7 +151,7 @@ final class WordpressScoperConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_handles_function_exists_string_arguments(): void {
-		$this->writeWpCoreCalls( array( 'classes' => array(), 'functions' => array( 'add_action' ) ) );
+		$this->writeScopingExclusions( array( 'classes' => array(), 'functions' => array( 'add_action' ) ) );
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php if (function_exists('MyPrefix\\\\add_action')) {}";
@@ -148,8 +162,8 @@ final class WordpressScoperConfigTest extends TestCase {
 	}
 
 	#[Test]
-	public function patcher_removes_use_statements_for_wp_classes(): void {
-		$this->writeWpCoreCalls( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+	public function patcher_removes_use_statements_for_excluded_classes(): void {
+		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php\nuse MyPrefix\\WP_Post;\n\$x = 1;";
@@ -159,8 +173,8 @@ final class WordpressScoperConfigTest extends TestCase {
 	}
 
 	#[Test]
-	public function patcher_leaves_non_wp_references_unchanged(): void {
-		$this->writeWpCoreCalls( array( 'classes' => array( 'WP_Post' ), 'functions' => array( 'add_action' ) ) );
+	public function patcher_leaves_non_excluded_references_unchanged(): void {
+		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array( 'add_action' ) ) );
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = '<?php $a = new \\MyPrefix\\Some\\OtherClass(); \\MyPrefix\\some_function();';
@@ -169,9 +183,9 @@ final class WordpressScoperConfigTest extends TestCase {
 		self::assertSame( $input, $output );
 	}
 
-	private function writeWpCoreCalls( array $contents ): void {
+	private function writeScopingExclusions( array $contents ): void {
 		file_put_contents(
-			$this->project_dir . '/wp-core-calls.json',
+			$this->project_dir . '/scoping-exclusions.json',
 			json_encode( $contents, JSON_THROW_ON_ERROR )
 		);
 	}
