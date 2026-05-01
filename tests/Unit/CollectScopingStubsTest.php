@@ -18,7 +18,6 @@ final class CollectScopingStubsTest extends TestCase {
 	private const ENV_VARS     = array(
 		'SCOPING_EXCLUSIONS_OUTPUT_DIR',
 		'SCOPING_EXCLUSIONS_OUTPUT_FILE',
-		'CI',
 	);
 
 	private string $project_dir;
@@ -150,16 +149,6 @@ final class CollectScopingStubsTest extends TestCase {
 		$this->writeProjectComposer( array() );
 
 		CollectScopingStubs::postAutoloadDump( $this->event( devMode: false ) );
-
-		self::assertFileDoesNotExist( $this->project_dir . '/scoping-exclusions.json' );
-	}
-
-	#[Test]
-	public function skips_when_ci_env_is_set(): void {
-		$this->writeProjectComposer( array() );
-		putenv( 'CI=true' );
-
-		CollectScopingStubs::postAutoloadDump( $this->event() );
 
 		self::assertFileDoesNotExist( $this->project_dir . '/scoping-exclusions.json' );
 	}

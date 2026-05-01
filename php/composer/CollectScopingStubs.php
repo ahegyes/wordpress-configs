@@ -32,10 +32,6 @@ class CollectScopingStubs {
 			$console_io->write( 'Not collecting scoping stubs due to not being in dev mode.' );
 			return;
 		}
-		if ( getenv( 'CI' ) ) {
-			$console_io->write( 'Not collecting scoping stubs due to environment config.' );
-			return;
-		}
 
 		$declared = self::collect_declarations( $project_dir, $vendor_dir );
 
