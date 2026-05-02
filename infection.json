@@ -1,0 +1,19 @@
+{
+    "$schema": "vendor/infection/infection/resources/schema.json",
+    "source": {
+        "directories": [
+            "php/composer",
+            "php/php-scoper"
+        ]
+    },
+    "logs": {
+        "text": "build/infection/infection.log",
+        "html": "build/infection/infection.html",
+        "summary": "build/infection/summary.log"
+    },
+    "mutators": {
+        "@default": true
+    },
+    "minMsi": 65,
+    "minCoveredMsi": 65
+}

@@ -134,6 +134,33 @@ final class CollectScopingStubsTest extends TestCase {
 	}
 
 	#[Test]
+	public function continues_past_first_missing_stubs_package_to_collect_subsequent_ones(): void {
+		// First package declared but not installed; second package declared AND installed.
+		// `continue` mutated to `break` would stop after the first miss and yield empty results.
+		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
+		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs', 'php-stubs/woocommerce-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'WC_Logger', $result['classes'] );
+		self::assertContains( 'wc_get_product', $result['functions'] );
+	}
+
+	#[Test]
+	public function filters_non_string_entries_from_scoping_stubs_declaration(): void {
+		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
+		// Mixed types in scoping-stubs — only the string survives.
+		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs', 123, null, array( 'nested' => true ) ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'add_action', $result['functions'] );
+	}
+
+
+	#[Test]
 	public function honors_output_dir_and_file_overrides(): void {
 		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
 		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs' ) );

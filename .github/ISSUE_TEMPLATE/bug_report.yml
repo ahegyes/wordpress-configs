@@ -1,0 +1,69 @@
+name: Bug report
+description: Report a defect in any of the configs, scripts, or reusable workflows.
+labels: [bug, triage]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Composer scripts (CollectScopingStubs, ScopePhpDependencies)
+        - php-scoper base config (scoper-base, contrib/*)
+        - PHPCS ruleset (phpcs.dist.xml)
+        - PHPStan config (phpstan.dist.neon)
+        - Reusable GitHub Actions workflow
+        - Node config (eslint / stylelint / playwright / tsconfig)
+        - Other / unsure
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: wordpress-configs commit / SHA
+      placeholder: 'trunk@<sha> or "latest"'
+    validations:
+      required: true
+
+  - type: input
+    id: php-version
+    attributes:
+      label: PHP version (if relevant)
+      placeholder: '8.5.0'
+
+  - type: input
+    id: composer-version
+    attributes:
+      label: Composer version (if relevant)
+      placeholder: '2.7.x'
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Add wordpress-configs to require-dev as `dev-trunk`
+        2. Run `composer install` / use the reusable workflow X
+        3. Observe Z
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / stack traces / workflow run URL
+      render: text

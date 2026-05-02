@@ -34,6 +34,7 @@
   "require-dev": {
     "composer/composer": "^2",
     "humbug/php-scoper": "^0.18",
+    "infection/infection": "^0.32",
     "phpunit/phpunit": "^13"
   },
 
@@ -56,6 +57,11 @@
 
     "test": "@php vendor/bin/phpunit",
     "test:unit": "@php vendor/bin/phpunit --testsuite=Unit",
+    "test:mutation": "@php vendor/bin/infection --threads=max",
+    "test:all": [
+      "@test",
+      "@test:mutation"
+    ],
 
     "packages-install": "@composer install --ignore-platform-reqs --no-interaction",
     "packages-update": [
@@ -67,6 +73,7 @@
     "allow-plugins": {
       "composer/*": true,
       "dealerdirect/phpcodesniffer-composer-installer": true,
+      "infection/extension-installer": true,
       "phpstan/extension-installer": true
     }
   }

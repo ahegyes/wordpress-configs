@@ -43,6 +43,34 @@ final class ScopePhpDependenciesTest extends TestCase {
 	}
 
 	#[Test]
+	public function pre_autoload_dump_omits_dev_entries_in_non_dev_mode(): void {
+		// Catches Coalesce + UnwrapArrayMerge on the autoload-dev fallback. In non-dev
+		// mode, autoload-dev entries should NOT be created.
+		$this->writeComposerJson( array(
+			'autoload'     => array( 'files' => array( 'src/prod.php' ) ),
+			'autoload-dev' => array( 'files' => array( 'tests/dev-only.php' ) ),
+		) );
+
+		ScopePhpDependencies::preAutoloadDump( $this->event( devMode: false ) );
+
+		self::assertFileExists( $this->project_dir . '/src/prod.php' );
+		self::assertFileDoesNotExist( $this->project_dir . '/tests/dev-only.php' );
+	}
+
+	#[Test]
+	public function pre_autoload_dump_handles_composer_json_without_autoload_dev_section(): void {
+		// Catches Coalesce on `$composer_config['autoload-dev']['files'] ?? array()`.
+		// Without the coalesce, accessing the missing key would throw.
+		$this->writeComposerJson( array(
+			'autoload' => array( 'files' => array( 'src/only-prod.php' ) ),
+		) );
+
+		ScopePhpDependencies::preAutoloadDump( $this->event( devMode: true ) );
+
+		self::assertFileExists( $this->project_dir . '/src/only-prod.php' );
+	}
+
+	#[Test]
 	public function pre_autoload_dump_creates_missing_classmap_directories(): void {
 		$this->writeComposerJson( array(
 			'autoload' => array( 'classmap' => array( 'src/Components', 'lib/Helpers' ) ),

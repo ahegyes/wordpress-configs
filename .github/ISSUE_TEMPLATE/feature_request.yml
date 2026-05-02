@@ -1,0 +1,52 @@
+name: Feature request
+description: Propose a new capability for wordpress-configs.
+labels: [enhancement, triage]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Target area
+      options:
+        - Composer scripts (CollectScopingStubs, ScopePhpDependencies)
+        - php-scoper base config (scoper-base, contrib/*)
+        - PHPCS ruleset
+        - PHPStan config
+        - New reusable GitHub Actions workflow
+        - Existing reusable workflow (new input/option)
+        - Node config (eslint / stylelint / playwright / tsconfig)
+        - New area / unsure
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is the consumer-facing problem this would solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How would you imagine this looking? Code or YAML samples welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches did you weigh? Why this one?
+
+  - type: dropdown
+    id: breaking
+    attributes:
+      label: Breaking change for existing consumers?
+      options:
+        - 'No (additive)'
+        - 'Yes (existing consumers need to update)'
+        - 'Unsure'
+    validations:
+      required: true

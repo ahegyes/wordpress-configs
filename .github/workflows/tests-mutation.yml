@@ -1,0 +1,36 @@
+name: Mutation Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly on Mondays at 06:00 UTC. Catches test-suite quality regression
+    # without gating every PR (mutation runs are slow).
+    - cron: '0 6 * * 1'
+
+jobs:
+  infection:
+    name: Run Infection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: pcov
+          tools: composer:v2
+
+      - name: Install Composer dependencies
+        uses: ramsey/composer-install@v4
+
+      - name: Run Infection
+        run: composer test:mutation
+
+      - name: Upload Infection logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: infection-logs
+          path: build/infection/
