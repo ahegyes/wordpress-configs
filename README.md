@@ -262,7 +262,7 @@ Create a `tsconfig.json` in your project:
 
 #### ESLint
 
-`node/eslint.config.base.js` — legacy `.eslintrc` shareable config wrapping `plugin:@wordpress/eslint-plugin/recommended` plus DWS defaults. Legacy format used because `@wordpress/eslint-plugin` v22 + `@wordpress/scripts` consume `.eslintrc` natively; will revisit when @wordpress/eslint-plugin ships flat config.
+`node/eslint.config.base.js` — `.eslintrc` shareable config wrapping `plugin:@wordpress/eslint-plugin/recommended` plus DWS defaults. The `.eslintrc` format is what `@wordpress/eslint-plugin` and `@wordpress/scripts` consume.
 
 Create an `.eslintrc.js` in your project:
 

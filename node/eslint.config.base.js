@@ -1,10 +1,8 @@
 /**
  * Shared ESLint base config for DWS WordPress plugins.
  *
- * Uses the legacy `.eslintrc` shareable-config format because that's what
- * `@wordpress/eslint-plugin` (v22) ships and what `@wordpress/scripts` consumes.
- * Migrating to ESLint flat config will be revisited when @wordpress/eslint-plugin
- * ships native flat-config exports.
+ * Uses the `.eslintrc` shareable-config format consumed by
+ * `@wordpress/eslint-plugin` and `@wordpress/scripts`.
  *
  * Plugins extend this in their own `.eslintrc.js`:
  *
