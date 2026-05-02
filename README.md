@@ -262,19 +262,21 @@ Create a `tsconfig.json` in your project:
 
 #### ESLint
 
-`node/eslint.config.base.js` — `.eslintrc` shareable config wrapping `plugin:@wordpress/eslint-plugin/recommended` plus DWS defaults. The `.eslintrc` format is what `@wordpress/eslint-plugin` and `@wordpress/scripts` consume.
+`node/eslint.config.base.mjs` — flat-config wrapping `@wordpress/eslint-plugin`'s recommended preset plus DWS defaults. Requires `@wordpress/eslint-plugin` v25+ and ESLint v9+.
 
-Create an `.eslintrc.js` in your project:
+Create an `eslint.config.mjs` in your project:
 
 ```js
-module.exports = {
-    extends: [
-        require.resolve('@ahegyes/wordpress-configs/node/eslint.config.base.js'),
-    ],
-    rules: {
-        // Plugin-specific overrides go here.
+import dwsBase from '@ahegyes/wordpress-configs/node/eslint.config.base.mjs';
+
+export default [
+    ...dwsBase,
+    {
+        rules: {
+            // Plugin-specific overrides go here.
+        },
     },
-};
+];
 ```
 
 #### Stylelint
