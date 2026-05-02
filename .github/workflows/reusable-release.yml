@@ -32,7 +32,7 @@ jobs:
     outputs:
       artifact-name: ${{ steps.archive.outputs.artifact-name }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -42,14 +42,14 @@ jobs:
           tools: composer:v2, wp-cli
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: 'lts/*'
           cache: 'npm'
           cache-dependency-path: ${{ inputs.plugin-path }}/package-lock.json
 
       - name: Install Composer dependencies (production only)
-        uses: ramsey/composer-install@v3
+        uses: ramsey/composer-install@v4
         with:
           working-directory: ${{ inputs.plugin-path }}
           composer-options: '--prefer-dist --no-dev'
@@ -70,7 +70,7 @@ jobs:
           echo "artifact-name=${{ inputs.plugin-slug }}.zip" >> "$GITHUB_OUTPUT"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.plugin-slug }}-zip
           path: ${{ inputs.plugin-path }}/${{ inputs.plugin-slug }}.zip
@@ -81,10 +81,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Download built artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.plugin-slug }}-zip
           path: ./dist
@@ -97,7 +97,7 @@ jobs:
           tools: composer:v2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: 'lts/*'
 
@@ -125,12 +125,12 @@ jobs:
     needs: [build, test-built-artifact]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           path: source
 
       - name: Download built artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.plugin-slug }}-zip
           path: ./dist
@@ -152,6 +152,6 @@ jobs:
           BUILD_DIR: ./deploy/${{ inputs.plugin-slug }}
 
       - name: Attach artifact to GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: ./dist/${{ inputs.plugin-slug }}.zip
