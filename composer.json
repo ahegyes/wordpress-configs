@@ -54,6 +54,11 @@
 
   "scripts": {
     "generate-autoloader": "@composer dump-autoload --ignore-platform-reqs -o",
+    "packages-install": "@composer install --ignore-platform-reqs --no-interaction",
+    "packages-update": [
+      "@composer clear-cache",
+      "@composer update --prefer-stable --ignore-platform-reqs --no-interaction"
+    ],
 
     "test": "@php vendor/bin/phpunit",
     "test:unit": "@php vendor/bin/phpunit --testsuite=Unit",
@@ -61,12 +66,6 @@
     "test:all": [
       "@test",
       "@test:mutation"
-    ],
-
-    "packages-install": "@composer install --ignore-platform-reqs --no-interaction",
-    "packages-update": [
-      "@composer clear-cache",
-      "@composer update --prefer-stable --ignore-platform-reqs --no-interaction"
     ]
   },
   "config": {
