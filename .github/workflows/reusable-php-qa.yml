@@ -17,12 +17,12 @@ on:
         description: 'Path to PHPCS ruleset file (relative to plugin-path)'
         type: string
         required: false
-        default: './phpcs.xml'
+        default: './phpcs.dist.xml'
       phpstan-config:
         description: 'Path to PHPStan config file (relative to plugin-path)'
         type: string
         required: false
-        default: './phpstan.neon'
+        default: './phpstan.dist.neon'
 
 jobs:
   phpcs:
