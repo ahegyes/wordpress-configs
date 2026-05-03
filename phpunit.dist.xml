@@ -8,7 +8,7 @@
          displayDetailsOnTestsThatTriggerDeprecations="true"
          failOnWarning="true"
          failOnNotice="true"
-         cacheDirectory=".phpunit.cache">
+         cacheDirectory="tests/.cache/phpunit">
     <testsuites>
         <testsuite name="Unit">
             <directory>tests/Unit</directory>
