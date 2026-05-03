@@ -1,14 +1,11 @@
 <?php declare( strict_types = 1 );
 
-use Isolated\Symfony\Component\Finder\Finder;
+use Symfony\Component\Finder\Finder;
 
 /**
- * Catalog-agnostic php-scoper base config. Returns a closure that reads
- * `scoping-exclusions.json` (written by CollectScopingStubs) from the project
- * root and builds the full php-scoper config, merging plugin overrides on top.
- *
- * `Psr\*` is always excluded — scoping it would give each package its own
- * incompatible copy of the standard interfaces, breaking cross-package interop.
+ * php-scoper base config. Reads `scoping-exclusions.json` (written by
+ * CollectScopingStubs) and merges plugin overrides on top. `Psr\*` always
+ * excluded — scoping it would break cross-package interop on shared interfaces.
  *
  * @param array{
  *     project_dir?: string,
