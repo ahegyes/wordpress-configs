@@ -1,8 +1,9 @@
 <?php declare( strict_types=1 );
 
 $config = array();
-$workingDirectory = getcwd();
-$maybePluginFile = basename( $workingDirectory );
+
+$workingDirectory = getcwd() ?: throw new \RuntimeException( 'getcwd() failed — current working directory is unreadable or does not exist.' );
+$maybePluginFile  = basename( $workingDirectory );
 
 foreach ( array( 'src', 'includes', 'models', 'blocks', 'templates' ) as $analyzeDirectory ) {
 	if ( is_dir( $workingDirectory . '/' . $analyzeDirectory ) ) {
@@ -22,10 +23,11 @@ if ( is_file( "$workingDirectory/$maybePluginFile.php" ) ) {
 	$config['parameters']['WPCompat']['requiresAtLeast'] = '7.0';
 }
 
-$vendorDir = 'vendor';
+$vendorDir    = 'vendor';
 $composerJson = "$workingDirectory/composer.json";
 if ( is_file( $composerJson ) ) {
-	$composerData = json_decode( (string) file_get_contents( $composerJson ), true );
+	$contents     = file_get_contents( $composerJson ) ?: throw new \RuntimeException( sprintf( 'Could not read %s', $composerJson ) );
+	$composerData = json_decode( $contents, true, flags: JSON_THROW_ON_ERROR );
 	if ( is_array( $composerData ) && isset( $composerData['config']['vendor-dir'] ) && is_string( $composerData['config']['vendor-dir'] ) ) {
 		$vendorDir = $composerData['config']['vendor-dir'];
 	}

@@ -14,12 +14,12 @@
  */
 
 module.exports = {
-    extends: ['@wordpress/stylelint-config/scss'],
-    ignoreFiles: [
-        'assets/**',
-        'build/**',
-        'vendor/**',
-        'node_modules/**',
-        '**/*.min.css',
-    ],
+	extends: ['@wordpress/stylelint-config/scss'],
+	ignoreFiles: [
+		'assets/**',
+		'build/**',
+		'vendor/**',
+		'node_modules/**',
+		'**/*.min.css',
+	],
 };

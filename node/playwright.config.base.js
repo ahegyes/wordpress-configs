@@ -22,6 +22,6 @@
 const wpBaseConfig = require('@wordpress/scripts/config/playwright.config.js');
 
 module.exports = {
-    ...wpBaseConfig,
-    testDir: 'tests/e2e',
+	...wpBaseConfig,
+	testDir: 'tests/e2e',
 };

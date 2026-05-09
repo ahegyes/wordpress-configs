@@ -25,6 +25,12 @@ on:
         description: 'wp.org SVN password'
         required: true
 
+# Serialize releases per plugin slug — two concurrent runs would race for the same SVN tag/trunk.
+# Different plugin slugs can release in parallel. Don't cancel mid-deploy: a half-pushed SVN tag is worse than queueing.
+concurrency:
+  group: release-${{ inputs.plugin-slug }}
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build artifact
@@ -48,7 +54,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: ${{ inputs.plugin-path }}/package-lock.json
 
-      - name: Install Composer dependencies (production only)
+      - name: Install Composer dependencies
         uses: ramsey/composer-install@v4
         with:
           working-directory: ${{ inputs.plugin-path }}
@@ -62,7 +68,7 @@ jobs:
         working-directory: ${{ inputs.plugin-path }}
         run: npm run build
 
-      - name: Create plugin archive (.distignore-aware)
+      - name: Create plugin archive
         id: archive
         working-directory: ${{ inputs.plugin-path }}
         run: |
@@ -76,10 +82,13 @@ jobs:
           path: ${{ inputs.plugin-path }}/${{ inputs.plugin-slug }}.zip
           retention-days: 30
 
-  test-built-artifact:
-    name: Test built artifact
+  test-and-deploy:
+    name: Test built artifact + deploy
     needs: build
     runs-on: ubuntu-latest
+    # Source provides the E2E runner (tests/, playwright.config, .wp-env.json, package.json) and wp.org assets (.wordpress-org/).
+    # The built zip is the system under test — wp-env is redirected via .wp-env.override.json to mount it instead of source.
+    # Deploy reuses the same extracted tree (./built/<slug>/) — what gets tested is what gets pushed to SVN.
     steps:
       - uses: actions/checkout@v6
 
@@ -88,6 +97,9 @@ jobs:
         with:
           name: ${{ inputs.plugin-slug }}-zip
           path: ./dist
+
+      - name: Extract artifact
+        run: unzip -q "./dist/${{ inputs.plugin-slug }}.zip" -d ./built
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -100,48 +112,46 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 'lts/*'
+          cache: 'npm'
+          cache-dependency-path: ${{ inputs.plugin-path }}/package-lock.json
 
-      - name: Extract artifact into wp-env mapping
+      - name: Install npm dependencies (E2E runner)
+        working-directory: ${{ inputs.plugin-path }}
+        run: npm ci
+
+      - name: Redirect wp-env at built artifact (preserves co-mounted plugins)
+        working-directory: ${{ inputs.plugin-path }}
+        env:
+          BUILT_PATH: ${{ github.workspace }}/built/${{ inputs.plugin-slug }}
         run: |
-          mkdir -p .built-plugin
-          unzip -q "./dist/${{ inputs.plugin-slug }}.zip" -d .built-plugin
+          # Override replaces plugins[] wholesale, so we rebuild it:
+          # drop source's self-mount entries (./ or .), append the built path.
+          if [ -f .wp-env.json ]; then
+            jq --arg built "$BUILT_PATH" \
+              '{plugins: ((.plugins // []) | map(select(. != "./" and . != ".")) + [$built])}' \
+              .wp-env.json > .wp-env.override.json
+          else
+            jq -n --arg built "$BUILT_PATH" '{plugins: [$built]}' > .wp-env.override.json
+          fi
+          echo "Generated .wp-env.override.json:"
+          cat .wp-env.override.json
 
-      - name: Start wp-env against the built artifact
-        working-directory: .built-plugin/${{ inputs.plugin-slug }}
+      - name: Start wp-env
+        working-directory: ${{ inputs.plugin-path }}
         run: npx --yes @wordpress/env start
 
       - name: Run E2E tests against built artifact
-        working-directory: .built-plugin/${{ inputs.plugin-slug }}
+        working-directory: ${{ inputs.plugin-path }}
         run: |
           if [ -f playwright.config.js ] || [ -f playwright.config.ts ]; then
             npx playwright install --with-deps chromium
             npx playwright test
           else
-            echo "No Playwright config in shipped artifact — skipping."
+            echo "Source has no E2E config — wp-env smoke test (above) is the only artifact test."
           fi
 
-  deploy:
-    name: Deploy to wp.org
-    needs: [build, test-built-artifact]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          path: source
-
-      - name: Download built artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ inputs.plugin-slug }}-zip
-          path: ./dist
-
-      - name: Extract artifact for deploy
-        run: |
-          mkdir -p ./deploy
-          unzip -q "./dist/${{ inputs.plugin-slug }}.zip" -d ./deploy
-
       - name: Deploy to wp.org
-        uses: 10up/action-wordpress-plugin-deploy@stable
+        uses: 10up/action-wordpress-plugin-deploy@54bd289b8525fd23a5c365ec369185f2966529c2 # 2.3.0
         with:
           generate-zip: false
           dry-run: false
@@ -149,9 +159,11 @@ jobs:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
           SLUG: ${{ inputs.plugin-slug }}
-          BUILD_DIR: ./deploy/${{ inputs.plugin-slug }}
+          BUILD_DIR: ./built/${{ inputs.plugin-slug }}
+          # Banner/icon assets from source's .wordpress-org/ — 10up's deploy.sh skips silently if the directory is missing.
+          ASSETS_DIR: ${{ inputs.plugin-path }}/.wordpress-org
 
       - name: Attach artifact to GitHub release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           files: ./dist/${{ inputs.plugin-slug }}.zip

@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../vendor/squizlabs/php_codesniffer/phpcs.xsd">
+<ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../vendor/squizlabs/php_codesniffer/phpcs.xsd">
 	<!-- What NOT to scan. -->
 	<exclude-pattern>*/bin/*</exclude-pattern>
 	<exclude-pattern>*/tests/*</exclude-pattern>
@@ -15,32 +15,16 @@
 	<arg name="parallel" value="8"/> <!-- Enables parallel processing when available for faster results. -->
 	<arg name="extensions" value="php"/> <!-- Only scan PHP files. -->
 
-	<!-- Run against the PHPCompatibilityWP ruleset and check for cross-version PHP support. -->
+	<!-- Applied rulesets. -->
 	<rule ref="PHPCompatibilityWP"/>
 	<config name="testVersion" value="8.5-"/>
 
-	<!-- Run against the WordPress-Extra ruleset and check for the minimum supported WP version. -->
 	<rule ref="WordPress-Extra">
 		<exclude name="WordPress.Files.FileName.NotHyphenatedLowercase" />
 		<exclude name="WordPress.Files.FileName.InvalidClassFileName" />
 	</rule>
 	<config name="minimum_wp_version" value="7.0"/>
 
-	<!-- Allow additional word delimiters for hook names. -->
-	<rule ref="WordPress.NamingConventions.ValidHookName">
-		<properties>
-			<property name="additionalWordDelimiters" value="/"/>
-		</properties>
-	</rule>
-
-	<!-- Disallow blank lines at start/end of for/foreach/if blocks. -->
-	<rule ref="WordPress.WhiteSpace.ControlStructureSpacing">
-		<properties>
-			<property name="blank_line_check" value="true"/>
-		</properties>
-	</rule>
-
-	<!-- Run against the WordPress-Docs ruleset and check for documentation standards. -->
 	<rule ref="WordPress-Docs">
 		<!-- Ignore missing file comment. -->
 		<exclude name="Squiz.Commenting.FileComment.Missing"/>
@@ -50,15 +34,41 @@
 		<exclude-pattern>*/patterns/*</exclude-pattern>
 	</rule>
 
-	<!-- Ignore missing tags if @inheritDoc is present. -->
+	<!-- Sub-rule property customisations. -->
+	<rule ref="WordPress.NamingConventions.ValidHookName">
+		<!-- Allow additional word delimiters for hook names. -->
+		<properties>
+			<property name="additionalWordDelimiters" value="/"/>
+		</properties>
+	</rule>
+
+	<rule ref="WordPress.WhiteSpace.ControlStructureSpacing">
+		<!-- Disallow blank lines at start/end of for/foreach/if blocks. -->
+		<properties>
+			<property name="blank_line_check" value="true"/>
+		</properties>
+	</rule>
+
 	<rule ref="Squiz.Commenting.FunctionComment">
+		<!-- Ignore missing tags if @inheritDoc is present. -->
 		<properties>
 			<property name="skipIfInheritdoc" value="true" />
 		</properties>
 	</rule>
 
-	<!-- Inline `<?php declare( strict_types=1 );` allowed even with file docblock. -->
+	<!-- Disabled rules. -->
 	<rule ref="PSR12.Files.FileHeader.IncorrectOrder">
+		<!-- Inline `<?php declare( strict_types=1 );` allowed even with file docblock. -->
+		<severity>0</severity>
+	</rule>
+
+	<rule ref="Universal.Operators.DisallowShortTernary">
+		<!-- Short ternary `?:` allowed workspace-wide. -->
+		<severity>0</severity>
+	</rule>
+
+	<rule ref="Squiz.Commenting.FunctionCommentThrowTag.WrongNumber">
+		<!-- Squiz miscounts @throws against implicit throws (e.g. `JSON_THROW_ON_ERROR`). -->
 		<severity>0</severity>
 	</rule>
 </ruleset>

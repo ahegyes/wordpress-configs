@@ -18,15 +18,15 @@ final class ScopePhpDependenciesTest extends TestCase {
 	private string $vendor_dir;
 
 	protected function setUp(): void {
-		$this->project_dir = sys_get_temp_dir() . '/dws-wp-configs-scope-' . uniqid();
+		$this->project_dir = \sys_get_temp_dir() . '/dws-wp-configs-scope-' . \uniqid();
 		$this->vendor_dir  = $this->project_dir . '/vendor';
-		mkdir( $this->vendor_dir, 0755, true );
+		\mkdir( $this->vendor_dir, 0755, true );
 
-		putenv( 'COMPOSER=' . $this->project_dir . '/composer.json' );
+		\putenv( 'COMPOSER=' . $this->project_dir . '/composer.json' );
 	}
 
 	protected function tearDown(): void {
-		putenv( 'COMPOSER' );
+		\putenv( 'COMPOSER' );
 		$this->rrmdir( $this->project_dir );
 	}
 
@@ -84,8 +84,8 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 	#[Test]
 	public function pre_autoload_dump_is_idempotent_for_existing_paths(): void {
-		mkdir( $this->project_dir . '/src', 0755, true );
-		file_put_contents( $this->project_dir . '/src/existing.php', "<?php\n// keep this content\n" );
+		\mkdir( $this->project_dir . '/src', 0755, true );
+		\file_put_contents( $this->project_dir . '/src/existing.php', "<?php\n// keep this content\n" );
 
 		$this->writeComposerJson( array(
 			'autoload' => array( 'files' => array( 'src/existing.php' ) ),
@@ -93,7 +93,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 		ScopePhpDependencies::preAutoloadDump( $this->event() );
 
-		self::assertSame( "<?php\n// keep this content\n", file_get_contents( $this->project_dir . '/src/existing.php' ) );
+		self::assertSame( "<?php\n// keep this content\n", \file_get_contents( $this->project_dir . '/src/existing.php' ) );
 	}
 
 	#[Test]
@@ -127,10 +127,13 @@ final class ScopePhpDependenciesTest extends TestCase {
 		self::assertStringContainsString( 'PHP scoper is not installed', $io->getOutput() );
 	}
 
+	/**
+	 * @param array<string, mixed> $contents
+	 */
 	private function writeComposerJson( array $contents ): void {
-		file_put_contents(
+		\file_put_contents(
 			$this->project_dir . '/composer.json',
-			json_encode( $contents, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT )
+			\json_encode( $contents, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT )
 		);
 	}
 
@@ -144,16 +147,16 @@ final class ScopePhpDependenciesTest extends TestCase {
 	}
 
 	private function rrmdir( string $dir ): void {
-		if ( ! is_dir( $dir ) ) {
+		if ( ! \is_dir( $dir ) ) {
 			return;
 		}
-		foreach ( scandir( $dir ) as $entry ) {
+		foreach ( \scandir( $dir ) as $entry ) {
 			if ( '.' === $entry || '..' === $entry ) {
 				continue;
 			}
 			$path = $dir . '/' . $entry;
-			is_dir( $path ) ? $this->rrmdir( $path ) : unlink( $path );
+			\is_dir( $path ) ? $this->rrmdir( $path ) : \unlink( $path );
 		}
-		rmdir( $dir );
+		\rmdir( $dir );
 	}
 }

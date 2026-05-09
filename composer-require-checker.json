@@ -1,0 +1,15 @@
+{
+    "symbol-whitelist": [
+        "Composer\\Factory",
+        "Composer\\Script\\Event",
+        "Symfony\\Component\\Finder\\Finder"
+    ],
+    "php-core-extensions": [
+        "Core",
+        "date",
+        "json",
+        "pcre",
+        "SPL",
+        "standard"
+    ]
+}

@@ -3,7 +3,7 @@
 use Symfony\Component\Finder\Finder;
 
 /**
- * php-scoper partial for PHP-DI 7 + transitive deps (laravel/serializable-closure).
+ * Scoping partial for PHP-DI 7 + transitive deps (laravel/serializable-closure).
  *
  * `php-di/php-di/src/Compiler/Template.php` is excluded — it's a raw PHP template
  * (no open tag, embedded short-form tags) rendered at runtime; injecting a

@@ -24,48 +24,42 @@ class ScopePhpDependencies {
 	 * This method is meant to ensure that any such files exist before the autoloader is executed to prevent
 	 * 'file-not-found' fatal errors.
 	 *
-	 * @param   Event   $event  Composer event object.
+	 * @param   Event $event  Composer event object.
 	 *
 	 * @throws  \JsonException      If the composer.json file cannot be parsed.
-	 * @throws  \RuntimeException   If the file or directory cannot be created.
+	 * @throws  \RuntimeException   If composer.json cannot be read, or a file or directory cannot be created.
 	 *
 	 * @return  void
 	 */
 	public static function preAutoloadDump( Event $event ): void {
 		$console_io    = $event->getIO();
 		$composer_file = \Composer\Factory::getComposerFile();
-		$project_dir   = dirname( $composer_file );
+		$project_dir   = \dirname( $composer_file );
 
 		$console_io->write( 'Making sure autoloaded files exist...' );
 
-		$composer_config = file_get_contents( $composer_file );
-		$composer_config = json_decode( $composer_config, true, 512, JSON_THROW_ON_ERROR );
+		$composer_contents = \file_get_contents( $composer_file ) ?: throw new \RuntimeException( \sprintf( 'Could not read composer.json at %s', $composer_file ) );
+		$composer_config   = \json_decode( $composer_contents, true, flags: JSON_THROW_ON_ERROR );
 
 		$autoloaded_files       = $composer_config['autoload']['files'] ?? array();
 		$autoloaded_directories = $composer_config['autoload']['classmap'] ?? array();
 		if ( $event->isDevMode() ) {
-			$autoloaded_files       = array_merge( $autoloaded_files, $composer_config['autoload-dev']['files'] ?? array() );
-			$autoloaded_directories = array_merge( $autoloaded_directories, $composer_config['autoload-dev']['classmap'] ?? array() );
+			$autoloaded_files       = \array_merge( $autoloaded_files, $composer_config['autoload-dev']['files'] ?? array() );
+			$autoloaded_directories = \array_merge( $autoloaded_directories, $composer_config['autoload-dev']['classmap'] ?? array() );
 		}
 
 		foreach ( $autoloaded_files as $file ) {
 			$file = $project_dir . DIRECTORY_SEPARATOR . $file;
-			if ( ! file_exists( $file ) ) {
-				$file_directory = dirname( $file );
-				if ( ! is_dir( $file_directory ) && ! mkdir( $file_directory, 0755, true ) && ! is_dir( $file_directory ) ) {
-					throw new \RuntimeException( sprintf( 'Directory "%s" was not created', $file_directory ) );
-				}
-				if ( ! touch( $file ) ) {
-					throw new \RuntimeException( sprintf( 'File "%s" was not created', $file ) );
-				}
+			if ( ! \file_exists( $file ) ) {
+				$file_directory = \dirname( $file );
+				\is_dir( $file_directory ) || \mkdir( $file_directory, 0755, true ) || \is_dir( $file_directory ) || throw new \RuntimeException( \sprintf( 'Directory "%s" was not created', $file_directory ) );
+				\touch( $file ) || throw new \RuntimeException( \sprintf( 'File "%s" was not created', $file ) );
 			}
 		}
 
 		foreach ( $autoloaded_directories as $directory ) {
 			$directory = $project_dir . DIRECTORY_SEPARATOR . $directory;
-			if ( ! is_dir( $directory ) && ! mkdir( $directory, 0755, true ) && ! is_dir( $directory ) ) {
-				throw new \RuntimeException( sprintf( 'Directory "%s" was not created', $directory ) );
-			}
+			\is_dir( $directory ) || \mkdir( $directory, 0755, true ) || \is_dir( $directory ) || throw new \RuntimeException( \sprintf( 'Directory "%s" was not created', $directory ) );
 		}
 	}
 
@@ -73,7 +67,7 @@ class ScopePhpDependencies {
 	 * The PHP scoper and the to-be-scoped packages only exist in the development environment so this method acts
 	 * as a wrapper to scope the dependencies only when needed, and always after the packages have been installed or updated.
 	 *
-	 * @param   Event   $event  Composer event object.
+	 * @param   Event $event  Composer event object.
 	 *
 	 * @return  void
 	 */
@@ -85,7 +79,7 @@ class ScopePhpDependencies {
 			$console_io->warning( 'Not scoping dependencies because this is not a development environment.' );
 			return;
 		}
-		if ( ! is_file( $vendor_dir . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'php-scoper' ) ) {
+		if ( ! \is_file( $vendor_dir . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'php-scoper' ) ) {
 			$console_io->write( 'Not scoping dependencies because the PHP scoper is not installed.' );
 			return;
 		}

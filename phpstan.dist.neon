@@ -1,0 +1,10 @@
+includes:
+    - php/quality-assurance/phpstan.dist.neon
+
+parameters:
+    paths:
+        - php
+        - tests
+    excludePaths:
+        # Test fixtures are intentionally minimal stub files (no return types) for testing the stubs collector.
+        - tests/fixtures/*

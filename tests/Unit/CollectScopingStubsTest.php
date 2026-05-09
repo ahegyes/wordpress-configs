@@ -4,6 +4,7 @@ namespace DeepWebSolutions\Config\Tests\Unit;
 
 use Composer\Composer;
 use Composer\Config;
+use Composer\IO\BufferIO;
 use Composer\IO\NullIO;
 use Composer\Script\Event;
 use DeepWebSolutions\Config\Composer\CollectScopingStubs;
@@ -29,19 +30,19 @@ final class CollectScopingStubsTest extends TestCase {
 		// `CI` is set by GitHub Actions; without this, tests that need the script to run would
 		// hit the CI-skip branch.
 		foreach ( self::ENV_VARS as $var ) {
-			putenv( $var );
+			\putenv( $var );
 		}
 
-		$this->project_dir = sys_get_temp_dir() . '/dws-wp-configs-test-' . uniqid();
+		$this->project_dir = \sys_get_temp_dir() . '/dws-wp-configs-test-' . \uniqid();
 		$this->vendor_dir  = $this->project_dir . '/vendor';
-		mkdir( $this->vendor_dir, 0755, true );
+		\mkdir( $this->vendor_dir, 0755, true );
 
-		putenv( 'COMPOSER=' . $this->project_dir . '/composer.json' );
+		\putenv( 'COMPOSER=' . $this->project_dir . '/composer.json' );
 	}
 
 	protected function tearDown(): void {
 		foreach ( self::ENV_VARS as $var ) {
-			putenv( $var );
+			\putenv( $var );
 		}
 		$this->rrmdir( $this->project_dir );
 	}
@@ -53,7 +54,7 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event() );
 
 		self::assertSame(
-			array( 'classes' => array(), 'functions' => array() ),
+			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
 			$this->loadOutput( 'scoping-exclusions.json' )
 		);
 	}
@@ -116,7 +117,7 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event() );
 
 		$result    = $this->loadOutput( 'scoping-exclusions.json' );
-		$add_count = count( array_keys( $result['functions'], 'add_action', true ) );
+		$add_count = \count( \array_keys( $result['functions'], 'add_action', true ) );
 		self::assertSame( 1, $add_count );
 	}
 
@@ -128,7 +129,7 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event() );
 
 		self::assertSame(
-			array( 'classes' => array(), 'functions' => array() ),
+			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
 			$this->loadOutput( 'scoping-exclusions.json' )
 		);
 	}
@@ -164,9 +165,9 @@ final class CollectScopingStubsTest extends TestCase {
 	public function honors_output_dir_and_file_overrides(): void {
 		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
 		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs' ) );
-		mkdir( $this->project_dir . '/build' );
-		putenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR=' . $this->project_dir . '/build' );
-		putenv( 'SCOPING_EXCLUSIONS_OUTPUT_FILE=stubs-dump.json' );
+		\mkdir( $this->project_dir . '/build' );
+		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR=' . $this->project_dir . '/build' );
+		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_FILE=stubs-dump.json' );
 
 		CollectScopingStubs::postAutoloadDump( $this->event() );
 
@@ -176,76 +177,269 @@ final class CollectScopingStubsTest extends TestCase {
 
 	#[Test]
 	public function skips_when_not_in_dev_mode(): void {
+		$io = new BufferIO();
 		$this->writeProjectComposer( array() );
 
-		CollectScopingStubs::postAutoloadDump( $this->event( devMode: false ) );
+		CollectScopingStubs::postAutoloadDump( $this->event( devMode: false, io: $io ) );
 
 		self::assertFileDoesNotExist( $this->project_dir . '/scoping-exclusions.json' );
+		self::assertStringContainsString( 'not being in dev mode', $io->getOutput() );
 	}
 
-	private function event( bool $devMode = true ): Event {
+	#[Test]
+	public function writes_skip_message_when_stubs_file_is_missing(): void {
+		$io = new BufferIO();
+		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+
+		self::assertStringContainsString( 'Skipping declared stubs package', $io->getOutput() );
+		self::assertStringContainsString( 'file not found', $io->getOutput() );
+	}
+
+	#[Test]
+	public function output_arrays_are_list_shaped(): void {
+		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
+		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertSame( \array_values( $result['classes'] ), $result['classes'] );
+		self::assertSame( \array_values( $result['functions'] ), $result['functions'] );
+	}
+
+	#[Test]
+	public function output_json_is_pretty_printed(): void {
+		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
+		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$contents = \file_get_contents( $this->project_dir . '/scoping-exclusions.json' ) ?: self::fail( 'output unreadable' );
+		self::assertStringContainsString( "\n    ", $contents );
+	}
+
+	#[Test]
+	public function works_when_vendor_dir_does_not_exist(): void {
+		$this->rrmdir( $this->vendor_dir );
+		$this->writeProjectComposer( array() );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		self::assertFileExists( $this->project_dir . '/scoping-exclusions.json' );
+	}
+
+	#[Test]
+	public function throws_when_output_directory_is_not_writable(): void {
+		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
+		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs' ) );
+
+		$readonly_dir = $this->project_dir . '/readonly';
+		\mkdir( $readonly_dir );
+		\chmod( $readonly_dir, 0500 );
+		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR=' . $readonly_dir );
+
+		// Suppress the PHP Warning that file_put_contents emits before returning false on permission denied.
+		\set_error_handler( static fn (): bool => true );
+		try {
+			$this->expectException( \RuntimeException::class );
+			CollectScopingStubs::postAutoloadDump( $this->event() );
+		} finally {
+			\restore_error_handler();
+			\chmod( $readonly_dir, 0700 );
+		}
+	}
+
+	#[Test]
+	public function dumps_const_declarations_from_a_package(): void {
+		$this->installStubsPackage( 'php-stubs/constants-stubs', self::FIXTURES_DIR . '/stubs-constants.php' );
+		$this->writeProjectComposer( array( 'php-stubs/constants-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'TOP_CONST_A', $result['constants'] );
+		self::assertContains( 'TOP_CONST_B', $result['constants'] );
+	}
+
+	#[Test]
+	public function dumps_namespaced_classes_with_distinct_fqcn_per_namespace(): void {
+		$this->installStubsPackage( 'php-stubs/namespaced-stubs', self::FIXTURES_DIR . '/stubs-namespaced.php' );
+		$this->writeProjectComposer( array( 'php-stubs/namespaced-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'A\\Foo', $result['classes'] );
+		self::assertContains( 'B\\Foo', $result['classes'] );
+	}
+
+	#[Test]
+	public function dumps_interface_declarations_with_fqcn(): void {
+		$this->installStubsPackage( 'php-stubs/namespaced-stubs', self::FIXTURES_DIR . '/stubs-namespaced.php' );
+		$this->writeProjectComposer( array( 'php-stubs/namespaced-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'A\\FooInterface', $result['classes'] );
+	}
+
+	#[Test]
+	public function dumps_trait_declarations_with_fqcn(): void {
+		$this->installStubsPackage( 'php-stubs/namespaced-stubs', self::FIXTURES_DIR . '/stubs-namespaced.php' );
+		$this->writeProjectComposer( array( 'php-stubs/namespaced-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'A\\FooTrait', $result['classes'] );
+	}
+
+	#[Test]
+	public function dumps_enum_declarations_with_fqcn(): void {
+		$this->installStubsPackage( 'php-stubs/namespaced-stubs', self::FIXTURES_DIR . '/stubs-namespaced.php' );
+		$this->writeProjectComposer( array( 'php-stubs/namespaced-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'A\\FooEnum', $result['classes'] );
+	}
+
+	#[Test]
+	public function dumps_namespaced_functions_with_distinct_fqcn_per_namespace(): void {
+		$this->installStubsPackage( 'php-stubs/namespaced-stubs', self::FIXTURES_DIR . '/stubs-namespaced.php' );
+		$this->writeProjectComposer( array( 'php-stubs/namespaced-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'A\\bar', $result['functions'] );
+		self::assertContains( 'B\\bar', $result['functions'] );
+	}
+
+	#[Test]
+	public function dumps_namespaced_const_declarations_with_distinct_fqcn_per_namespace(): void {
+		$this->installStubsPackage( 'php-stubs/namespaced-stubs', self::FIXTURES_DIR . '/stubs-namespaced.php' );
+		$this->writeProjectComposer( array( 'php-stubs/namespaced-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'A\\BAZ', $result['constants'] );
+		self::assertContains( 'B\\BAZ', $result['constants'] );
+	}
+
+	#[Test]
+	public function does_not_pick_up_non_define_function_calls_as_constants(): void {
+		$this->installStubsPackage( 'php-stubs/constants-stubs', self::FIXTURES_DIR . '/stubs-constants.php' );
+		$this->writeProjectComposer( array( 'php-stubs/constants-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertNotContains( 'NOT_A_CONSTANT', $result['constants'] );
+		self::assertNotContains( 'NEITHER_IS_THIS', $result['constants'] );
+	}
+
+	#[Test]
+	public function dumps_define_calls_from_a_package(): void {
+		$this->installStubsPackage( 'php-stubs/constants-stubs', self::FIXTURES_DIR . '/stubs-constants.php' );
+		$this->writeProjectComposer( array( 'php-stubs/constants-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'DEFINED_CONST_A', $result['constants'] );
+		self::assertContains( 'DEFINED_CONST_B', $result['constants'] );
+	}
+
+	#[Test]
+	public function read_declaration_skips_non_string_entries_at_non_zero_index(): void {
+		// Catches UnwrapArrayValues on read_declaration's return — without array_values(),
+		// a non-string at index 0 would leave the survivor at index 1 (associative array, not list).
+		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
+		$this->writeProjectComposer( array( 123, 'php-stubs/wordpress-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'add_action', $result['functions'] );
+	}
+
+	private function event( bool $devMode = true, ?BufferIO $io = null ): Event {
 		$composer = new Composer();
 		$config   = new Config();
 		$config->merge( array( 'config' => array( 'vendor-dir' => $this->vendor_dir ) ) );
 		$composer->setConfig( $config );
 
-		return new Event( 'post-autoload-dump', $composer, new NullIO(), $devMode );
+		return new Event( 'post-autoload-dump', $composer, $io ?? new NullIO(), $devMode );
 	}
 
+	/**
+	 * @param list<mixed> $scoping_stubs Test fixtures intentionally exercise mixed types to verify filtering.
+	 */
 	private function writeProjectComposer( array $scoping_stubs ): void {
-		file_put_contents(
+		\file_put_contents(
 			$this->project_dir . '/composer.json',
-			json_encode(
+			\json_encode(
 				array( 'extra' => array( 'scoping-stubs' => $scoping_stubs ) ),
 				JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT
 			)
 		);
 	}
 
+	/**
+	 * @param array<string, mixed> $composer_payload
+	 */
 	private function installPackage( string $package_name, array $composer_payload ): void {
 		$package_dir = $this->vendor_dir . '/' . $package_name;
-		mkdir( $package_dir, 0755, true );
-		file_put_contents(
+		\mkdir( $package_dir, 0755, true );
+		\file_put_contents(
 			$package_dir . '/composer.json',
-			json_encode( $composer_payload, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT )
+			\json_encode( $composer_payload, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT )
 		);
 	}
 
 	private function installStubsPackage( string $package_name, string $stubs_source_path ): void {
 		$package_dir = $this->vendor_dir . '/' . $package_name;
-		mkdir( $package_dir, 0755, true );
+		\mkdir( $package_dir, 0755, true );
 
 		// Stubs file lives at vendor/<vendor>/<name>/<name>.php by convention.
-		$basename = explode( '/', $package_name )[1];
-		copy( $stubs_source_path, $package_dir . '/' . $basename . '.php' );
+		$basename = \explode( '/', $package_name )[1];
+		\copy( $stubs_source_path, $package_dir . '/' . $basename . '.php' );
 
 		// Minimal composer.json so the package registers in vendor/.
-		file_put_contents(
+		\file_put_contents(
 			$package_dir . '/composer.json',
-			json_encode( array( 'name' => $package_name ), JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT )
+			\json_encode( array( 'name' => $package_name ), JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT )
 		);
 	}
 
+	/**
+	 * @return array<string, mixed>
+	 */
 	private function loadOutput( string $filename ): array {
-		return json_decode(
-			file_get_contents( $this->project_dir . '/' . $filename ),
-			true,
-			512,
-			JSON_THROW_ON_ERROR
-		);
+		$contents = \file_get_contents( $this->project_dir . '/' . $filename ) ?: throw new \RuntimeException( \sprintf( 'Could not read %s', $filename ) );
+
+		return \json_decode( $contents, true, 512, JSON_THROW_ON_ERROR );
 	}
 
 	private function rrmdir( string $dir ): void {
-		if ( ! is_dir( $dir ) ) {
+		if ( ! \is_dir( $dir ) ) {
 			return;
 		}
-		foreach ( scandir( $dir ) as $entry ) {
+
+		foreach ( \scandir( $dir ) as $entry ) {
 			if ( '.' === $entry || '..' === $entry ) {
 				continue;
 			}
 			$path = $dir . '/' . $entry;
-			is_dir( $path ) ? $this->rrmdir( $path ) : unlink( $path );
+			\is_dir( $path ) ? $this->rrmdir( $path ) : \unlink( $path );
 		}
-		rmdir( $dir );
+
+		\rmdir( $dir );
 	}
 }

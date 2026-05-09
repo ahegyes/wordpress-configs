@@ -3,16 +3,35 @@
     "private": true,
     "description": "Shared baseline configurations for Node-ecosystem tooling used by DWS WordPress plugins.",
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ahegyes/wordpress-configs.git"
+    },
+    "bugs": "https://github.com/ahegyes/wordpress-configs/issues",
+    "engines": {
+        "node": ">=26",
+        "npm": ">=11"
+    },
     "devDependencies": {
-        "@wordpress/e2e-test-utils-playwright": "^1.45",
-        "@wordpress/eslint-plugin": "^25",
-        "@wordpress/scripts": "^32",
-        "@wordpress/stylelint-config": "^23",
-        "typescript": "^6.0"
+        "@wordpress/e2e-test-utils-playwright": "^1.45.0",
+        "@wordpress/eslint-plugin": "^25.1.0",
+        "@wordpress/scripts": "^32.1.0",
+        "@wordpress/stylelint-config": "^23.37.0"
     },
     "scripts": {
+        "packages-install:all": "composer packages-install && npm run packages-install",
+        "packages-update:all": "composer packages-update && npm run packages-update && npm run packages-update:wp",
+
         "packages-install": "npm install",
         "packages-update": "npm update",
-        "packages-update:wp": "wp-scripts packages-update"
+        "packages-update:wp": "wp-scripts packages-update",
+
+        "format:scripts": "wp-scripts format ./node --no-error-on-unmatched-pattern",
+        "lint:scripts": "wp-scripts lint-js ./node --no-error-on-unmatched-pattern",
+
+        "audit": "composer audit && npm audit",
+        "audit:fix": "npm audit fix",
+        "check:engines": "wp-scripts check-engines",
+        "check:licenses": "wp-scripts check-licenses"
     }
 }

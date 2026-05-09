@@ -1,4 +1,4 @@
-name: JS/CSS Lint
+name: Scripts/Styles Lint
 
 on:
   workflow_call:
@@ -13,10 +13,20 @@ on:
         type: string
         required: false
         default: 'lts/*'
+      lint-scripts:
+        description: 'Run `npm run lint:scripts` (ESLint). Set false for repos without JS sources.'
+        type: boolean
+        required: false
+        default: true
+      lint-styles:
+        description: 'Run `npm run lint:styles` (Stylelint). Set false for repos without CSS sources.'
+        type: boolean
+        required: false
+        default: true
 
 jobs:
   lint:
-    name: Lint JS/CSS
+    name: Lint scripts/styles
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -32,10 +42,12 @@ jobs:
         working-directory: ${{ inputs.plugin-path }}
         run: npm ci
 
-      - name: Lint JavaScript
+      - name: Lint scripts
+        if: ${{ inputs.lint-scripts }}
         working-directory: ${{ inputs.plugin-path }}
-        run: npm run lint:js
+        run: npm run lint:scripts
 
-      - name: Lint CSS
+      - name: Lint styles
+        if: ${{ inputs.lint-styles }}
         working-directory: ${{ inputs.plugin-path }}
-        run: npm run lint:css
+        run: npm run lint:styles

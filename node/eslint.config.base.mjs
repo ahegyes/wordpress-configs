@@ -21,13 +21,19 @@
 import wordpress from '@wordpress/eslint-plugin';
 
 export default [
-    ...wordpress.configs.recommended,
-    {
-        rules: {
-            'no-console': ['warn', { allow: ['warn', 'error'] }],
-        },
-    },
-    {
-        ignores: ['assets/**', 'build/**', 'vendor/**', 'node_modules/**', '*.min.js'],
-    },
+	...wordpress.configs.recommended,
+	{
+		rules: {
+			'no-console': ['warn', { allow: ['warn', 'error'] }],
+		},
+	},
+	{
+		ignores: [
+			'assets/**',
+			'build/**',
+			'vendor/**',
+			'node_modules/**',
+			'*.min.js',
+		],
+	},
 ];

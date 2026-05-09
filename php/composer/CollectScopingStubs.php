@@ -2,8 +2,6 @@
 
 namespace DeepWebSolutions\Config\Composer;
 
-use PhpParser\Node;
-
 /**
  * Composer post-autoload-dump hook. Walks `vendor/<vendor>/<package>/composer.json`
  * + the project root, reads each `extra.scoping-stubs` array, parses every
@@ -21,12 +19,18 @@ use PhpParser\Node;
  */
 class CollectScopingStubs {
 	/**
-	 * @throws  \JsonException If JSON parsing or encoding fails.
+	 * Composer event handler for `post-autoload-dump`. See class docblock for what it does.
+	 *
+	 * @param \Composer\Script\Event $event Composer event object.
+	 *
+	 * @throws \JsonException    If JSON parsing or encoding fails.
+	 * @throws \PhpParser\Error  If the PHP parser fails to initialise.
+	 * @throws \RuntimeException If a declared stubs file or a vendor composer.json cannot be read, or the output file cannot be written.
 	 */
 	public static function postAutoloadDump( \Composer\Script\Event $event ): void {
 		$console_io  = $event->getIO();
 		$vendor_dir  = $event->getComposer()->getConfig()->get( 'vendor-dir' );
-		$project_dir = dirname( \Composer\Factory::getComposerFile() );
+		$project_dir = \dirname( \Composer\Factory::getComposerFile() );
 
 		if ( ! $event->isDevMode() ) {
 			$console_io->write( 'Not collecting scoping stubs due to not being in dev mode.' );
@@ -37,45 +41,135 @@ class CollectScopingStubs {
 
 		$classes   = array();
 		$functions = array();
+		$constants = array();
 
-		if ( ! empty( $declared ) ) {
-			$parser = new \PhpParser\ParserFactory()->createForVersion( \PhpParser\PhpVersion::fromComponents( 7, 2 ) );
+		if ( \count( $declared ) > 0 ) {
+			$parser = new \PhpParser\ParserFactory()->createForNewestSupportedVersion();
 
 			foreach ( $declared as $package ) {
 				$stubs_path = self::resolve_stubs_path( $vendor_dir, $package );
-				if ( ! is_file( $stubs_path ) ) {
-					$console_io->write( sprintf( 'Skipping declared stubs package "%s" — file not found at %s.', $package, $stubs_path ) );
+				if ( ! \is_file( $stubs_path ) ) {
+					$console_io->write( \sprintf( 'Skipping declared stubs package "%s" — file not found at %s.', $package, $stubs_path ) );
 					continue;
 				}
 
-				$visitor = new _stubsNodeVisitor();
-				new \PhpParser\NodeTraverser( $visitor )->traverse( $parser->parse( file_get_contents( $stubs_path ) ) );
+				$contents = \file_get_contents( $stubs_path ) ?: throw new \RuntimeException( \sprintf( 'Could not read stubs file %s', $stubs_path ) );
+				$parsed   = $parser->parse( $contents );
+				if ( null === $parsed ) {
+					$console_io->write( \sprintf( 'Skipping declared stubs package "%s" — could not parse %s.', $package, $stubs_path ) );
+					continue;
+				}
 
-				$classes   = array_merge( $classes, $visitor->classes );
-				$functions = array_merge( $functions, $visitor->functions );
+				$visitor   = new class() extends \PhpParser\NodeVisitorAbstract {
+					/**
+					 * Fully-qualified class names collected from the parsed stubs.
+					 *
+					 * @var list<string>
+					 */
+					public array $classes = array();
+
+					/**
+					 * Fully-qualified function names collected from the parsed stubs.
+					 *
+					 * @var list<string>
+					 */
+					public array $functions = array();
+
+					/**
+					 * Fully-qualified constant names collected from the parsed stubs.
+					 * Includes both `const FOO = ...;` declarations and `define('FOO', ...)` calls.
+					 *
+					 * @var list<string>
+					 */
+					public array $constants = array();
+
+					/**
+					 * {@inheritDoc}
+					 *
+					 * @param \PhpParser\Node $node Node being visited.
+					 */
+					public function enterNode( \PhpParser\Node $node ): int|null {
+						switch ( \get_class( $node ) ) {
+							// Class-like declarations all flow into `$classes` — php-scoper's `exclude-classes` covers all of them.
+							case \PhpParser\Node\Stmt\Class_::class:
+							case \PhpParser\Node\Stmt\Interface_::class:
+							case \PhpParser\Node\Stmt\Trait_::class:
+							case \PhpParser\Node\Stmt\Enum_::class:
+								if ( null !== $node->namespacedName ) {
+									$this->classes[] = $node->namespacedName->toString();
+								}
+								return \PhpParser\NodeVisitor::DONT_TRAVERSE_CHILDREN;
+							case \PhpParser\Node\Stmt\Function_::class:
+								if ( null !== $node->namespacedName ) {
+									$this->functions[] = $node->namespacedName->toString();
+								}
+								break;
+							case \PhpParser\Node\Stmt\Const_::class:
+								foreach ( $node->consts as $const ) {
+									if ( null !== $const->namespacedName ) {
+										$this->constants[] = $const->namespacedName->toString();
+									}
+								}
+								break;
+							case \PhpParser\Node\Expr\FuncCall::class:
+								if (
+									$node->name instanceof \PhpParser\Node\Name
+									&& 'define' === $node->name->toString()
+									&& isset( $node->args[0] )
+									&& $node->args[0] instanceof \PhpParser\Node\Arg
+									&& $node->args[0]->value instanceof \PhpParser\Node\Scalar\String_
+								) {
+									$this->constants[] = $node->args[0]->value->value;
+								}
+								break;
+						}
+						return null;
+					}
+				};
+				$traverser = new \PhpParser\NodeTraverser();
+				// NameResolver populates `namespacedName` on Class_, Function_, Const_ — needed for FQCN distinction across namespaced stubs.
+				$traverser->addVisitor( new \PhpParser\NodeVisitor\NameResolver() );
+				$traverser->addVisitor( $visitor );
+				$traverser->traverse( $parsed );
+
+				$classes   = \array_merge( $classes, $visitor->classes );
+				$functions = \array_merge( $functions, $visitor->functions );
+				$constants = \array_merge( $constants, $visitor->constants );
 			}
 		}
 
-		$output_dir  = getenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR' ) ?: dirname( $vendor_dir );
-		$output_file = getenv( 'SCOPING_EXCLUSIONS_OUTPUT_FILE' ) ?: 'scoping-exclusions.json';
-		file_put_contents(
+		$output_dir  = \getenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR' ) ?: \dirname( $vendor_dir );
+		$output_file = \getenv( 'SCOPING_EXCLUSIONS_OUTPUT_FILE' ) ?: 'scoping-exclusions.json';
+
+		self::write_atomically(
 			"$output_dir/$output_file",
-			json_encode( array(
-				'classes'   => array_values( array_unique( $classes ) ),
-				'functions' => array_values( array_unique( $functions ) ),
-			), JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT )
+			\json_encode(
+				array(
+					'classes'   => \array_values( \array_unique( $classes ) ),
+					'functions' => \array_values( \array_unique( $functions ) ),
+					'constants' => \array_values( \array_unique( $constants ) ),
+				),
+				JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT
+			)
 		);
 	}
 
 	/**
+	 * Walks the vendor directory + project root, collecting all
+	 * `extra.scoping-stubs` package declarations.
+	 *
+	 * @param string $project_dir Project root directory.
+	 * @param string $vendor_dir  Composer vendor directory.
+	 *
 	 * @return list<string>
 	 *
-	 * @throws \JsonException If a composer.json file cannot be parsed.
+	 * @throws \JsonException    If a composer.json file cannot be parsed.
+	 * @throws \RuntimeException If a composer.json file exists but cannot be read.
 	 */
 	private static function collect_declarations( string $project_dir, string $vendor_dir ): array {
 		$declared = self::read_declaration( $project_dir . '/composer.json' );
 
-		if ( is_dir( $vendor_dir ) ) {
+		if ( \is_dir( $vendor_dir ) ) {
 			// Each installed package's composer.json sits at vendor/<vendor>/<package>/composer.json.
 			// Symfony Finder's depth filter is 0-indexed (0 = files directly inside the search root).
 			$finder = \Symfony\Component\Finder\Finder::create()
@@ -86,58 +180,65 @@ class CollectScopingStubs {
 				->followLinks();
 
 			foreach ( $finder as $file ) {
-				$declared = array_merge( $declared, self::read_declaration( $file->getPathname() ) );
+				$declared = \array_merge( $declared, self::read_declaration( $file->getPathname() ) );
 			}
 		}
 
-		return array_values( array_unique( $declared ) );
+		return \array_values( \array_unique( $declared ) );
 	}
 
 	/**
+	 * Reads `extra.scoping-stubs` from a single composer.json file.
+	 *
+	 * @param string $composer_json_path Path to the composer.json file.
+	 *
 	 * @return list<string>
 	 *
-	 * @throws \JsonException If the file exists but cannot be parsed.
+	 * @throws \JsonException    If the file exists but cannot be parsed.
+	 * @throws \RuntimeException If the file exists but cannot be read.
 	 */
 	private static function read_declaration( string $composer_json_path ): array {
-		if ( ! is_file( $composer_json_path ) ) {
+		if ( ! \is_file( $composer_json_path ) ) {
 			return array();
 		}
-		$data     = json_decode( file_get_contents( $composer_json_path ), true, 512, JSON_THROW_ON_ERROR );
+		$contents = \file_get_contents( $composer_json_path ) ?: throw new \RuntimeException( \sprintf( 'Could not read %s', $composer_json_path ) );
+		$data     = \json_decode( $contents, true, flags: JSON_THROW_ON_ERROR );
 		$declared = $data['extra']['scoping-stubs'] ?? array();
 
-		return is_array( $declared ) ? array_values( array_filter( $declared, 'is_string' ) ) : array();
+		return \is_array( $declared ) ? \array_values( \array_filter( $declared, 'is_string' ) ) : array();
+	}
+
+	/**
+	 * Writes `$payload` to `$output_path` via a temp-file-and-rename so a concurrent
+	 * composer run can't read the file mid-write.
+	 *
+	 * @infection-ignore-all
+	 *
+	 * @param string $output_path Target path.
+	 * @param string $payload     Bytes to write.
+	 *
+	 * @throws \RuntimeException If the temp file cannot be written or the rename fails.
+	 */
+	private static function write_atomically( string $output_path, string $payload ): void {
+		$temp_path = $output_path . '.tmp.' . \getmypid();
+		\file_put_contents( $temp_path, $payload ) ?: throw new \RuntimeException( \sprintf( 'Could not write %s', $temp_path ) );
+		\rename( $temp_path, $output_path ) ?: throw new \RuntimeException( \sprintf( 'Could not rename %s to %s', $temp_path, $output_path ) );
 	}
 
 	/**
 	 * Resolves a stubs package name (e.g. "php-stubs/wordpress-stubs") to the
 	 * path of its stubs file by convention.
+	 *
+	 * @param string $vendor_dir Composer vendor directory.
+	 * @param string $package    Stubs package name (vendor/package format).
+	 *
+	 * @return string Path to the stubs file, or empty string if package name is invalid.
 	 */
 	private static function resolve_stubs_path( string $vendor_dir, string $package ): string {
-		$parts = explode( '/', $package );
-		if ( 2 !== count( $parts ) ) {
+		$parts = \explode( '/', $package );
+		if ( 2 !== \count( $parts ) ) {
 			return '';
 		}
 		return $vendor_dir . '/' . $package . '/' . $parts[1] . '.php';
-	}
-}
-
-class _stubsNodeVisitor extends \PhpParser\NodeVisitorAbstract {
-	protected(set) array $classes = array();
-	protected(set) array $functions = array();
-
-	/**
-	 * @{inheritDoc}
-	 */
-	public function enterNode( Node $node ): int|null {
-		switch ( get_class( $node ) ) {
-			case Node\Stmt\Class_::class:
-				$this->classes[] = $node->name->name;
-				return \PhpParser\NodeVisitor::DONT_TRAVERSE_CHILDREN;
-			case Node\Stmt\Function_::class:
-				$this->functions[] = $node->name->name;
-				break;
-		}
-
-		return null;
 	}
 }

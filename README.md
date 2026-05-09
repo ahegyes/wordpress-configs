@@ -1,6 +1,6 @@
 # WordPress Configs
 
-A collection of shared configuration files for WordPress projects. Provides base configs for PHPCS and PHPStan, Composer helpers for dependency scoping, a catalog-agnostic php-scoper base config for the WordPress ecosystem, Docker utilities for wp-env testing, and a transitive `roave/security-advisories` install that fails `composer install --dev` on any known CVE in the dep graph.
+A collection of shared configuration files for WordPress projects. Provides base configs for PHPCS and PHPStan, Composer helpers for dependency scoping, a catalog-agnostic php-scoper base config for the WordPress ecosystem, and a transitive `roave/security-advisories` install that fails `composer install --dev` on any known CVE in the dep graph.
 
 ## Requirements
 
@@ -137,7 +137,7 @@ Each Composer package in the dep graph (and the consuming project itself) declar
 }
 ```
 
-The hook walks `vendor/<vendor>/<package>/composer.json` plus the project root, parses each declared stubs file (convention: `vendor/<vendor>/<package>/<package>.php`), unions every class/function it finds, and writes `scoping-exclusions.json`.
+The hook walks `vendor/<vendor>/<package>/composer.json` plus the project root, parses each declared stubs file (convention: `vendor/<vendor>/<package>/<package>.php`), unions every class-like declaration (`class`, `interface`, `trait`, `enum`), function, and constant (top-level `const` declarations and `define()` calls) it finds, and writes `scoping-exclusions.json`. Names are recorded as FQCNs (`A\Foo` ≠ `B\Foo`) so namespaced stubs catalogs are handled correctly.
 
 **Wire it in your project's `composer.json`:**
 
@@ -160,6 +160,8 @@ The hook walks `vendor/<vendor>/<package>/composer.json` plus the project root, 
 | Declared stubs package not installed | Skipped with a console warning, helper continues |
 
 The contract is: **whichever package introduces references to external (non-prefixable) symbols is the package that declares the catalog covering them.** A consumer plugin doesn't need to enumerate WP usage — the framework packages it depends on declare `php-stubs/wordpress-stubs` and the helper picks that up automatically. A consumer that integrates with WooCommerce adds `php-stubs/woocommerce-stubs` to its own `composer.json`.
+
+**Trust model:** vendor packages can declare their own `extra.scoping-stubs`, and the helper parses + reads symbol names from those declared files. A malicious vendor could declare custom symbol names that, after merging into `scoping-exclusions.json`, weaken the consumer's scoping (those symbols stay unprefixed and may clash with WP core). This is the standard composer supply-chain trust model — only install vendor packages you trust. The helper does NOT execute anything from the parsed stubs files; it only extracts class, function, and constant declaration names via AST traversal.
 
 #### ScopePhpDependencies
 
@@ -227,7 +229,10 @@ return $build_config( array(
 | `exclude_namespaces` | Additional namespaces to leave unprefixed                             |
 | `exclude_classes`    | Additional classes to leave unprefixed                                |
 | `exclude_functions`  | Additional functions to leave unprefixed                              |
+| `exclude_constants`  | Additional constants to leave unprefixed                              |
 | `patchers`           | Additional patcher callables (run after the default reference-stripper) |
+
+**Default patcher limitations:** the reference-stripper handles direct calls (`\Prefix\function(`), `use Prefix\Class;` and `use Prefix\Class as Alias;` statements, `function_exists('Prefix\\function')` and `defined('Prefix\\CONST')` string arguments, bare constant refs (`\Prefix\CONST`), and any string-typed reference matching `'Prefix\\Symbol'` (covers `class_exists`, `method_exists`, `is_a`, `is_subclass_of`, `ReflectionClass`, etc.). The patcher is token-aware — comments containing the prefix pattern are preserved verbatim. It does NOT cover `instanceof` via dynamic-string variables (the class name isn't statically visible). If a scoped third-party library uses dynamic patterns the patcher can't reach, add a custom callable to `patchers`.
 
 ### Editor Config
 
@@ -372,7 +377,7 @@ Seven reusable GitHub Actions workflows live in `.github/workflows/`. Plugins ca
 |---------------------------------------|--------------------------------------------------|----------------------------------------------------|
 | `reusable-php-syntax-check.yml`       | `php -l` matrix across PHP versions              | `plugin-path`, `php-versions[]`                    |
 | `reusable-php-qa.yml`                 | PHPCS + PHPStan (parallel jobs)                  | `plugin-path`, `php-version`                       |
-| `reusable-js-css-lint.yml`            | ESLint + Stylelint via npm scripts               | `plugin-path`, `node-version`                      |
+| `reusable-scripts-styles-lint.yml`    | ESLint + Stylelint via npm scripts               | `plugin-path`, `node-version`                      |
 | `reusable-phpunit.yml`                | PHPUnit + wp-env startup                         | `plugin-path`, `php-version`, `wp-version`         |
 | `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `plugin-path`, `plugin-slug`, `php-version`        |
 | `reusable-block-json-check.yml`       | Validates block.json against wp.org schema       | `plugin-path`, `node-version`                      |
@@ -397,8 +402,8 @@ jobs:
     uses: ahegyes/wordpress-configs/.github/workflows/reusable-php-qa.yml@trunk
   block-json:
     uses: ahegyes/wordpress-configs/.github/workflows/reusable-block-json-check.yml@trunk
-  lint-js-css:
-    uses: ahegyes/wordpress-configs/.github/workflows/reusable-js-css-lint.yml@trunk
+  lint-scripts-styles:
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-scripts-styles-lint.yml@trunk
 ```
 
 **`.github/workflows/tests.yml`** — runs on every push/PR:

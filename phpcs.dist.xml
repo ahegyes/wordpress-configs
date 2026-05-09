@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="vendor/squizlabs/php_codesniffer/phpcs.xsd">
+	<description>Lints this repo's own PHP. Excludes WP-runtime sniffs from the shared ruleset since this code is Composer-time tooling, not WP code.</description>
+
+	<rule ref="./php/quality-assurance/phpcs.dist.xml">
+		<!-- No WP runtime — native PHP functions (file_get_contents, json_encode) are correct here. -->
+		<exclude name="WordPress.WP"/>
+		<!-- Tooling code uses camelCase per PSR-12 / Composer convention, not WP snake_case. -->
+		<exclude name="WordPress.NamingConventions.ValidVariableName"/>
+		<exclude name="WordPress.NamingConventions.ValidFunctionName"/>
+		<!-- Output goes to CLI / exception messages, not HTML — no escape needed. -->
+		<exclude name="WordPress.Security"/>
+	</rule>
+</ruleset>

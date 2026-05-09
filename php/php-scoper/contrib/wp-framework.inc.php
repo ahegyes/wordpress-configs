@@ -3,12 +3,14 @@
 use Symfony\Component\Finder\Finder;
 
 /**
- * php-scoper partial for `ahegyes/wp-framework-*` packages. Auto-detects which
- * are installed in vendor; composer require dictates what gets scoped.
+ * Scoping partial for `ahegyes/wp-framework-*` packages. Auto-detects which
+ * are installed in the vendor folder; composer require dictates what gets scoped.
+ *
+ * @throws \RuntimeException If glob() fails for the vendor directory.
  */
 return static function ( string $vendor_dir ): array {
-	$packages = glob( $vendor_dir . '/ahegyes/wp-framework-*', GLOB_ONLYDIR );
-	if ( empty( $packages ) ) {
+	$packages = \glob( $vendor_dir . '/ahegyes/wp-framework-*', GLOB_ONLYDIR ) ?: throw new \RuntimeException( sprintf( 'glob() failed for %s', $vendor_dir ) );
+	if ( 0 === count( $packages ) ) {
 		return array( 'finders' => array() );
 	}
 
