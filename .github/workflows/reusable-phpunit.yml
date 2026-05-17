@@ -39,6 +39,9 @@ on:
         required: false
         default: ''
 
+permissions:
+  contents: read
+
 jobs:
   phpunit:
     name: PHPUnit (PHP ${{ inputs.php-version }} / WP ${{ inputs.wp-env-core != '' && inputs.wp-env-core || inputs.wp-version != '' && inputs.wp-version || 'consumer-default' }})

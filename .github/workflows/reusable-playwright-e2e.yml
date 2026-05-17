@@ -43,6 +43,9 @@ on:
         required: false
         default: 'test:e2e'
 
+permissions:
+  contents: read
+
 jobs:
   e2e:
     name: Playwright E2E

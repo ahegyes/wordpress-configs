@@ -5,6 +5,9 @@ on:
     branches: [trunk]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   phpunit:
     name: PHPUnit (PHP ${{ matrix.php-version }})

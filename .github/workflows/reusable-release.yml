@@ -31,6 +31,10 @@ concurrency:
   group: release-${{ inputs.plugin-slug }}
   cancel-in-progress: false
 
+# Default workflow-level: read-only. test-and-deploy widens to contents: write per job.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build artifact
@@ -86,6 +90,10 @@ jobs:
     name: Test built artifact + deploy
     needs: build
     runs-on: ubuntu-latest
+    # softprops/action-gh-release creates a GitHub Release with the built zip attached → needs contents: write.
+    # SVN deploy uses repo secrets, not GITHUB_TOKEN, so no extra scope.
+    permissions:
+      contents: write
     # Source provides the E2E runner (tests/, playwright.config, .wp-env.json, package.json) and wp.org assets (.wordpress-org/).
     # The built zip is the system under test — wp-env is redirected via .wp-env.override.json to mount it instead of source.
     # Deploy reuses the same extracted tree (./built/<slug>/) — what gets tested is what gets pushed to SVN.

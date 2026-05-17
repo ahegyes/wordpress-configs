@@ -14,6 +14,9 @@ on:
         required: false
         default: '["8.5"]'
 
+permissions:
+  contents: read
+
 jobs:
   syntax:
     name: Syntax (PHP ${{ matrix.php-version }})

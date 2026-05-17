@@ -17,6 +17,7 @@
     <source>
         <include>
             <directory>php/composer</directory>
+            <directory>php/php-scoper</directory>
         </include>
     </source>
 </phpunit>

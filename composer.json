@@ -86,7 +86,7 @@
 
     "quality-check": [
       "@lint:php",
-      "@test:unit"
+      "@test"
     ],
     "quality-check:all": [
       "@lint:php",

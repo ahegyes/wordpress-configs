@@ -7,6 +7,9 @@ on:
     # without gating every PR (mutation runs are slow).
     - cron: '0 6 * * 1'
 
+permissions:
+  contents: read
+
 jobs:
   infection:
     name: Run Infection

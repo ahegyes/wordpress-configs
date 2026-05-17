@@ -24,6 +24,9 @@ on:
         required: false
         default: './phpstan.dist.neon'
 
+permissions:
+  contents: read
+
 jobs:
   phpcs:
     name: PHPCS
