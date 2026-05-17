@@ -160,6 +160,38 @@ final class CollectScopingStubsTest extends TestCase {
 		self::assertContains( 'add_action', $result['functions'] );
 	}
 
+	#[Test]
+	public function filters_path_traversal_segments_from_scoping_stubs_declaration(): void {
+		$io = new BufferIO();
+		$this->writeProjectComposer( array( '../etc/passwd', '/etc/shadow' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+
+		// Filtered at read_declaration before reaching resolve_stubs_paths —
+		// no skip messages for these entries.
+		self::assertStringNotContainsString( '../etc/passwd', $io->getOutput() );
+		self::assertStringNotContainsString( '/etc/shadow', $io->getOutput() );
+		self::assertSame(
+			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			$this->loadOutput( 'scoping-exclusions.json' )
+		);
+	}
+
+	#[Test]
+	public function filters_malformed_package_names_from_scoping_stubs_declaration(): void {
+		$io = new BufferIO();
+		// Each value fails Composer's package-name regex for a different reason:
+		// uppercase / missing slash / too many slashes / trailing dash.
+		$this->writeProjectComposer( array( 'Foo/Bar', 'no-slash', 'too/many/slashes', 'foo-/bar' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+
+		self::assertStringNotContainsString( 'Foo/Bar', $io->getOutput() );
+		self::assertStringNotContainsString( 'no-slash', $io->getOutput() );
+		self::assertStringNotContainsString( 'too/many/slashes', $io->getOutput() );
+		self::assertStringNotContainsString( 'foo-/bar', $io->getOutput() );
+	}
+
 
 	#[Test]
 	public function honors_output_dir_and_file_overrides(): void {
@@ -173,6 +205,52 @@ final class CollectScopingStubsTest extends TestCase {
 
 		self::assertFileExists( $this->project_dir . '/build/stubs-dump.json' );
 		self::assertFileDoesNotExist( $this->project_dir . '/scoping-exclusions.json' );
+	}
+
+	#[Test]
+	public function rejects_output_dir_outside_project_root(): void {
+		$this->writeProjectComposer( array() );
+		$outside_dir = \sys_get_temp_dir() . '/dws-wp-configs-escape-' . \uniqid();
+		\mkdir( $outside_dir );
+		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR=' . $outside_dir );
+
+		try {
+			$this->expectException( \RuntimeException::class );
+			$this->expectExceptionMessageMatches( '/must be inside the project root/' );
+			CollectScopingStubs::postAutoloadDump( $this->event() );
+		} finally {
+			\rmdir( $outside_dir );
+		}
+	}
+
+	#[Test]
+	public function rejects_output_dir_that_does_not_exist(): void {
+		$this->writeProjectComposer( array() );
+		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR=' . $this->project_dir . '/does-not-exist' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/does not resolve to an existing directory/' );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+	}
+
+	#[Test]
+	public function rejects_output_file_containing_forward_slash(): void {
+		$this->writeProjectComposer( array() );
+		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_FILE=../escape.json' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/must be a filename, not a path/' );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+	}
+
+	#[Test]
+	public function rejects_output_file_containing_backslash(): void {
+		$this->writeProjectComposer( array() );
+		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_FILE=sub\\escape.json' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/must be a filename, not a path/' );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
 	}
 
 	#[Test]

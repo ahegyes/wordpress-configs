@@ -19,7 +19,16 @@ namespace DeepWebSolutions\Config\Composer;
  * The php-scoper base config reads the output JSON into its `exclude-classes`,
  * `exclude-functions`, and `exclude-constants` keys.
  */
-class CollectScopingStubs {
+final class CollectScopingStubs {
+	/**
+	 * Composer's official package-name regex (matches `vendor/name`). Used to reject
+	 * stray `extra.scoping-stubs` values before they reach path-building, so a
+	 * malformed entry can't be probed against the filesystem as a path segment.
+	 *
+	 * @var string
+	 */
+	private const PACKAGE_NAME_REGEX = '#^[a-z0-9]([_.-]?[a-z0-9]+)*/[a-z0-9](([_.]?|-{0,2})[a-z0-9]+)*$#';
+
 	/**
 	 * Composer event handler for `post-autoload-dump`. See class docblock for what it does.
 	 *
@@ -142,8 +151,8 @@ class CollectScopingStubs {
 			}
 		}
 
-		$output_dir  = \getenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR' ) ?: \dirname( $vendor_dir );
-		$output_file = \getenv( 'SCOPING_EXCLUSIONS_OUTPUT_FILE' ) ?: 'scoping-exclusions.json';
+		$output_dir  = self::resolve_output_dir( $project_dir, $vendor_dir );
+		$output_file = self::resolve_output_file();
 
 		self::write_atomically(
 			"$output_dir/$output_file",
@@ -211,11 +220,84 @@ class CollectScopingStubs {
 		if ( ! \is_file( $composer_json_path ) ) {
 			return array();
 		}
+
 		$contents = \file_get_contents( $composer_json_path ) ?: throw new \RuntimeException( \sprintf( 'Could not read %s', $composer_json_path ) );
 		$data     = \json_decode( $contents, true, flags: JSON_THROW_ON_ERROR );
-		$declared = $data['extra']['scoping-stubs'] ?? array();
 
-		return \is_array( $declared ) ? \array_values( \array_filter( $declared, 'is_string' ) ) : array();
+		$declared = $data['extra']['scoping-stubs'] ?? array();
+		if ( ! \is_array( $declared ) ) {
+			return array();
+		}
+
+		return \array_values(
+			\array_filter(
+				$declared,
+				static fn ( mixed $entry ): bool => \is_string( $entry ) && 1 === \preg_match( self::PACKAGE_NAME_REGEX, $entry )
+			)
+		);
+	}
+
+	/**
+	 * Resolves the output directory for `scoping-exclusions.json`.
+	 *
+	 * The `SCOPING_EXCLUSIONS_OUTPUT_DIR` env var is an opt-in test seam (and documented
+	 * override). Its value must resolve to an existing directory under the project root —
+	 * an attacker who can set environment variables during a composer run cannot redirect
+	 * the write outside the project tree.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   string $project_dir Absolute path to the project root.
+	 * @param   string $vendor_dir  Absolute path to the composer vendor directory.
+	 *
+	 * @throws  \RuntimeException If the env-var-supplied directory is missing or escapes the project root.
+	 *
+	 * @return  string Absolute path to the resolved output directory.
+	 */
+	private static function resolve_output_dir( string $project_dir, string $vendor_dir ): string {
+		$override = \getenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR' );
+		if ( false === $override || '' === $override ) {
+			return \dirname( $vendor_dir );
+		}
+
+		$resolved_override = \realpath( $override );
+		if ( false === $resolved_override || ! \is_dir( $resolved_override ) ) {
+			throw new \RuntimeException( \sprintf( 'SCOPING_EXCLUSIONS_OUTPUT_DIR "%s" does not resolve to an existing directory.', $override ) );
+		}
+
+		$resolved_project = \realpath( $project_dir ) ?: $project_dir;
+		if ( $resolved_override !== $resolved_project && ! \str_starts_with( $resolved_override . DIRECTORY_SEPARATOR, $resolved_project . DIRECTORY_SEPARATOR ) ) {
+			throw new \RuntimeException( \sprintf( 'SCOPING_EXCLUSIONS_OUTPUT_DIR "%s" must be inside the project root "%s".', $override, $resolved_project ) );
+		}
+
+		return $resolved_override;
+	}
+
+	/**
+	 * Resolves the output filename for `scoping-exclusions.json`.
+	 *
+	 * `SCOPING_EXCLUSIONS_OUTPUT_FILE` is a filename, not a path — rejecting separators
+	 * prevents the env var from being used to escape the output directory via `../`.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @throws  \RuntimeException If the env-var-supplied value contains a path separator.
+	 *
+	 * @return  string Filename to write inside the resolved output directory.
+	 */
+	private static function resolve_output_file(): string {
+		$override = \getenv( 'SCOPING_EXCLUSIONS_OUTPUT_FILE' );
+		if ( false === $override || '' === $override ) {
+			return 'scoping-exclusions.json';
+		}
+
+		if ( \str_contains( $override, '/' ) || \str_contains( $override, '\\' ) ) {
+			throw new \RuntimeException( \sprintf( 'SCOPING_EXCLUSIONS_OUTPUT_FILE must be a filename, not a path; got "%s".', $override ) );
+		}
+
+		return $override;
 	}
 
 	/**

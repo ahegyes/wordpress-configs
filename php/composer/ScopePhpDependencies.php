@@ -15,7 +15,7 @@ use Composer\Script\Event;
  * once `humbug/php-scoper` is installed and dev mode is on. The script itself
  * (defined per-consumer) runs the actual `php-scoper add-prefix`.
  */
-class ScopePhpDependencies {
+final class ScopePhpDependencies {
 	/**
 	 * When running the PHP scoper, the Composer autoloader will be executed first. However, that will throw a fatal
 	 * error if it contains files and directories that are scoped and which haven't been generated yet (e.g., when installing
@@ -49,6 +49,8 @@ class ScopePhpDependencies {
 		}
 
 		foreach ( $autoloaded_files as $file ) {
+			self::assert_project_relative( $file );
+
 			$file = $project_dir . DIRECTORY_SEPARATOR . $file;
 			if ( ! \file_exists( $file ) ) {
 				$file_directory = \dirname( $file );
@@ -58,8 +60,35 @@ class ScopePhpDependencies {
 		}
 
 		foreach ( $autoloaded_directories as $directory ) {
+			self::assert_project_relative( $directory );
+
 			$directory = $project_dir . DIRECTORY_SEPARATOR . $directory;
 			\is_dir( $directory ) || \mkdir( $directory, 0755, true ) || \is_dir( $directory ) || throw new \RuntimeException( \sprintf( 'Directory "%s" was not created', $directory ) );
+		}
+	}
+
+	/**
+	 * Rejects autoload entries that escape the project root via absolute paths or parent-directory traversal.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   string $path Autoload entry from `composer.json`.
+	 *
+	 * @throws  \RuntimeException If `$path` is absolute or contains a `..` segment.
+	 *
+	 * @return  void
+	 */
+	private static function assert_project_relative( string $path ): void {
+		$normalised = \str_replace( '\\', '/', $path );
+		if ( \str_starts_with( $normalised, '/' ) || 1 === \preg_match( '#^[A-Za-z]:/#', $normalised ) ) {
+			throw new \RuntimeException( \sprintf( 'Refusing absolute autoload path "%s" — must be project-relative.', $path ) );
+		}
+
+		foreach ( \explode( '/', $normalised ) as $segment ) {
+			if ( '..' === $segment ) {
+				throw new \RuntimeException( \sprintf( 'Refusing autoload path "%s" — parent-directory traversal not allowed.', $path ) );
+			}
 		}
 	}
 

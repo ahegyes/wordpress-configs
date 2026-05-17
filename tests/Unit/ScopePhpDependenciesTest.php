@@ -127,6 +127,39 @@ final class ScopePhpDependenciesTest extends TestCase {
 		self::assertStringContainsString( 'PHP scoper is not installed', $io->getOutput() );
 	}
 
+	#[Test]
+	public function pre_autoload_dump_rejects_autoload_file_with_parent_traversal(): void {
+		$this->writeComposerJson( array(
+			'autoload' => array( 'files' => array( '../escape.php' ) ),
+		) );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/parent-directory traversal/' );
+		ScopePhpDependencies::preAutoloadDump( $this->event() );
+	}
+
+	#[Test]
+	public function pre_autoload_dump_rejects_absolute_autoload_file(): void {
+		$this->writeComposerJson( array(
+			'autoload' => array( 'files' => array( '/etc/escape.php' ) ),
+		) );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/absolute autoload path/' );
+		ScopePhpDependencies::preAutoloadDump( $this->event() );
+	}
+
+	#[Test]
+	public function pre_autoload_dump_rejects_classmap_directory_with_parent_traversal(): void {
+		$this->writeComposerJson( array(
+			'autoload' => array( 'classmap' => array( 'src/../../escape' ) ),
+		) );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/parent-directory traversal/' );
+		ScopePhpDependencies::preAutoloadDump( $this->event() );
+	}
+
 	/**
 	 * @param array<string, mixed> $contents
 	 */
