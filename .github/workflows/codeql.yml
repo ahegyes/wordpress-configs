@@ -19,9 +19,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [actions, javascript-typescript]
-        # PHP scanning will be added once CodeQL's PHP support stabilizes.
-        # Track at https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/codeql-code-scanning-for-compiled-languages
+        language: [actions, javascript-typescript, php]
+        # PHP coverage complements PHPStan: CodeQL's `security-and-quality` suite for PHP
+        # adds taint tracking for filesystem ops, SQL injection, and command injection that
+        # PHPStan (a typechecker) does not natively detect.
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 

@@ -44,6 +44,14 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      - name: Verify .distignore exists
+        working-directory: ${{ inputs.plugin-path }}
+        run: |
+          if [ ! -f .distignore ]; then
+            echo "::error::Missing .distignore — refusing to build a wp.org archive without explicit file exclusions. Without it, wp dist-archive ships everything including tests/, node_modules/, and dev-only vendor files."
+            exit 1
+          fi
+
       - name: Setup PHP
         uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc # v2
         with:

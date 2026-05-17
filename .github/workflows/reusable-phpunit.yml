@@ -38,13 +38,18 @@ on:
         type: string
         required: false
         default: ''
+      needs-wp-env:
+        description: 'Set false for unit-only suites that do not need a WordPress runtime. Skips npm ci, wp-env start, and wp-env stop steps.'
+        type: boolean
+        required: false
+        default: true
 
 permissions:
   contents: read
 
 jobs:
   phpunit:
-    name: PHPUnit (PHP ${{ inputs.php-version }} / WP ${{ inputs.wp-env-core != '' && inputs.wp-env-core || inputs.wp-version != '' && inputs.wp-version || 'consumer-default' }})
+    name: PHPUnit (PHP ${{ inputs.php-version }} / WP ${{ inputs.wp-env-core != '' && inputs.wp-env-core || inputs.wp-version != '' && inputs.wp-version || (inputs.needs-wp-env && 'consumer-default' || 'no-wp-env') }})
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -57,6 +62,7 @@ jobs:
           tools: composer:v2
 
       - name: Setup Node.js (for wp-env)
+        if: ${{ inputs.needs-wp-env }}
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: ${{ inputs.node-version }}
@@ -68,10 +74,12 @@ jobs:
           composer-options: '--prefer-dist'
 
       - name: Install npm dependencies
+        if: ${{ inputs.needs-wp-env }}
         working-directory: ${{ inputs.plugin-path }}
         run: npm ci
 
       - name: Start wp-env
+        if: ${{ inputs.needs-wp-env }}
         working-directory: ${{ inputs.plugin-path }}
         env:
           # Override priority: wp-env-core (full value) > wp-version (formatted as tag).
@@ -85,6 +93,6 @@ jobs:
         run: composer ${{ inputs.composer-script }}
 
       - name: Stop wp-env
-        if: always()
+        if: ${{ always() && inputs.needs-wp-env }}
         working-directory: ${{ inputs.plugin-path }}
         run: npx --yes @wordpress/env ${{ inputs.wp-env-config-file != '' && format('--config {0}', inputs.wp-env-config-file) || '' }} stop

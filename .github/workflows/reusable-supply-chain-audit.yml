@@ -1,0 +1,81 @@
+name: Supply-Chain Audit
+
+on:
+  workflow_call:
+    inputs:
+      plugin-path:
+        description: 'Path to the plugin (relative to repo root)'
+        type: string
+        required: false
+        default: '.'
+      php-version:
+        description: 'PHP version for composer audit'
+        type: string
+        required: false
+        default: '8.5'
+      node-version:
+        description: 'Node.js version for npm audit'
+        type: string
+        required: false
+        default: 'lts/*'
+      composer-audit:
+        description: 'Run `composer audit`. Set false for repos without composer.json.'
+        type: boolean
+        required: false
+        default: true
+      npm-audit:
+        description: 'Run `npm audit --omit=dev`. Set false for repos without package.json. Production-only by default — dev deps are noisy and rarely shipped.'
+        type: boolean
+        required: false
+        default: true
+      composer-audit-flags:
+        description: 'Extra flags passed to `composer audit`. Defaults to --no-dev to mirror the production install matrix.'
+        type: string
+        required: false
+        default: '--no-dev'
+      npm-audit-flags:
+        description: 'Extra flags passed to `npm audit`. Defaults to --omit=dev for the same reason.'
+        type: string
+        required: false
+        default: '--omit=dev'
+
+permissions:
+  contents: read
+
+jobs:
+  composer-audit:
+    if: ${{ inputs.composer-audit }}
+    name: composer audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc # v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          coverage: none
+          tools: composer:v2
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # v4
+        with:
+          working-directory: ${{ inputs.plugin-path }}
+          composer-options: '--prefer-dist'
+      - name: composer audit
+        working-directory: ${{ inputs.plugin-path }}
+        run: composer audit ${{ inputs.composer-audit-flags }}
+
+  npm-audit:
+    if: ${{ inputs.npm-audit }}
+    name: npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+          cache-dependency-path: ${{ inputs.plugin-path }}/package-lock.json
+      - name: npm ci
+        working-directory: ${{ inputs.plugin-path }}
+        run: npm ci
+      - name: npm audit
+        working-directory: ${{ inputs.plugin-path }}
+        run: npm audit ${{ inputs.npm-audit-flags }}
