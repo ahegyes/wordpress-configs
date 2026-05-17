@@ -7,5 +7,10 @@ parameters:
     treatPhpDocTypesAsCertain: false
     strictRules:
         disallowedShortTernary: false
+    excludePaths:
+        analyseAndScan:
+            - %currentWorkingDirectory%/vendor/*
+            - %currentWorkingDirectory%/node_modules/*
+            - %currentWorkingDirectory%/dependencies/*
     typeAliases:
         PluginMetaData: 'array{Name: string, PluginURI: string, Version: string, Description: string, Author: string, AuthorURI: string, TextDomain: string, DomainPath: string, Network: bool, Title: string, AuthorName: string, RequiresPHP: string, RequiresWP: string, "WC requires at least"?: string, "WC tested up to"?: string}'
