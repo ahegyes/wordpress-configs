@@ -6,24 +6,27 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Tests for the PHPStan auto-discovery closure in `quality-assurance/phpstan-auto-discovery.php`.
+ * Tests for the auto-discovery logic in `quality-assurance/phpstan.dist.neon.php`.
+ * The file is procedural — uses `getcwd()` as its project root — so tests `chdir` to a
+ * fixture directory, `require` the file, and assert on the returned config array.
  */
 final class PhpstanAutoDiscoveryTest extends TestCase {
 
-	private const CONFIG_FILE = __DIR__ . '/../../php/quality-assurance/phpstan-auto-discovery.php';
+	private const CONFIG_FILE = __DIR__ . '/../../php/quality-assurance/phpstan.dist.neon.php';
 
 	private string $project_dir;
-
-	/** @var \Closure(string): array<string, array<string, mixed>> */
-	private \Closure $discover;
+	private string $original_cwd;
 
 	protected function setUp(): void {
-		$this->project_dir = \sys_get_temp_dir() . '/dws-wp-configs-phpstan-' . \uniqid();
+		$tmp                = \realpath( \sys_get_temp_dir() ) ?: \sys_get_temp_dir();
+		$this->project_dir  = $tmp . '/dws-wp-configs-phpstan-' . \uniqid();
+		$this->original_cwd = \getcwd() ?: '/';
 		\mkdir( $this->project_dir );
-		$this->discover = require self::CONFIG_FILE;
+		\chdir( $this->project_dir );
 	}
 
 	protected function tearDown(): void {
+		\chdir( $this->original_cwd );
 		$this->rrmdir( $this->project_dir );
 	}
 
@@ -35,7 +38,7 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 		);
 		\mkdir( $this->project_dir . '/src' );
 
-		$config = ( $this->discover )( $this->project_dir );
+		$config = require self::CONFIG_FILE;
 
 		self::assertSame( $this->project_dir . '/my-plugin.php', $config['parameters']['WPCompat']['pluginFile'] );
 		self::assertContains( $this->project_dir . '/src', $config['parameters']['paths'] );
@@ -44,14 +47,14 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 
 	#[Test]
 	public function detects_plugin_when_filename_does_not_match_directory_basename(): void {
-		// Real-world case the old basename-heuristic failed: project dir is "wordpress-plugins" but
-		// the plugin file is named after the plugin slug, not the dir.
+		// Real-world case the old basename-heuristic failed: project dir is "wordpress-plugins"
+		// but the plugin file is named after the plugin slug, not the dir.
 		\file_put_contents(
 			$this->project_dir . '/internal-comments.php',
 			"<?php\n/**\n * Plugin Name: Internal Comments\n */\n"
 		);
 
-		$config = ( $this->discover )( $this->project_dir );
+		$config = require self::CONFIG_FILE;
 
 		self::assertSame(
 			$this->project_dir . '/internal-comments.php',
@@ -64,7 +67,7 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 	public function ignores_php_files_without_plugin_name_header(): void {
 		\file_put_contents( $this->project_dir . '/random.php', "<?php\necho 'hello';\n" );
 
-		$config = ( $this->discover )( $this->project_dir );
+		$config = require self::CONFIG_FILE;
 
 		self::assertArrayNotHasKey( 'pluginFile', $config['parameters']['WPCompat'] );
 		self::assertSame( '7.0', $config['parameters']['WPCompat']['requiresAtLeast'] );
@@ -75,7 +78,7 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 		\mkdir( $this->project_dir . '/src' );
 		\mkdir( $this->project_dir . '/tests' );
 
-		$config = ( $this->discover )( $this->project_dir );
+		$config = require self::CONFIG_FILE;
 
 		self::assertContains( $this->project_dir . '/src', $config['parameters']['paths'] );
 		self::assertContains( $this->project_dir . '/tests', $config['parameters']['paths'] );
@@ -89,7 +92,7 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 		\mkdir( $this->project_dir . '/inc' );
 		\file_put_contents( $this->project_dir . '/index.php', "<?php\n" );
 
-		$config = ( $this->discover )( $this->project_dir );
+		$config = require self::CONFIG_FILE;
 
 		self::assertContains( $this->project_dir . '/inc', $config['parameters']['paths'] );
 		self::assertContains( $this->project_dir . '/index.php', $config['parameters']['paths'] );
@@ -108,7 +111,7 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 			"<?php\n"
 		);
 
-		$config = ( $this->discover )( $this->project_dir );
+		$config = require self::CONFIG_FILE;
 
 		self::assertContains(
 			$this->project_dir . '/custom-vendor/php-stubs/wordpress-stubs/wordpress-stubs.php',
@@ -118,7 +121,7 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 
 	#[Test]
 	public function returns_empty_paths_for_unknown_layout(): void {
-		$config = ( $this->discover )( $this->project_dir );
+		$config = require self::CONFIG_FILE;
 
 		self::assertArrayNotHasKey( 'paths', $config['parameters'] );
 		self::assertSame( '7.0', $config['parameters']['WPCompat']['requiresAtLeast'] );
@@ -131,7 +134,7 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 			"<?php\n/**\n * Plugin Name:       My Plugin\n * Description: foo\n */\n"
 		);
 
-		$config = ( $this->discover )( $this->project_dir );
+		$config = require self::CONFIG_FILE;
 
 		self::assertSame( $this->project_dir . '/my-plugin.php', $config['parameters']['WPCompat']['pluginFile'] );
 	}
@@ -143,7 +146,7 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 			"<?php\n# Plugin Name: Hash Style\n"
 		);
 
-		$config = ( $this->discover )( $this->project_dir );
+		$config = require self::CONFIG_FILE;
 
 		self::assertSame( $this->project_dir . '/my-plugin.php', $config['parameters']['WPCompat']['pluginFile'] );
 	}
@@ -152,7 +155,7 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 	public function bootstrap_files_omitted_when_stubs_not_installed(): void {
 		\mkdir( $this->project_dir . '/src' );
 
-		$config = ( $this->discover )( $this->project_dir );
+		$config = require self::CONFIG_FILE;
 
 		self::assertArrayNotHasKey( 'bootstrapFiles', $config['parameters'] );
 	}

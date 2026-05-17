@@ -26,6 +26,14 @@ Mutation tests run via Infection on a weekly schedule (manually triggerable too)
 
 Anything in `.github/workflows/reusable-*.yml` is consumed by external repositories via `uses: ahegyes/wordpress-configs/.github/workflows/X.yml@trunk`. Changes to inputs, outputs, or behavior are breaking. Document new inputs in the workflow's own header comment AND in `README.md`.
 
+## composer-require-checker.json
+
+`composer-require-checker.json` whitelists symbols used by our PHP code that come from packages this repo `require-dev`s (not `require`s). The current whitelist covers `Composer\Factory`, `Composer\Script\Event`, and `Symfony\Component\Finder\Finder` — all provided transitively by `composer/composer` in `require-dev`.
+
+We **don't** add these to `require`: per the keyword-discipline rule, declared deps signal what we *offer*, not what we *consume*. composer-require-checker is the arbiter that catches accidental dependence on something not in `require`; the whitelist exempts the deliberately-consumed-but-not-required ones.
+
+If you add a new whitelist entry, document the rationale in your PR description.
+
 ## Filing changes
 
 - One PR per concern (don't bundle a Composer script change with a PHPCS ruleset bump).

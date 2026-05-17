@@ -421,15 +421,20 @@ The result: your plugin's bundled deps end up scoped under your declared prefix,
 
 Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Plugins call them via `workflow_call` and compose them into their own pipelines. They only trigger on `workflow_call` — they don't run on pushes to this repo.
 
-| Workflow                              | Purpose                                          | Key Inputs                                            |
-|---------------------------------------|--------------------------------------------------|-------------------------------------------------------|
-| `reusable-php-syntax-check.yml`       | `php -l` matrix across PHP versions              | `plugin-path`, `php-versions[]`                       |
-| `reusable-php-qa.yml`                 | PHPCS + PHPStan (parallel jobs)                  | `plugin-path`, `php-version`                          |
-| `reusable-scripts-styles-lint.yml`    | ESLint + Stylelint via npm scripts               | `plugin-path`, `node-version`                         |
-| `reusable-phpunit.yml`                | PHPUnit + wp-env startup                         | `plugin-path`, `php-version`, `wp-version`            |
-| `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `plugin-path`, `plugin-slug`, `php-version`           |
-| `reusable-block-json-check.yml`       | Validates block.json against wp.org schema       | `plugin-path`, `node-version`                         |
-| `reusable-release.yml`                | Build → test built artifact → deploy to wp.org   | `plugin-slug`, `plugin-path`, `php-version` + secrets |
+| Workflow                              | Purpose                                          | Key Inputs                                                   |
+|---------------------------------------|--------------------------------------------------|--------------------------------------------------------------|
+| `reusable-php-syntax-check.yml`       | `php -l` matrix across PHP versions              | `plugin-path`, `php-versions[]`                              |
+| `reusable-php-qa.yml`                 | PHPCS + PHPStan (parallel jobs)                  | `plugin-path`, `php-version`                                 |
+| `reusable-scripts-styles-lint.yml`    | ESLint + Stylelint via npm scripts               | `plugin-path`, `node-version`                                |
+| `reusable-phpunit.yml`                | PHPUnit; wp-env startup gated by `needs-wp-env`  | `plugin-path`, `php-version`, `wp-version`, `needs-wp-env`   |
+| `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `plugin-path`, `plugin-slug`, `php-version`                  |
+| `reusable-block-json-check.yml`       | Validates block.json against wp.org schema       | `plugin-path`, `node-version`                                |
+| `reusable-supply-chain-audit.yml`     | `composer audit` + `npm audit` (parallel jobs)   | `plugin-path`, `composer-audit`, `npm-audit`, plus `*-flags` |
+| `reusable-release.yml`                | Build → test built artifact → deploy to wp.org   | `plugin-slug`, `plugin-path`, `php-version` + secrets        |
+
+**`php-versions[]` vs `php-version`:** `reusable-php-syntax-check.yml` accepts an array because matrixing across PHP versions is the whole point of syntax checking. The other reusables run a single PHP version per call — to test multiple versions, wrap the reusable in your own matrix. This asymmetry is intentional; consolidating either direction would force the wrong shape on the side that doesn't want it.
+
+**`reusable-phpunit.yml` + `needs-wp-env`:** Defaults to `true` (the wp-env + npm ci + start/stop steps run). Set `needs-wp-env: false` for pure-unit suites that don't need a WordPress runtime — skips the Node setup and wp-env lifecycle entirely.
 
 ### Plugin orchestrators
 
