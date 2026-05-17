@@ -81,12 +81,12 @@ vendor/bin/phpcbf --standard=./.phpcs.xml --basepath=. ./ -v      # Auto-fix
 
 `php/quality-assurance/phpstan.dist.neon` — level 8, WordPress stubs, auto-discovered paths.
 
-| Setting                          | Value                                          |
-|----------------------------------|-------------------------------------------------|
-| Level                            | 8                                               |
-| `treatPhpDocTypesAsCertain`      | `false`                                         |
-| `inferPrivatePropertyTypeFromConstructor` | `true`                                |
-| WordPress stubs                  | `php-stubs/wordpress-stubs` (auto-bootstrapped) |
+| Setting                                     | Value                                           |
+|---------------------------------------------|-------------------------------------------------|
+| Level                                       | 8                                               |
+| `treatPhpDocTypesAsCertain`                 | `false`                                         |
+| `inferPrivatePropertyTypeFromConstructor`   | `true`                                          |
+| WordPress stubs                             | `php-stubs/wordpress-stubs` (auto-bootstrapped) |
 
 Create a `.phpstan.neon` in your project:
 
@@ -107,9 +107,9 @@ vendor/bin/phpstan analyse -c ./.phpstan.neon -v --memory-limit=1G
 
 The bundled `phpstan.dist.neon.php` auto-discovers paths to analyse:
 
-| Directories                               | Root Files                                             |
-|-------------------------------------------|--------------------------------------------------------|
-| `src/`, `includes/`, `models/`, `blocks/`, `templates/` | `{plugin-name}.php`, `functions-bootstrap.php`, `functions.php` |
+| Directories                                                          | Root Files                                                      |
+|----------------------------------------------------------------------|-----------------------------------------------------------------|
+| `src/`, `includes/`, `models/`, `blocks/`, `templates/`              | `{plugin-name}.php`, `functions-bootstrap.php`, `functions.php` |
 
 **Included PHPStan extensions** (auto-installed):
 
@@ -137,7 +137,7 @@ Each Composer package in the dep graph (and the consuming project itself) declar
 }
 ```
 
-The hook walks `vendor/<vendor>/<package>/composer.json` plus the project root, parses each declared stubs file (convention: `vendor/<vendor>/<package>/<package>.php`), unions every class-like declaration (`class`, `interface`, `trait`, `enum`), function, and constant (top-level `const` declarations and `define()` calls) it finds, and writes `scoping-exclusions.json`. Names are recorded as FQCNs (`A\Foo` ≠ `B\Foo`) so namespaced stubs catalogs are handled correctly.
+The hook walks `vendor/<vendor>/<package>/composer.json` plus the project root, parses every stubs file each declared package ships (via the package's own `autoload.files`, falling back to the `vendor/<vendor>/<package>/<package>.php` convention when `autoload.files` is absent), unions every class-like declaration (`class`, `interface`, `trait`, `enum`), function, and constant (top-level `const` declarations and `define()` calls) it finds, and writes `scoping-exclusions.json`. Names are recorded as FQCNs (`A\Foo` ≠ `B\Foo`) so namespaced stubs catalogs are handled correctly. Multi-file catalogs like `php-stubs/woocommerce-stubs` (which ships both `woocommerce-stubs.php` and `woocommerce-packages-stubs.php`) are fully covered via this lookup.
 
 **Wire it in your project's `composer.json`:**
 
@@ -151,13 +151,13 @@ The hook walks `vendor/<vendor>/<package>/composer.json` plus the project root, 
 }
 ```
 
-| When it runs | Behavior |
-|---|---|
-| Dev mode + non-CI | Generates `scoping-exclusions.json` at project root |
-| Non-dev mode | Skipped |
-| `CI` env var set | Skipped |
-| No `extra.scoping-stubs` declarations anywhere in the dep graph | Writes empty exclusion lists (no symbols to skip) |
-| Declared stubs package not installed | Skipped with a console warning, helper continues |
+| When it runs                                                    | Behavior                                              |
+|-----------------------------------------------------------------|-------------------------------------------------------|
+| Dev mode + non-CI                                               | Generates `scoping-exclusions.json` at project root   |
+| Non-dev mode                                                    | Skipped                                               |
+| `CI` env var set                                                | Skipped                                               |
+| No `extra.scoping-stubs` declarations anywhere in the dep graph | Writes empty exclusion lists (no symbols to skip)     |
+| Declared stubs package not installed                            | Skipped with a console warning, helper continues      |
 
 The contract is: **whichever package introduces references to external (non-prefixable) symbols is the package that declares the catalog covering them.** A consumer plugin doesn't need to enumerate WP usage — the framework packages it depends on declare `php-stubs/wordpress-stubs` and the helper picks that up automatically. A consumer that integrates with WooCommerce adds `php-stubs/woocommerce-stubs` to its own `composer.json`.
 
@@ -188,10 +188,48 @@ This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your
 }
 ```
 
-| Hook                 | What It Does                                                        |
-|----------------------|---------------------------------------------------------------------|
-| `preAutoloadDump`    | Ensures scoped directories/files exist before autoloader runs       |
-| `postAutoloadDump`   | Triggers the `scope-php-dependencies` script (only in dev mode)     |
+| Hook                 | What It Does                                                                                                              |
+|----------------------|---------------------------------------------------------------------------------------------------------------------------|
+| `preAutoloadDump`    | Ensures scoped directories/files exist before autoloader runs                                                             |
+| `postAutoloadDump`   | Triggers the `scope-php-dependencies` script, then generates `dependencies/scoper-autoload.php` if opted in (see below)   |
+
+#### Autoload generator (opt-in)
+
+`php/composer/GenerateScopedAutoload.php` — runs at the end of `ScopePhpDependencies::postAutoloadDump` and emits a single `dependencies/scoper-autoload.php` that wires every scoped package's `autoload.psr-4` and `autoload.files` into the host plugin's Composer ClassLoader. Host plugins reference this one file via their root `autoload.files` instead of hand-declaring a PSR-4 entry per scoped package.
+
+**Opt in by declaring both keys in your project's `composer.json`:**
+
+```json
+{
+    "extra": {
+        "scoped-dependencies-dir": "dependencies",
+        "scoping-prefix": "DeepWebSolutions\\YourPlugin\\Scoped"
+    }
+}
+```
+
+**Wire the generated file in your `autoload`:**
+
+```json
+{
+    "autoload": {
+        "psr-4": {
+            "DeepWebSolutions\\YourPlugin\\": "src/"
+        },
+        "files": [
+            "dependencies/scoper-autoload.php"
+        ]
+    }
+}
+```
+
+That's it — adding a new scoped package never requires editing the host `composer.json` again. The generator reads each scoped package's `composer.json` and emits the corresponding `addPsr4()` calls and `require_once` statements at the next scoping run. Deterministic by design: no `class_alias`, no `expose-*` machinery — the output is purely a function of the scoped tree and the prefix.
+
+| Behavior          | When                                                                                                                                                        |
+|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Generator runs    | Both `extra.scoped-dependencies-dir` and `extra.scoping-prefix` set                                                                                         |
+| Generator skipped | Either key missing or `dependencies/` doesn't exist after scoping                                                                                           |
+| Throws            | A scoped package's `psr-4` key doesn't start with the declared prefix (pipeline drift) or declares `autoload.classmap` (not yet supported by the generator) |
 
 ### php-scoper Base Config
 
@@ -222,14 +260,14 @@ return $build_config( array(
 
 **Available overrides** (all optional, all merged with the defaults):
 
-| Key                  | Effect                                                                |
-|----------------------|-----------------------------------------------------------------------|
-| `project_dir`        | Override where to look for `scoping-exclusions.json` (defaults to cwd) |
-| `finders`            | Files to scope (most plugins always need to set this)                 |
-| `exclude_namespaces` | Additional namespaces to leave unprefixed                             |
-| `exclude_classes`    | Additional classes to leave unprefixed                                |
-| `exclude_functions`  | Additional functions to leave unprefixed                              |
-| `exclude_constants`  | Additional constants to leave unprefixed                              |
+| Key                  | Effect                                                                  |
+|----------------------|-------------------------------------------------------------------------|
+| `project_dir`        | Override where to look for `scoping-exclusions.json` (defaults to cwd)  |
+| `finders`            | Files to scope (most plugins always need to set this)                   |
+| `exclude_namespaces` | Additional namespaces to leave unprefixed                               |
+| `exclude_classes`    | Additional classes to leave unprefixed                                  |
+| `exclude_functions`  | Additional functions to leave unprefixed                                |
+| `exclude_constants`  | Additional constants to leave unprefixed                                |
 | `patchers`           | Additional patcher callables (run after the default reference-stripper) |
 
 **Default patcher limitations:** the reference-stripper handles direct calls (`\Prefix\function(`), `use Prefix\Class;` and `use Prefix\Class as Alias;` statements, `function_exists('Prefix\\function')` and `defined('Prefix\\CONST')` string arguments, bare constant refs (`\Prefix\CONST`), and any string-typed reference matching `'Prefix\\Symbol'` (covers `class_exists`, `method_exists`, `is_a`, `is_subclass_of`, `ReflectionClass`, etc.). The patcher is token-aware — comments containing the prefix pattern are preserved verbatim. It does NOT cover `instanceof` via dynamic-string variables (the class name isn't statically visible). If a scoped third-party library uses dynamic patterns the patcher can't reach, add a custom callable to `patchers`.
@@ -238,12 +276,12 @@ return $build_config( array(
 
 `.editorconfig` — copy to your project root or reference in your editor's settings.
 
-| File Type       | Indent Style | Indent Size |
-|-----------------|--------------|-------------|
-| `*` (default)   | Tabs         | —           |
-| `*.yml`, `*.yaml`, `*.json` | Spaces | 2   |
-| `*.md`          | Tabs         | — (trailing whitespace preserved) |
-| `*.txt`         | Tabs         | — (CRLF line endings)             |
+| File Type                   | Indent Style | Indent Size                         |
+|-----------------------------|--------------|-------------------------------------|
+| `*` (default)               | Tabs         | —                                   |
+| `*.yml`, `*.yaml`, `*.json` | Spaces       | 2                                   |
+| `*.md`                      | Tabs         | — (trailing whitespace preserved)   |
+| `*.txt`                     | Tabs         | — (CRLF line endings)               |
 
 ### Node Baselines
 
@@ -322,7 +360,7 @@ For test fixtures (admin login, block editor helpers, REST request utilities), i
 
 ## Dependency Scoping Workflow
 
-The three pieces above (`CollectScopingStubs`, `ScopePhpDependencies`, `scoper-base.inc.php`) compose into a complete dependency-scoping pipeline:
+`CollectScopingStubs`, `ScopePhpDependencies`, `scoper-base.inc.php`, and the autoload generator compose into a complete dependency-scoping pipeline:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -347,12 +385,13 @@ The three pieces above (`CollectScopingStubs`, `ScopePhpDependencies`, `scoper-b
 │ CollectScopingStubs::postAutoloadDump                       │
 │ • Walks vendor/*/composer.json + project's composer.json    │
 │ • Reads every `extra.scoping-stubs` declaration             │
-│ • Parses each declared stubs file                           │
+│ • Parses every stubs file each package ships                │
 │ • Writes scoping-exclusions.json with unioned symbols       │
 │                                                             │
 │ ScopePhpDependencies::postAutoloadDump                      │
 │ • Verifies php-scoper is installed + dev mode is on         │
 │ • Dispatches the `scope-php-dependencies` script            │
+│ • If opted in: generates dependencies/scoper-autoload.php   │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
@@ -367,20 +406,20 @@ The three pieces above (`CollectScopingStubs`, `ScopePhpDependencies`, `scoper-b
 └─────────────────────────────────────────────────────────────┘
 ```
 
-The result: your plugin's bundled deps end up scoped under `YourPlugin_Deps\` (or whatever prefix you choose), but every symbol from a declared catalog (e.g., WordPress functions, WC classes) and PSR interfaces remain unprefixed and resolve to their global definitions at runtime.
+The result: your plugin's bundled deps end up scoped under your declared prefix, but every symbol from a declared catalog (e.g., WordPress functions, WC classes) and PSR interfaces remain unprefixed and resolve to their global definitions at runtime. If the autoload generator is opted in, host plugin code references the scoped tree through a single `dependencies/scoper-autoload.php` entry in `autoload.files` — no per-package PSR-4 wiring in the host `composer.json`.
 
 ## Reusable CI Workflows
 
-Seven reusable GitHub Actions workflows live in `.github/workflows/`. Plugins call them via `workflow_call` and compose them into their own pipelines. All seven trigger only on `workflow_call` — they don't run on pushes to this repo.
+Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Plugins call them via `workflow_call` and compose them into their own pipelines. They only trigger on `workflow_call` — they don't run on pushes to this repo.
 
-| Workflow                              | Purpose                                          | Key Inputs                                         |
-|---------------------------------------|--------------------------------------------------|----------------------------------------------------|
-| `reusable-php-syntax-check.yml`       | `php -l` matrix across PHP versions              | `plugin-path`, `php-versions[]`                    |
-| `reusable-php-qa.yml`                 | PHPCS + PHPStan (parallel jobs)                  | `plugin-path`, `php-version`                       |
-| `reusable-scripts-styles-lint.yml`    | ESLint + Stylelint via npm scripts               | `plugin-path`, `node-version`                      |
-| `reusable-phpunit.yml`                | PHPUnit + wp-env startup                         | `plugin-path`, `php-version`, `wp-version`         |
-| `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `plugin-path`, `plugin-slug`, `php-version`        |
-| `reusable-block-json-check.yml`       | Validates block.json against wp.org schema       | `plugin-path`, `node-version`                      |
+| Workflow                              | Purpose                                          | Key Inputs                                            |
+|---------------------------------------|--------------------------------------------------|-------------------------------------------------------|
+| `reusable-php-syntax-check.yml`       | `php -l` matrix across PHP versions              | `plugin-path`, `php-versions[]`                       |
+| `reusable-php-qa.yml`                 | PHPCS + PHPStan (parallel jobs)                  | `plugin-path`, `php-version`                          |
+| `reusable-scripts-styles-lint.yml`    | ESLint + Stylelint via npm scripts               | `plugin-path`, `node-version`                         |
+| `reusable-phpunit.yml`                | PHPUnit + wp-env startup                         | `plugin-path`, `php-version`, `wp-version`            |
+| `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `plugin-path`, `plugin-slug`, `php-version`           |
+| `reusable-block-json-check.yml`       | Validates block.json against wp.org schema       | `plugin-path`, `node-version`                         |
 | `reusable-release.yml`                | Build → test built artifact → deploy to wp.org   | `plugin-slug`, `plugin-path`, `php-version` + secrets |
 
 ### Plugin orchestrators
@@ -466,10 +505,6 @@ composer test:unit      # runs the Unit testsuite specifically
 
 Tests live in `tests/Unit/` (PSR-4 autoloaded as `DeepWebSolutions\Config\Tests\Unit\`) and use real `Composer\Composer` + `Event` instances rather than mocks — closer to how the helpers are actually invoked in consuming plugins.
 
-| Test class                       | Covers                                       |
-|----------------------------------|----------------------------------------------|
-| `CollectScopingStubsTest`        | Declaration aggregation across vendor + project, multi-catalog union, dedup, missing-package handling, env-var overrides, skip conditions |
-| `ScopePhpDependenciesTest`       | Autoload path creation, dev-mode and php-scoper-installed gates |
-| `ScoperBaseConfigTest`           | Scoper config assembly, override merging, default patcher transformations |
+Coverage: declaration aggregation and multi-file stubs lookup in `CollectScopingStubs`; autoload-path creation and pipeline gates in `ScopePhpDependencies`; scoper config assembly, override merging, and patcher transformations in `scoper-base.inc.php`; the contrib scoper partials including their seam into scoper-base; and the autoload generator's output across PSR-4, `autoload.files`, and pipeline-drift detection.
 
 Test fixtures live in `tests/fixtures/<test-name>/` only when the data is multi-line or shared across multiple tests. Inline test data is preferred for small, scenario-specific inputs.

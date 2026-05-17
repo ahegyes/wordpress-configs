@@ -13,7 +13,7 @@ Practical consequences:
 ```bash
 composer install         # PHP deps + PHPUnit
 npm install              # Node configs' peer deps for local linting
-composer test            # PHPUnit (27 tests across CollectScopingStubs, ScopePhpDependencies, scoper-base)
+composer test            # PHPUnit unit suite
 ```
 
 ## Tests

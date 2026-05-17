@@ -174,14 +174,20 @@ class CollectScopingStubs {
 		$declared = self::read_declaration( $project_dir . '/composer.json' );
 
 		if ( \is_dir( $vendor_dir ) ) {
-			// Each installed package's composer.json sits at vendor/<vendor>/<package>/composer.json.
-			// Symfony Finder's depth filter is 0-indexed (0 = files directly inside the search root).
+			// Walk packages installed at the standard composer layout:
+			// `vendor/<vendor>/<package>/composer.json`. Finder's depth is 0-indexed,
+			// so depth 2 is the file two directories below the search root.
+			//
+			// Consumers using `extra.installer-paths` to redirect packages to a
+			// non-standard depth inside vendor would be missed by this walk —
+			// scoped deps generally don't go through custom installer-paths, so
+			// this trade-off favours noise reduction (no false matches from
+			// bundled sub-project composer.json files deeper in the tree).
 			$finder = \Symfony\Component\Finder\Finder::create()
 				->in( $vendor_dir )
 				->files()
 				->name( 'composer.json' )
-				->depth( 2 )
-				->followLinks();
+				->depth( 2 );
 
 			foreach ( $finder as $file ) {
 				$declared = \array_merge( $declared, self::read_declaration( $file->getPathname() ) );
