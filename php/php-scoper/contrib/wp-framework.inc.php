@@ -9,7 +9,11 @@ use Symfony\Component\Finder\Finder;
  * @throws \RuntimeException If glob() fails for the vendor directory.
  */
 return static function ( string $vendor_dir ): array {
-	$packages = \glob( $vendor_dir . '/ahegyes/wp-framework-*', GLOB_ONLYDIR ) ?: throw new \RuntimeException( sprintf( 'glob() failed for %s', $vendor_dir ) );
+	$packages = \glob( $vendor_dir . '/ahegyes/wp-framework-*', GLOB_ONLYDIR );
+	if ( false === $packages ) {
+		throw new \RuntimeException( sprintf( 'glob() failed for %s', $vendor_dir ) );
+	}
+
 	if ( 0 === count( $packages ) ) {
 		return array( 'finders' => array() );
 	}
