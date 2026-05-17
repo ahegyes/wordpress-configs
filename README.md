@@ -153,9 +153,8 @@ The hook walks `vendor/<vendor>/<package>/composer.json` plus the project root, 
 
 | When it runs                                                    | Behavior                                              |
 |-----------------------------------------------------------------|-------------------------------------------------------|
-| Dev mode + non-CI                                               | Generates `scoping-exclusions.json` at project root   |
+| Dev mode                                                        | Generates `scoping-exclusions.json` at project root   |
 | Non-dev mode                                                    | Skipped                                               |
-| `CI` env var set                                                | Skipped                                               |
 | No `extra.scoping-stubs` declarations anywhere in the dep graph | Writes empty exclusion lists (no symbols to skip)     |
 | Declared stubs package not installed                            | Skipped with a console warning, helper continues      |
 

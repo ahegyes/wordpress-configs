@@ -9,6 +9,7 @@
         "date",
         "json",
         "pcre",
+        "random",
         "SPL",
         "standard"
     ]

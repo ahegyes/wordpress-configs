@@ -302,7 +302,8 @@ final class CollectScopingStubs {
 
 	/**
 	 * Writes `$payload` to `$output_path` via a temp-file-and-rename so a concurrent
-	 * composer run can't read the file mid-write.
+	 * composer run can't read the file mid-write. PID + 4 random bytes in the temp
+	 * filename prevents collisions across PID-namespace-reusing container runtimes.
 	 *
 	 * @infection-ignore-all
 	 *
@@ -312,7 +313,7 @@ final class CollectScopingStubs {
 	 * @throws \RuntimeException If the temp file cannot be written or the rename fails.
 	 */
 	private static function write_atomically( string $output_path, string $payload ): void {
-		$temp_path = $output_path . '.tmp.' . \getmypid();
+		$temp_path = $output_path . '.tmp.' . \getmypid() . '.' . \bin2hex( \random_bytes( 4 ) );
 		\file_put_contents( $temp_path, $payload ) ?: throw new \RuntimeException( \sprintf( 'Could not write %s', $temp_path ) );
 		\rename( $temp_path, $output_path ) ?: throw new \RuntimeException( \sprintf( 'Could not rename %s to %s', $temp_path, $output_path ) );
 	}
