@@ -47,22 +47,22 @@ jobs:
     name: PHPUnit (PHP ${{ inputs.php-version }} / WP ${{ inputs.wp-env-core != '' && inputs.wp-env-core || inputs.wp-version != '' && inputs.wp-version || 'consumer-default' }})
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc # v2
         with:
           php-version: ${{ inputs.php-version }}
           coverage: none
           tools: composer:v2
 
       - name: Setup Node.js (for wp-env)
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: ${{ inputs.node-version }}
 
       - name: Install Composer dependencies
-        uses: ramsey/composer-install@v4
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # v4
         with:
           working-directory: ${{ inputs.plugin-path }}
           composer-options: '--prefer-dist'
