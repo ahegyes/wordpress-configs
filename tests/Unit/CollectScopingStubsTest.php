@@ -194,7 +194,7 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
 
 		self::assertStringContainsString( 'Skipping declared stubs package', $io->getOutput() );
-		self::assertStringContainsString( 'file not found', $io->getOutput() );
+		self::assertStringContainsString( 'no stubs file found', $io->getOutput() );
 	}
 
 	#[Test]
@@ -354,6 +354,72 @@ final class CollectScopingStubsTest extends TestCase {
 		$result = $this->loadOutput( 'scoping-exclusions.json' );
 		self::assertContains( 'DEFINED_CONST_A', $result['constants'] );
 		self::assertContains( 'DEFINED_CONST_B', $result['constants'] );
+	}
+
+	#[Test]
+	public function resolves_stubs_paths_from_autoload_files_when_declared(): void {
+		$package_dir = $this->vendor_dir . '/php-stubs/foo';
+		\mkdir( $package_dir . '/build', 0755, true );
+		\copy( self::FIXTURES_DIR . '/stubs.php', $package_dir . '/build/stubs-bundled.php' );
+		\file_put_contents(
+			$package_dir . '/composer.json',
+			\json_encode(
+				array(
+					'name'     => 'php-stubs/foo',
+					'autoload' => array(
+						'files' => array( 'build/stubs-bundled.php' ),
+					),
+				),
+				JSON_THROW_ON_ERROR
+			)
+		);
+
+		$this->writeProjectComposer( array( 'php-stubs/foo' ) );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'add_action', $result['functions'] );
+	}
+
+	#[Test]
+	public function aggregates_symbols_across_multiple_autoload_files_in_one_package(): void {
+		// Mimics woocommerce-stubs, which ships woocommerce-stubs.php + woocommerce-packages-stubs.php.
+		$package_dir = $this->vendor_dir . '/php-stubs/multi';
+		\mkdir( $package_dir, 0755, true );
+		\copy( self::FIXTURES_DIR . '/stubs.php',       $package_dir . '/core-stubs.php' );
+		\copy( self::FIXTURES_DIR . '/stubs-extra.php', $package_dir . '/extra-stubs.php' );
+		\file_put_contents(
+			$package_dir . '/composer.json',
+			\json_encode(
+				array(
+					'name'     => 'php-stubs/multi',
+					'autoload' => array(
+						'files' => array( 'core-stubs.php', 'extra-stubs.php' ),
+					),
+				),
+				JSON_THROW_ON_ERROR
+			)
+		);
+
+		$this->writeProjectComposer( array( 'php-stubs/multi' ) );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'add_action',     $result['functions'] );
+		self::assertContains( 'wc_get_product', $result['functions'] );
+	}
+
+	#[Test]
+	public function falls_back_to_convention_when_autoload_files_is_absent(): void {
+		// installStubsPackage writes a composer.json with no autoload section, so the
+		// helper must fall back to vendor/<vendor>/<name>/<name>.php.
+		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
+		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'add_action', $result['functions'] );
 	}
 
 	#[Test]

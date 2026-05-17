@@ -47,94 +47,96 @@ class CollectScopingStubs {
 			$parser = new \PhpParser\ParserFactory()->createForNewestSupportedVersion();
 
 			foreach ( $declared as $package ) {
-				$stubs_path = self::resolve_stubs_path( $vendor_dir, $package );
-				if ( ! \is_file( $stubs_path ) ) {
-					$console_io->write( \sprintf( 'Skipping declared stubs package "%s" — file not found at %s.', $package, $stubs_path ) );
+				$stubs_paths = self::resolve_stubs_paths( $vendor_dir, $package );
+				if ( array() === $stubs_paths ) {
+					$console_io->write( \sprintf( 'Skipping declared stubs package "%s" — no stubs file found in its autoload.files and the conventional path is absent.', $package ) );
 					continue;
 				}
 
-				$contents = \file_get_contents( $stubs_path ) ?: throw new \RuntimeException( \sprintf( 'Could not read stubs file %s', $stubs_path ) );
-				$parsed   = $parser->parse( $contents );
-				if ( null === $parsed ) {
-					$console_io->write( \sprintf( 'Skipping declared stubs package "%s" — could not parse %s.', $package, $stubs_path ) );
-					continue;
-				}
-
-				$visitor   = new class() extends \PhpParser\NodeVisitorAbstract {
-					/**
-					 * Fully-qualified class names collected from the parsed stubs.
-					 *
-					 * @var list<string>
-					 */
-					public array $classes = array();
-
-					/**
-					 * Fully-qualified function names collected from the parsed stubs.
-					 *
-					 * @var list<string>
-					 */
-					public array $functions = array();
-
-					/**
-					 * Fully-qualified constant names collected from the parsed stubs.
-					 * Includes both `const FOO = ...;` declarations and `define('FOO', ...)` calls.
-					 *
-					 * @var list<string>
-					 */
-					public array $constants = array();
-
-					/**
-					 * {@inheritDoc}
-					 *
-					 * @param \PhpParser\Node $node Node being visited.
-					 */
-					public function enterNode( \PhpParser\Node $node ): int|null {
-						switch ( \get_class( $node ) ) {
-							// Class-like declarations all flow into `$classes` — php-scoper's `exclude-classes` covers all of them.
-							case \PhpParser\Node\Stmt\Class_::class:
-							case \PhpParser\Node\Stmt\Interface_::class:
-							case \PhpParser\Node\Stmt\Trait_::class:
-							case \PhpParser\Node\Stmt\Enum_::class:
-								if ( null !== $node->namespacedName ) {
-									$this->classes[] = $node->namespacedName->toString();
-								}
-								return \PhpParser\NodeVisitor::DONT_TRAVERSE_CHILDREN;
-							case \PhpParser\Node\Stmt\Function_::class:
-								if ( null !== $node->namespacedName ) {
-									$this->functions[] = $node->namespacedName->toString();
-								}
-								break;
-							case \PhpParser\Node\Stmt\Const_::class:
-								foreach ( $node->consts as $const ) {
-									if ( null !== $const->namespacedName ) {
-										$this->constants[] = $const->namespacedName->toString();
-									}
-								}
-								break;
-							case \PhpParser\Node\Expr\FuncCall::class:
-								if (
-									$node->name instanceof \PhpParser\Node\Name
-									&& 'define' === $node->name->toString()
-									&& isset( $node->args[0] )
-									&& $node->args[0] instanceof \PhpParser\Node\Arg
-									&& $node->args[0]->value instanceof \PhpParser\Node\Scalar\String_
-								) {
-									$this->constants[] = $node->args[0]->value->value;
-								}
-								break;
-						}
-						return null;
+				foreach ( $stubs_paths as $stubs_path ) {
+					$contents = \file_get_contents( $stubs_path ) ?: throw new \RuntimeException( \sprintf( 'Could not read stubs file %s', $stubs_path ) );
+					$parsed   = $parser->parse( $contents );
+					if ( null === $parsed ) {
+						$console_io->write( \sprintf( 'Skipping stubs file %s — could not parse.', $stubs_path ) );
+						continue;
 					}
-				};
-				$traverser = new \PhpParser\NodeTraverser();
-				// NameResolver populates `namespacedName` on Class_, Function_, Const_ — needed for FQCN distinction across namespaced stubs.
-				$traverser->addVisitor( new \PhpParser\NodeVisitor\NameResolver() );
-				$traverser->addVisitor( $visitor );
-				$traverser->traverse( $parsed );
 
-				$classes   = \array_merge( $classes, $visitor->classes );
-				$functions = \array_merge( $functions, $visitor->functions );
-				$constants = \array_merge( $constants, $visitor->constants );
+					$visitor   = new class() extends \PhpParser\NodeVisitorAbstract {
+						/**
+						 * Fully-qualified class names collected from the parsed stubs.
+						 *
+						 * @var list<string>
+						 */
+						public array $classes = array();
+
+						/**
+						 * Fully-qualified function names collected from the parsed stubs.
+						 *
+						 * @var list<string>
+						 */
+						public array $functions = array();
+
+						/**
+						 * Fully-qualified constant names collected from the parsed stubs.
+						 * Includes both `const FOO = ...;` declarations and `define('FOO', ...)` calls.
+						 *
+						 * @var list<string>
+						 */
+						public array $constants = array();
+
+						/**
+						 * {@inheritDoc}
+						 *
+						 * @param \PhpParser\Node $node Node being visited.
+						 */
+						public function enterNode( \PhpParser\Node $node ): int|null {
+							switch ( \get_class( $node ) ) {
+								// Class-like declarations all flow into `$classes` — php-scoper's `exclude-classes` covers all of them.
+								case \PhpParser\Node\Stmt\Class_::class:
+								case \PhpParser\Node\Stmt\Interface_::class:
+								case \PhpParser\Node\Stmt\Trait_::class:
+								case \PhpParser\Node\Stmt\Enum_::class:
+									if ( null !== $node->namespacedName ) {
+										$this->classes[] = $node->namespacedName->toString();
+									}
+									return \PhpParser\NodeVisitor::DONT_TRAVERSE_CHILDREN;
+								case \PhpParser\Node\Stmt\Function_::class:
+									if ( null !== $node->namespacedName ) {
+										$this->functions[] = $node->namespacedName->toString();
+									}
+									break;
+								case \PhpParser\Node\Stmt\Const_::class:
+									foreach ( $node->consts as $const ) {
+										if ( null !== $const->namespacedName ) {
+											$this->constants[] = $const->namespacedName->toString();
+										}
+									}
+									break;
+								case \PhpParser\Node\Expr\FuncCall::class:
+									if (
+										$node->name instanceof \PhpParser\Node\Name
+										&& 'define' === $node->name->toString()
+										&& isset( $node->args[0] )
+										&& $node->args[0] instanceof \PhpParser\Node\Arg
+										&& $node->args[0]->value instanceof \PhpParser\Node\Scalar\String_
+									) {
+										$this->constants[] = $node->args[0]->value->value;
+									}
+									break;
+							}
+							return null;
+						}
+					};
+					$traverser = new \PhpParser\NodeTraverser();
+					// NameResolver populates `namespacedName` on Class_, Function_, Const_ — needed for FQCN distinction across namespaced stubs.
+					$traverser->addVisitor( new \PhpParser\NodeVisitor\NameResolver() );
+					$traverser->addVisitor( $visitor );
+					$traverser->traverse( $parsed );
+
+					$classes   = \array_merge( $classes, $visitor->classes );
+					$functions = \array_merge( $functions, $visitor->functions );
+					$constants = \array_merge( $constants, $visitor->constants );
+				}
 			}
 		}
 
@@ -161,10 +163,10 @@ class CollectScopingStubs {
 	 * @param string $project_dir Project root directory.
 	 * @param string $vendor_dir  Composer vendor directory.
 	 *
-	 * @return list<string>
-	 *
 	 * @throws \JsonException    If a composer.json file cannot be parsed.
 	 * @throws \RuntimeException If a composer.json file exists but cannot be read.
+	 *
+	 * @return list<string>
 	 */
 	private static function collect_declarations( string $project_dir, string $vendor_dir ): array {
 		$declared = self::read_declaration( $project_dir . '/composer.json' );
@@ -226,19 +228,52 @@ class CollectScopingStubs {
 	}
 
 	/**
-	 * Resolves a stubs package name (e.g. "php-stubs/wordpress-stubs") to the
-	 * path of its stubs file by convention.
+	 * Resolves a stubs package name to its file paths. Reads `autoload.files`
+	 * (multi-file catalogs like `php-stubs/woocommerce-stubs`); falls back to
+	 * the `<name>/<name>.php` convention for minimal hand-rolled catalogs.
 	 *
 	 * @param string $vendor_dir Composer vendor directory.
 	 * @param string $package    Stubs package name (vendor/package format).
 	 *
-	 * @return string Path to the stubs file, or empty string if package name is invalid.
+	 * @throws \JsonException    If the package's composer.json exists but cannot be parsed.
+	 * @throws \RuntimeException If the package's composer.json exists but cannot be read.
+	 *
+	 * @return list<string> Existing-file paths in order; empty if nothing found.
 	 */
-	private static function resolve_stubs_path( string $vendor_dir, string $package ): string {
+	private static function resolve_stubs_paths( string $vendor_dir, string $package ): array {
 		$parts = \explode( '/', $package );
 		if ( 2 !== \count( $parts ) ) {
-			return '';
+			return array();
 		}
-		return $vendor_dir . '/' . $package . '/' . $parts[1] . '.php';
+
+		$package_dir   = $vendor_dir . '/' . $package;
+		$composer_json = $package_dir . '/composer.json';
+
+		$candidates = array();
+
+		if ( \is_file( $composer_json ) ) {
+			$contents = \file_get_contents( $composer_json ) ?: throw new \RuntimeException( \sprintf( 'Could not read %s', $composer_json ) );
+			$data     = \json_decode( $contents, true, flags: JSON_THROW_ON_ERROR );
+
+			$files = $data['autoload']['files'] ?? array();
+			if ( \is_array( $files ) ) {
+				foreach ( $files as $relative ) {
+					if ( \is_string( $relative ) ) {
+						$candidates[] = $package_dir . '/' . $relative;
+					}
+				}
+			}
+		}
+
+		$candidates[] = $package_dir . '/' . $parts[1] . '.php';
+
+		$existing = array();
+		foreach ( $candidates as $candidate ) {
+			if ( \is_file( $candidate ) && ! \in_array( $candidate, $existing, true ) ) {
+				$existing[] = $candidate;
+			}
+		}
+
+		return $existing;
 	}
 }
