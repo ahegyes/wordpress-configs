@@ -462,6 +462,11 @@ final class ScoperBaseConfigTest extends TestCase {
 	}
 
 	private function rrmdir( string $dir ): void {
+		// SAFETY: never follow symlinks — is_dir() returns true for symlink-to-dir.
+		if ( \is_link( $dir ) ) {
+			\unlink( $dir );
+			return;
+		}
 		if ( ! \is_dir( $dir ) ) {
 			return;
 		}
@@ -470,7 +475,13 @@ final class ScoperBaseConfigTest extends TestCase {
 				continue;
 			}
 			$path = $dir . '/' . $entry;
-			\is_dir( $path ) ? $this->rrmdir( $path ) : \unlink( $path );
+			if ( \is_link( $path ) ) {
+				\unlink( $path );
+			} elseif ( \is_dir( $path ) ) {
+				$this->rrmdir( $path );
+			} else {
+				\unlink( $path );
+			}
 		}
 		\rmdir( $dir );
 	}
