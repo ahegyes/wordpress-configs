@@ -18,6 +18,10 @@
         <include>
             <directory>php/composer</directory>
             <directory>php/php-scoper</directory>
+            <directory>php/quality-assurance</directory>
         </include>
+        <exclude>
+            <file>php/quality-assurance/phpstan.dist.neon.php</file>
+        </exclude>
     </source>
 </phpunit>

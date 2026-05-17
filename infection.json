@@ -3,7 +3,11 @@
     "source": {
         "directories": [
             "php/composer",
-            "php/php-scoper"
+            "php/php-scoper",
+            "php/quality-assurance"
+        ],
+        "excludes": [
+            "phpstan.dist.neon.php"
         ]
     },
     "logs": {
