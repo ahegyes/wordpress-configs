@@ -4,9 +4,11 @@ namespace DeepWebSolutions\Config\Composer;
 
 /**
  * Composer post-autoload-dump hook. Walks `vendor/<vendor>/<package>/composer.json`
- * + the project root, reads each `extra.scoping-stubs` array, parses every
- * referenced stubs file (path convention: `vendor/<vendor>/<package>/<package>.php`),
- * and writes the unioned class/function symbol set to `scoping-exclusions.json`.
+ * + the project root, reads each `extra.scoping-stubs` array, parses every stubs
+ * file each declared package ships (via its own `autoload.files`, or the
+ * `vendor/<vendor>/<package>/<package>.php` convention when autoload.files is
+ * absent), and writes the unioned class/function/constant symbol set to
+ * `scoping-exclusions.json`.
  *
  * Declaration format:
  *
@@ -14,8 +16,8 @@ namespace DeepWebSolutions\Config\Composer;
  *         "scoping-stubs": ["php-stubs/wordpress-stubs"]
  *     }
  *
- * The php-scoper base config reads the output JSON into its `exclude-classes`
- * and `exclude-functions` keys.
+ * The php-scoper base config reads the output JSON into its `exclude-classes`,
+ * `exclude-functions`, and `exclude-constants` keys.
  */
 class CollectScopingStubs {
 	/**

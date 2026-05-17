@@ -88,5 +88,43 @@ class ScopePhpDependencies {
 
 		$event_dispatcher = $event->getComposer()->getEventDispatcher();
 		$event_dispatcher->dispatchScript( 'scope-php-dependencies', $event->isDevMode() );
+
+		self::generate_scoped_autoload( $event );
+	}
+
+	/**
+	 * Generates `dependencies/scoper-autoload.php` when both `extra.scoped-dependencies-dir`
+	 * and `extra.scoping-prefix` are set in the consumer's composer.json.
+	 *
+	 * @param Event $event Composer event object.
+	 *
+	 * @throws \JsonException     If composer.json or a scoped composer.json cannot be parsed.
+	 * @throws \RuntimeException  If composer.json cannot be read or the generated file cannot be written.
+	 *
+	 * @return void
+	 */
+	private static function generate_scoped_autoload( Event $event ): void {
+		$console_io    = $event->getIO();
+		$composer_file = \Composer\Factory::getComposerFile();
+		$project_dir   = \dirname( $composer_file );
+
+		$composer_contents = \file_get_contents( $composer_file ) ?: throw new \RuntimeException( \sprintf( 'Could not read composer.json at %s', $composer_file ) );
+		$composer_config   = \json_decode( $composer_contents, true, flags: JSON_THROW_ON_ERROR );
+
+		$dependencies_rel = $composer_config['extra']['scoped-dependencies-dir'] ?? null;
+		$prefix           = $composer_config['extra']['scoping-prefix'] ?? null;
+
+		if ( ! \is_string( $dependencies_rel ) || ! \is_string( $prefix ) ) {
+			return;
+		}
+
+		$dependencies_dir = $project_dir . DIRECTORY_SEPARATOR . \ltrim( $dependencies_rel, '/\\' );
+		if ( ! \is_dir( $dependencies_dir ) ) {
+			$console_io->write( \sprintf( 'Skipping scoper-autoload generation — %s does not exist (php-scoper may not have produced output).', $dependencies_dir ) );
+			return;
+		}
+
+		$output_path = GenerateScopedAutoload::generate( $dependencies_dir, $prefix );
+		$console_io->write( \sprintf( 'Wrote %s', $output_path ) );
 	}
 }
