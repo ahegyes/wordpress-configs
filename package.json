@@ -27,7 +27,10 @@
         "packages-update:wp": "wp-scripts packages-update",
 
         "format:scripts": "wp-scripts format ./node --no-error-on-unmatched-pattern",
+        "format:all": "composer format:php && npm run format:scripts",
+
         "lint:scripts": "wp-scripts lint-js ./node --no-error-on-unmatched-pattern",
+        "lint:all": "composer lint:php && npm run lint:scripts",
 
         "audit": "composer audit && npm audit",
         "audit:fix": "npm audit fix",

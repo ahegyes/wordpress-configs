@@ -74,11 +74,13 @@
     "lint:php:phpstan": "phpstan analyse -v --memory-limit=1G",
     "lint:php:composer-require-checker": "@php vendor/bin/composer-require-checker check --config-file=composer-require-checker.json",
 
-    "test": "@php vendor/bin/phpunit",
+    "test": [
+      "@test:unit"
+    ],
     "test:unit": "@php vendor/bin/phpunit --testsuite=Unit",
     "test:mutation": "@php vendor/bin/infection --threads=max",
     "test:all": [
-      "@test",
+      "@test:unit",
       "@test:mutation"
     ],
 
