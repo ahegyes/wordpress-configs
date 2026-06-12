@@ -33,7 +33,7 @@
   "require-dev": {
     "composer/composer": "^2",
     "humbug/php-scoper": "^0.18",
-    "infection/infection": "^0.32",
+    "infection/infection": "^0.33",
     "maglnet/composer-require-checker": "^4",
     "phpunit/phpunit": "^13"
   },
