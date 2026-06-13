@@ -11,15 +11,20 @@ final class ContribScoperPartialsTest extends TestCase {
 	private const WP_FRAMEWORK_PARTIAL = __DIR__ . '/../../php/php-scoper/contrib/wp-framework.inc.php';
 	private const SCOPER_BASE          = __DIR__ . '/../../php/php-scoper/scoper-base.inc.php';
 
+	private string $project_dir;
+
 	private string $vendor_dir;
 
 	protected function setUp(): void {
-		$this->vendor_dir = \sys_get_temp_dir() . '/dws-wp-configs-contrib-' . \uniqid();
+		// vendor lives under a unique project dir so the wp-framework partial's default
+		// `dirname( $vendor_dir )` resolves to an empty project dir (no stray composer.json).
+		$this->project_dir = \sys_get_temp_dir() . '/dws-wp-configs-contrib-' . \uniqid();
+		$this->vendor_dir  = $this->project_dir . '/vendor';
 		\mkdir( $this->vendor_dir, 0755, true );
 	}
 
 	protected function tearDown(): void {
-		$this->rrmdir( $this->vendor_dir );
+		$this->rrmdir( $this->project_dir );
 	}
 
 	// region php-di.inc.php
@@ -50,11 +55,11 @@ final class ContribScoperPartialsTest extends TestCase {
 	// region wp-framework.inc.php
 
 	#[Test]
-	public function wp_framework_partial_returns_empty_finders_when_no_packages_installed(): void {
+	public function wp_framework_partial_returns_empty_finders_and_patchers_when_no_packages_installed(): void {
 		$factory = require self::WP_FRAMEWORK_PARTIAL;
 		$config  = $factory( $this->vendor_dir );
 
-		self::assertSame( array( 'finders' => array() ), $config );
+		self::assertSame( array( 'finders' => array(), 'patchers' => array() ), $config );
 	}
 
 	#[Test]
