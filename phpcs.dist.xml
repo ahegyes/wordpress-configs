@@ -5,6 +5,7 @@
 	<rule ref="./php/quality-assurance/phpcs.dist.xml">
 		<!-- No WP runtime — native PHP functions (file_get_contents, json_encode) are correct here. -->
 		<exclude name="WordPress.WP"/>
+		<exclude name="WordPress.PHP.DevelopmentFunctions"/>
 		<!-- Tooling code uses camelCase per PSR-12 / Composer convention, not WP snake_case. -->
 		<exclude name="WordPress.NamingConventions.ValidVariableName"/>
 		<exclude name="WordPress.NamingConventions.ValidFunctionName"/>

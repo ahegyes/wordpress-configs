@@ -52,7 +52,7 @@ return static function ( string $vendor_dir, string $project_dir = '' ): array {
 		$target_text_domain = $composer_config['extra']['text-domain'] ?? null;
 		if ( \is_string( $target_text_domain ) && '' !== $target_text_domain ) {
 			if ( 1 !== \preg_match( '/^[a-z0-9][a-z0-9-]*$/', $target_text_domain ) ) {
-				throw new \RuntimeException( sprintf( 'Invalid "extra.text-domain" %s in %s — expected a lowercase slug (a-z, 0-9, hyphen).', \var_export( $target_text_domain, true ), $composer_path ) );
+				throw new \RuntimeException( \sprintf( 'Invalid "extra.text-domain" %s in %s — expected a lowercase slug (a-z, 0-9, hyphen).', \var_export( $target_text_domain, true ), $composer_path ) );
 			}
 
 			// Rewrites any `wp-framework-*` textdomain to the consumer's domain. Operates on tokenized
