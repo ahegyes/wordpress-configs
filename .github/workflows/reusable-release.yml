@@ -43,6 +43,8 @@ jobs:
       artifact-name: ${{ steps.archive.outputs.artifact-name }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
 
       - name: Verify .distignore exists
         working-directory: ${{ inputs.plugin-path }}
@@ -60,11 +62,9 @@ jobs:
           tools: composer:v2, wp-cli
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] npm cache removed; setup-node v6 conditional auto-cache accepted (artifact is built+tested before publish)
         with:
           node-version: 'lts/*'
-          cache: 'npm'
-          cache-dependency-path: ${{ inputs.plugin-path }}/package-lock.json
 
       - name: Install Composer dependencies
         uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
@@ -109,6 +109,8 @@ jobs:
     # Deploy reuses the same extracted tree (./built/<slug>/) — what gets tested is what gets pushed to SVN.
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
 
       - name: Download built artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
@@ -129,11 +131,9 @@ jobs:
           tools: composer:v2
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] npm cache removed; setup-node v6 conditional auto-cache accepted (artifact is built+tested before publish)
         with:
           node-version: 'lts/*'
-          cache: 'npm'
-          cache-dependency-path: ${{ inputs.plugin-path }}/package-lock.json
 
       - name: Install npm dependencies (E2E runner)
         working-directory: ${{ inputs.plugin-path }}
@@ -184,6 +184,6 @@ jobs:
           ASSETS_DIR: ${{ inputs.plugin-path }}/.wordpress-org
 
       - name: Attach artifact to GitHub release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # zizmor: ignore[superfluous-actions] deliberate: handles release creation + asset upload as one reviewed step
         with:
           files: ./dist/${{ inputs.plugin-slug }}.zip
