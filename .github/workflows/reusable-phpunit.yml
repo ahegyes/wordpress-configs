@@ -86,13 +86,18 @@ jobs:
           # If both empty, WP_ENV_CORE is empty and wp-env falls back to the consumer's
           # config file `core` setting.
           WP_ENV_CORE: ${{ inputs.wp-env-core != '' && inputs.wp-env-core || (inputs.wp-version != '' && format('WordPress/WordPress#tags/{0}', inputs.wp-version)) || '' }}
-        run: npx --yes @wordpress/env ${{ inputs.wp-env-config-file != '' && format('--config {0}', inputs.wp-env-config-file) || '' }} start
+          WP_ENV_ARGS: ${{ inputs.wp-env-config-file != '' && format('--config {0}', inputs.wp-env-config-file) || '' }}
+        run: npx --yes @wordpress/env $WP_ENV_ARGS start
 
       - name: Run tests
         working-directory: ${{ inputs.plugin-path }}
-        run: composer ${{ inputs.composer-script }}
+        env:
+          COMPOSER_SCRIPT: ${{ inputs.composer-script }}
+        run: composer $COMPOSER_SCRIPT
 
       - name: Stop wp-env
         if: ${{ always() && inputs.needs-wp-env }}
         working-directory: ${{ inputs.plugin-path }}
-        run: npx --yes @wordpress/env ${{ inputs.wp-env-config-file != '' && format('--config {0}', inputs.wp-env-config-file) || '' }} stop
+        env:
+          WP_ENV_ARGS: ${{ inputs.wp-env-config-file != '' && format('--config {0}', inputs.wp-env-config-file) || '' }}
+        run: npx --yes @wordpress/env $WP_ENV_ARGS stop

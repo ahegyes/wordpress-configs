@@ -45,8 +45,10 @@ jobs:
       - name: Validate against WordPress block.json schema
         if: steps.find-blocks.outputs.found == 'true'
         working-directory: ${{ inputs.plugin-path }}
+        env:
+          BLOCK_FILES: ${{ steps.find-blocks.outputs.files }}
         run: |
           npx --yes ajv-cli validate \
             -s https://schemas.wp.org/trunk/block.json \
-            -d '${{ steps.find-blocks.outputs.files }}' \
+            -d "$BLOCK_FILES" \
             --strict=false
