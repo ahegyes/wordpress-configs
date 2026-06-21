@@ -84,7 +84,7 @@ jobs:
         working-directory: ${{ inputs.plugin-path }}
         env:
           BUILD_SCRIPT: ${{ inputs.build-script }}
-        run: npm run $BUILD_SCRIPT
+        run: npm run "$BUILD_SCRIPT"
 
       - name: Install Playwright browsers
         working-directory: ${{ inputs.plugin-path }}
@@ -94,13 +94,15 @@ jobs:
         working-directory: ${{ inputs.plugin-path }}
         env:
           WP_ENV_ARGS: ${{ inputs.wp-env-config-file != '' && format('--config {0}', inputs.wp-env-config-file) || '' }}
-        run: npx --yes @wordpress/env $WP_ENV_ARGS start
+        run: |
+          # shellcheck disable=SC2086
+          npx --yes @wordpress/env $WP_ENV_ARGS start
 
       - name: Run Playwright tests
         working-directory: ${{ inputs.plugin-path }}
         env:
           PLAYWRIGHT_SCRIPT: ${{ inputs.playwright-script }}
-        run: npm run $PLAYWRIGHT_SCRIPT
+        run: npm run "$PLAYWRIGHT_SCRIPT"
 
       - name: Upload Playwright report on failure
         if: failure()
@@ -115,4 +117,6 @@ jobs:
         working-directory: ${{ inputs.plugin-path }}
         env:
           WP_ENV_ARGS: ${{ inputs.wp-env-config-file != '' && format('--config {0}', inputs.wp-env-config-file) || '' }}
-        run: npx --yes @wordpress/env $WP_ENV_ARGS stop
+        run: |
+          # shellcheck disable=SC2086
+          npx --yes @wordpress/env $WP_ENV_ARGS stop

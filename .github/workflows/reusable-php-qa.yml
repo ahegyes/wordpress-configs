@@ -48,7 +48,7 @@ jobs:
         working-directory: ${{ inputs.plugin-path }}
         env:
           PHPCS_CONFIG: ${{ inputs.phpcs-config }}
-        run: vendor/bin/phpcs --standard=$PHPCS_CONFIG --basepath=. ./ -v --report=full
+        run: vendor/bin/phpcs --standard="$PHPCS_CONFIG" --basepath=. ./ -v --report=full
 
   phpstan:
     name: PHPStan
@@ -70,4 +70,4 @@ jobs:
         working-directory: ${{ inputs.plugin-path }}
         env:
           PHPSTAN_CONFIG: ${{ inputs.phpstan-config }}
-        run: vendor/bin/phpstan analyse -c $PHPSTAN_CONFIG -v --memory-limit=1G --no-progress
+        run: vendor/bin/phpstan analyse -c "$PHPSTAN_CONFIG" -v --memory-limit=1G --no-progress

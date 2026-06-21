@@ -8,6 +8,8 @@ updates:
       time: '06:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     groups:
       php-dev-deps:
         patterns:
@@ -22,6 +24,8 @@ updates:
       time: '06:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     groups:
       npm-dev-deps:
         patterns:
@@ -36,6 +40,8 @@ updates:
       time: '06:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     groups:
       github-actions:
         patterns:

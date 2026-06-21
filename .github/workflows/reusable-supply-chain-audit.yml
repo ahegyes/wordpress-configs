@@ -64,7 +64,9 @@ jobs:
         working-directory: ${{ inputs.plugin-path }}
         env:
           AUDIT_FLAGS: ${{ inputs.composer-audit-flags }}
-        run: composer audit $AUDIT_FLAGS
+        run: |
+          # shellcheck disable=SC2086
+          composer audit $AUDIT_FLAGS
 
   npm-audit:
     if: ${{ inputs.npm-audit }}
@@ -86,4 +88,6 @@ jobs:
         working-directory: ${{ inputs.plugin-path }}
         env:
           AUDIT_FLAGS: ${{ inputs.npm-audit-flags }}
-        run: npm audit $AUDIT_FLAGS
+        run: |
+          # shellcheck disable=SC2086
+          npm audit $AUDIT_FLAGS
