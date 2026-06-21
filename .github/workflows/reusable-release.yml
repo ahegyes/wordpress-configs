@@ -42,7 +42,7 @@ jobs:
     outputs:
       artifact-name: ${{ steps.archive.outputs.artifact-name }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Verify .distignore exists
         working-directory: ${{ inputs.plugin-path }}
@@ -53,7 +53,7 @@ jobs:
           fi
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
         with:
           php-version: ${{ inputs.php-version }}
           coverage: none
@@ -106,7 +106,7 @@ jobs:
     # The built zip is the system under test — wp-env is redirected via .wp-env.override.json to mount it instead of source.
     # Deploy reuses the same extracted tree (./built/<slug>/) — what gets tested is what gets pushed to SVN.
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Download built artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
@@ -118,7 +118,7 @@ jobs:
         run: unzip -q "./dist/${{ inputs.plugin-slug }}.zip" -d ./built
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
         with:
           php-version: ${{ inputs.php-version }}
           coverage: none
@@ -180,6 +180,6 @@ jobs:
           ASSETS_DIR: ${{ inputs.plugin-path }}/.wordpress-org
 
       - name: Attach artifact to GitHub release
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b
         with:
           files: ./dist/${{ inputs.plugin-slug }}.zip
