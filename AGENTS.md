@@ -31,7 +31,7 @@ wordpress-configs/
 ├── phpcs.dist.xml                   # SELF-lint — extends shared with WP-runtime exclusions (this repo's PHP is Composer-time tooling)
 ├── phpstan.dist.neon                # SELF-lint — includes shared, declares `paths: [php, tests]`
 ├── composer-require-checker.json    # whitelists Composer\* + Symfony\Finder (provided by composer/composer in require-dev)
-└── .github/workflows/               # 7 reusable + 5 self-CI (codeql, tests, tests-mutation, quality, actionlint)
+└── .github/workflows/               # 7 reusable + 5 self-CI (codeql, tests, tests-mutation, quality, workflow-checks)
 ```
 
 ## Reusable CI workflows
@@ -39,7 +39,7 @@ wordpress-configs/
 7 reusable workflows in `.github/workflows/reusable-*.yml` (`workflow_call` only):
 `reusable-block-json-check`, `reusable-scripts-styles-lint`, `reusable-php-qa`, `reusable-php-syntax-check`, `reusable-phpunit`, `reusable-playwright-e2e`, `reusable-release`.
 
-Plus 5 self-running for this repo's own CI: `codeql`, `tests`, `tests-mutation`, `quality`, `actionlint`. `quality` reuses this repo's own `reusable-php-qa.yml` plus runs composer-require-checker + lint:scripts as parallel jobs. `actionlint` lints all workflow YAML on changes.
+Plus 5 self-running for this repo's own CI: `codeql`, `tests`, `tests-mutation`, `quality`, `workflow-checks`. `quality` reuses this repo's own `reusable-php-qa.yml` plus runs composer-require-checker + lint:scripts as parallel jobs. `workflow-checks` runs actionlint (workflow YAML correctness) + zizmor (workflow security, SARIF → Security tab) on workflow changes.
 
 ## Conventions
 
