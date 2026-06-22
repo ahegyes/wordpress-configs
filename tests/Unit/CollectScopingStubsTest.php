@@ -513,6 +513,182 @@ final class CollectScopingStubsTest extends TestCase {
 		self::assertContains( 'add_action', $result['functions'] );
 	}
 
+	#[Test]
+	public function explicit_file_entry_resolves_a_secondary_stub_outside_autoload_files(): void {
+		// Mimics php-stubs/woocommerce-stubs, which ships woocommerce-packages-stubs.php
+		// (Action Scheduler as_* functions) WITHOUT listing it in autoload.files. The bare
+		// package would resolve only the conventional <name>.php; the explicit-file form
+		// reaches the secondary catalog.
+		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
+		\copy(
+			self::FIXTURES_DIR . '/stubs-secondary.php',
+			$this->vendor_dir . '/php-stubs/woocommerce-stubs/woocommerce-packages-stubs.php'
+		);
+		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'as_schedule_single_action', $result['functions'] );
+		self::assertContains( 'ActionScheduler_Store', $result['classes'] );
+		// Only the named file is resolved — the conventional <name>.php is NOT pulled in.
+		self::assertNotContains( 'wc_get_product', $result['functions'] );
+	}
+
+	#[Test]
+	public function bare_and_explicit_file_entries_for_the_same_package_union(): void {
+		// A package can be declared both bare (its autoload.files / convention) and via an
+		// explicit secondary file; the symbol sets union.
+		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
+		\copy(
+			self::FIXTURES_DIR . '/stubs-secondary.php',
+			$this->vendor_dir . '/php-stubs/woocommerce-stubs/woocommerce-packages-stubs.php'
+		);
+		$this->writeProjectComposer(
+			array(
+				'php-stubs/woocommerce-stubs',
+				'php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php',
+			)
+		);
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'wc_get_product', $result['functions'] );
+		self::assertContains( 'as_schedule_single_action', $result['functions'] );
+	}
+
+	#[Test]
+	public function explicit_file_entry_in_a_nested_subdirectory_resolves(): void {
+		// The named file may live in a subdirectory of the package — still inside the
+		// package root, so containment passes.
+		$package_dir = $this->vendor_dir . '/php-stubs/woocommerce-stubs';
+		\mkdir( $package_dir . '/build', 0755, true );
+		\copy( self::FIXTURES_DIR . '/stubs-secondary.php', $package_dir . '/build/packages.php' );
+		\file_put_contents(
+			$package_dir . '/composer.json',
+			\json_encode( array( 'name' => 'php-stubs/woocommerce-stubs' ), JSON_THROW_ON_ERROR )
+		);
+		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:build/packages.php' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'as_schedule_single_action', $result['functions'] );
+	}
+
+	#[Test]
+	public function skips_explicit_file_entry_pointing_at_a_missing_file(): void {
+		$io = new BufferIO();
+		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
+		// The package is installed, but the named secondary file does not exist.
+		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:does-not-exist.php' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+
+		self::assertSame(
+			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			$this->loadOutput( 'scoping-exclusions.json' )
+		);
+		self::assertStringContainsString( 'Skipping declared stubs file', $io->getOutput() );
+		self::assertStringContainsString( 'does-not-exist.php', $io->getOutput() );
+	}
+
+	#[Test]
+	public function skips_explicit_file_entry_when_the_package_is_not_installed(): void {
+		$io = new BufferIO();
+		// Neither the package nor the file exist — realpath of the package dir fails.
+		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+
+		self::assertSame(
+			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			$this->loadOutput( 'scoping-exclusions.json' )
+		);
+		self::assertStringContainsString( 'Skipping declared stubs file', $io->getOutput() );
+	}
+
+	#[Test]
+	public function rejects_explicit_file_entry_with_a_traversal_segment(): void {
+		$io = new BufferIO();
+		// A secret file is planted as a sibling of the package dir, reachable only by escaping it.
+		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
+		\copy( self::FIXTURES_DIR . '/stubs-secondary.php', $this->vendor_dir . '/php-stubs/escape.php' );
+		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:../escape.php' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		// The traversal target's symbols never appear — rejected at the validation filter,
+		// so the entry is dropped before resolution and emits no skip note for it.
+		self::assertNotContains( 'as_schedule_single_action', $result['functions'] );
+		self::assertNotContains( 'ActionScheduler_Store', $result['classes'] );
+		self::assertStringNotContainsString( '../escape.php', $io->getOutput() );
+	}
+
+	#[Test]
+	public function rejects_explicit_file_entry_with_an_absolute_path(): void {
+		$io = new BufferIO();
+		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
+		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:/etc/passwd' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+
+		self::assertSame(
+			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			$this->loadOutput( 'scoping-exclusions.json' )
+		);
+		self::assertStringNotContainsString( '/etc/passwd', $io->getOutput() );
+	}
+
+	#[Test]
+	public function rejects_explicit_file_entry_whose_file_part_is_not_php(): void {
+		$io = new BufferIO();
+		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
+		// A non-.php file part is rejected at the validation filter.
+		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:README.md' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+
+		self::assertStringNotContainsString( 'README.md', $io->getOutput() );
+		self::assertSame(
+			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			$this->loadOutput( 'scoping-exclusions.json' )
+		);
+	}
+
+	#[Test]
+	public function rejects_explicit_file_entry_with_an_empty_file_part(): void {
+		$io = new BufferIO();
+		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
+		// Trailing-colon entry: valid package, empty file part — rejected at the filter.
+		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+
+		self::assertStringNotContainsString( 'woocommerce-stubs:', $io->getOutput() );
+		self::assertSame(
+			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			$this->loadOutput( 'scoping-exclusions.json' )
+		);
+	}
+
+	#[Test]
+	public function rejects_explicit_file_entry_with_a_malformed_package_part(): void {
+		$io = new BufferIO();
+		// Uppercase package part fails Composer's package-name regex; the whole entry is dropped.
+		$this->writeProjectComposer( array( 'Foo/Bar:stubs.php' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+
+		self::assertStringNotContainsString( 'Foo/Bar', $io->getOutput() );
+		self::assertSame(
+			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			$this->loadOutput( 'scoping-exclusions.json' )
+		);
+	}
+
 	private function event( bool $devMode = true, ?BufferIO $io = null ): Event {
 		$composer = new Composer();
 		$config   = new Config();

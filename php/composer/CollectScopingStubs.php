@@ -5,15 +5,28 @@ namespace DeepWebSolutions\Config\Composer;
 /**
  * Composer post-autoload-dump hook. Walks `vendor/<vendor>/<package>/composer.json`
  * + the project root, reads each `extra.scoping-stubs` array, parses every stubs
- * file each declared package ships (via its own `autoload.files`, or the
- * `vendor/<vendor>/<package>/<package>.php` convention when autoload.files is
- * absent), and writes the unioned class/function/constant symbol set to
- * `scoping-exclusions.json`.
+ * file each declared entry resolves to, and writes the unioned class/function/constant
+ * symbol set to `scoping-exclusions.json`.
+ *
+ * Each `extra.scoping-stubs` entry takes one of two forms:
+ *
+ *  - `vendor/package` — resolves the package's `autoload.files`, falling back to the
+ *    `vendor/<vendor>/<package>/<package>.php` convention when `autoload.files` is absent.
+ *  - `vendor/package:relative/path/to/file.php` — resolves exactly that one file inside
+ *    the package dir, for a secondary catalog the package ships but does not list in its
+ *    `autoload.files` (e.g. `php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php`,
+ *    the catalog declaring the Action Scheduler `as_*` functions). The separator is the
+ *    first `:`; package names cannot contain one, so the split is unambiguous. The file
+ *    part must be a safe relative path (no leading slash, no `..` segment, `.php`-suffixed)
+ *    and is realpath-confined to the package dir.
  *
  * Declaration format:
  *
  *     "extra": {
- *         "scoping-stubs": ["php-stubs/wordpress-stubs"]
+ *         "scoping-stubs": [
+ *             "php-stubs/wordpress-stubs",
+ *             "php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php"
+ *         ]
  *     }
  *
  * The php-scoper base config reads the output JSON into its `exclude-classes`,
@@ -57,10 +70,13 @@ final class CollectScopingStubs {
 		if ( \count( $declared ) > 0 ) {
 			$parser = new \PhpParser\ParserFactory()->createForNewestSupportedVersion();
 
-			foreach ( $declared as $package ) {
-				$stubs_paths = self::resolve_stubs_paths( $vendor_dir, $package );
+			foreach ( $declared as $entry ) {
+				$stubs_paths = self::resolve_stubs_paths( $vendor_dir, $entry, $console_io );
 				if ( array() === $stubs_paths ) {
-					$console_io->write( \sprintf( 'Skipping declared stubs package "%s" — no stubs file found in its autoload.files and the conventional path is absent.', $package ) );
+					// Explicit-file entries already wrote their own precise note inside the resolver.
+					if ( ! \str_contains( $entry, ':' ) ) {
+						$console_io->write( \sprintf( 'Skipping declared stubs package "%s" — no stubs file found in its autoload.files and the conventional path is absent.', $entry ) );
+					}
 					continue;
 				}
 
@@ -232,9 +248,71 @@ final class CollectScopingStubs {
 		return \array_values(
 			\array_filter(
 				$declared,
-				static fn ( mixed $entry ): bool => \is_string( $entry ) && 1 === \preg_match( self::PACKAGE_NAME_REGEX, $entry )
+				static fn ( mixed $entry ): bool => \is_string( $entry ) && self::is_valid_declaration( $entry )
 			)
 		);
+	}
+
+	/**
+	 * Validates one `extra.scoping-stubs` entry before it reaches path-building.
+	 *
+	 * An entry is either a bare `vendor/package` (the package part matching Composer's
+	 * package-name regex) or the explicit-file form `vendor/package:relative/file.php`.
+	 * Composer package names cannot contain `:`, so the first `:` unambiguously splits
+	 * the package from the file. The file part must be a safe relative path — non-empty,
+	 * not anchored at `/` or `\`, free of any `..` segment, and `.php`-suffixed — so a
+	 * malicious entry cannot be probed against the filesystem outside the package dir.
+	 *
+	 * @param string $entry A single `extra.scoping-stubs` value.
+	 *
+	 * @return bool
+	 */
+	private static function is_valid_declaration( string $entry ): bool {
+		[ $package, $file ] = \array_pad( \explode( ':', $entry, 2 ), 2, null );
+
+		if ( 1 !== \preg_match( self::PACKAGE_NAME_REGEX, $package ) ) {
+			return false;
+		}
+
+		if ( null === $file ) {
+			return true;
+		}
+
+		return self::is_safe_relative_path( $file );
+	}
+
+	/**
+	 * Reports whether a relative path is safe to append to a package directory.
+	 *
+	 * Rejects empty strings, paths anchored at `/` or `\`, any `..` path segment (the
+	 * traversal vector), and non-`.php` files. Segment-checking on both separators
+	 * catches `..` whichever slash a hand-written entry uses.
+	 *
+	 * @param string $path Relative path drawn from a `package:file` declaration.
+	 *
+	 * @return bool
+	 */
+	private static function is_safe_relative_path( string $path ): bool {
+		if ( '' === $path ) {
+			return false;
+		}
+
+		if ( \str_starts_with( $path, '/' ) || \str_starts_with( $path, '\\' ) ) {
+			return false;
+		}
+
+		if ( ! \str_ends_with( $path, '.php' ) ) {
+			return false;
+		}
+
+		// Segment-check on both separators so `..` is caught whichever slash the entry uses.
+		foreach ( \explode( '/', \str_replace( '\\', '/', $path ) ) as $segment ) {
+			if ( '..' === $segment ) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**
@@ -319,20 +397,34 @@ final class CollectScopingStubs {
 	}
 
 	/**
-	 * Resolves a stubs package name to its file paths. Reads `autoload.files`
-	 * (multi-file catalogs like `php-stubs/woocommerce-stubs`); falls back to
-	 * the `<name>/<name>.php` convention for minimal hand-rolled catalogs.
+	 * Resolves one `extra.scoping-stubs` entry to its stubs-file paths.
 	 *
-	 * @param string $vendor_dir Composer vendor directory.
-	 * @param string $package    Stubs package name (vendor/package format).
+	 * A bare `vendor/package` reads the package's `autoload.files` (multi-file catalogs
+	 * like `php-stubs/woocommerce-stubs`), falling back to the `<name>/<name>.php`
+	 * convention for minimal hand-rolled catalogs. The explicit-file form
+	 * `vendor/package:relative/file.php` resolves that one named file inside the package
+	 * dir — for a secondary catalog the package ships but does not list in its
+	 * `autoload.files` (e.g. woocommerce-stubs' `woocommerce-packages-stubs.php`, which
+	 * declares the Action Scheduler `as_*` functions). The named file is realpath-confined
+	 * to the package dir, so a traversal entry that slipped validation still cannot escape.
+	 *
+	 * @param string                   $vendor_dir Composer vendor directory.
+	 * @param string                   $entry      Declaration entry: `vendor/package` or `vendor/package:relative/file.php`.
+	 * @param \Composer\IO\IOInterface $console_io Composer console for skip notes.
 	 *
 	 * @throws \JsonException    If the package's composer.json exists but cannot be parsed.
 	 * @throws \RuntimeException If the package's composer.json exists but cannot be read.
 	 *
 	 * @return list<string> Existing-file paths in order; empty if nothing found.
 	 */
-	private static function resolve_stubs_paths( string $vendor_dir, string $package ): array {
-		$parts = \explode( '/', $package );
+	private static function resolve_stubs_paths( string $vendor_dir, string $entry, \Composer\IO\IOInterface $console_io ): array {
+		if ( \str_contains( $entry, ':' ) ) {
+			[ $package, $file ] = \explode( ':', $entry, 2 );
+			return self::resolve_explicit_file( $vendor_dir . '/' . $package, $file, $console_io );
+		}
+
+		$package = $entry;
+		$parts   = \explode( '/', $package );
 		if ( 2 !== \count( $parts ) ) {
 			return array();
 		}
@@ -366,5 +458,44 @@ final class CollectScopingStubs {
 		}
 
 		return $existing;
+	}
+
+	/**
+	 * Resolves the explicit-file declaration form: the single named file inside a package.
+	 *
+	 * Containment is enforced exactly as `resolve_output_dir` enforces the output-dir
+	 * override — realpath both the candidate and the package dir, and require the real
+	 * candidate to live under the real package dir. A missing package, a missing file, or
+	 * a candidate that escapes the package dir yields an empty result + a skip note;
+	 * `is_safe_relative_path` already rejects `..` at validation, so this is the second
+	 * line of defence (symlinks inside the package can still point outward).
+	 *
+	 * @param string                   $package_dir Absolute path to the package directory inside vendor.
+	 * @param string                   $file        Validated relative path to the stubs file.
+	 * @param \Composer\IO\IOInterface $console_io  Composer console for skip notes.
+	 *
+	 * @return list<string> Single-element list with the resolved file, or empty if it cannot be safely resolved.
+	 */
+	private static function resolve_explicit_file( string $package_dir, string $file, \Composer\IO\IOInterface $console_io ): array {
+		$candidate      = $package_dir . '/' . $file;
+		$real_candidate = \realpath( $candidate );
+		$real_package   = \realpath( $package_dir );
+
+		if ( false === $real_candidate || false === $real_package ) {
+			$console_io->write( \sprintf( 'Skipping declared stubs file "%s" — it does not exist inside "%s".', $file, $package_dir ) );
+			return array();
+		}
+
+		if ( $real_candidate !== $real_package && ! \str_starts_with( $real_candidate, $real_package . DIRECTORY_SEPARATOR ) ) {
+			$console_io->write( \sprintf( 'Skipping declared stubs file "%s" — it resolves outside its package directory "%s".', $file, $real_package ) );
+			return array();
+		}
+
+		if ( ! \is_file( $real_candidate ) ) {
+			$console_io->write( \sprintf( 'Skipping declared stubs file "%s" — it is not a regular file.', $file ) );
+			return array();
+		}
+
+		return array( $real_candidate );
 	}
 }
