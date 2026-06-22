@@ -285,9 +285,12 @@ final class CollectScopingStubs {
 	 * Reports whether a relative path is safe to append to a package directory.
 	 *
 	 * Rejects empty strings, paths carrying a NUL byte (which would make `realpath()`
-	 * throw a `ValueError` and abort the hook), paths anchored at `/` or `\`, any `..`
-	 * path segment (the traversal vector), and non-`.php` files. Segment-checking on both
-	 * separators catches `..` whichever slash a hand-written entry uses.
+	 * throw a `ValueError` and abort the hook), paths carrying a colon (Windows drive
+	 * `C:/...` and NTFS alternate-data-stream `file:stream` shapes never appear in a
+	 * legitimate relative stub path — left to `realpath()` they invite drive/ADS semantics),
+	 * paths anchored at `/` or `\`, any `..` path segment (the traversal vector), and
+	 * non-`.php` files. Segment-checking on both separators catches `..` whichever slash a
+	 * hand-written entry uses.
 	 *
 	 * @param string $path Relative path drawn from a `package:file` declaration.
 	 *
@@ -299,6 +302,10 @@ final class CollectScopingStubs {
 		}
 
 		if ( \str_contains( $path, "\0" ) ) {
+			return false;
+		}
+
+		if ( \str_contains( $path, ':' ) ) {
 			return false;
 		}
 

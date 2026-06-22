@@ -789,6 +789,57 @@ final class CollectScopingStubsTest extends TestCase {
 	}
 
 	#[Test]
+	public function rejects_explicit_file_entry_with_a_windows_drive_shaped_file_part(): void {
+		$io = new BufferIO();
+		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
+		// A Windows drive-letter shape (C:/...) carries a colon; rejected at the validation
+		// filter before realpath could interpret the drive semantics.
+		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:C:/secret.php' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+
+		self::assertSame(
+			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			$this->loadOutput( 'scoping-exclusions.json' )
+		);
+		self::assertStringNotContainsString( 'C:/secret.php', $io->getOutput() );
+	}
+
+	#[Test]
+	public function rejects_explicit_file_entry_with_an_ntfs_ads_shaped_file_part(): void {
+		$io = new BufferIO();
+		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
+		// An NTFS alternate-data-stream shape (foo:bar.php) carries a colon; rejected at the
+		// validation filter before realpath could interpret the stream semantics.
+		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:foo:bar.php' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+
+		self::assertSame(
+			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			$this->loadOutput( 'scoping-exclusions.json' )
+		);
+		self::assertStringNotContainsString( 'foo:bar.php', $io->getOutput() );
+	}
+
+	#[Test]
+	public function rejects_explicit_file_entry_whose_file_part_still_contains_a_colon_after_split(): void {
+		$io = new BufferIO();
+		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
+		// The first colon splits package from file; a second colon left in the file part
+		// (here a leading-colon ADS shape) is rejected at the validation filter.
+		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs::stream.php' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+
+		self::assertSame(
+			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			$this->loadOutput( 'scoping-exclusions.json' )
+		);
+		self::assertStringNotContainsString( ':stream.php', $io->getOutput() );
+	}
+
+	#[Test]
 	public function bare_package_still_resolves_all_in_package_symbols(): void {
 		// Regression: the confinement refactor must not narrow legitimate in-package
 		// resolution — both an autoload.files entry and the conventional fallback resolve.
