@@ -20,8 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         language: [actions, javascript-typescript]
-        # PHP is NOT on CodeQL's supported-languages list. PHPStan + WPCS cover what we
-        # can statically check today; revisit if GitHub adds PHP to CodeQL's GA matrix.
+        # PHP is not on CodeQL's supported-languages list; PHPStan + WPCS are this repo's PHP static checks.
         # https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/codeql-code-scanning-for-compiled-languages
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0

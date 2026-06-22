@@ -21,23 +21,24 @@ wordpress-configs/
 │   │       └── wp-framework.inc.php # auto-detect ahegyes/wp-framework-* packages
 │   └── composer/
 │       ├── CollectScopingStubs.php  # post-autoload-dump: aggregates extra.scoping-stubs → scoping-exclusions.json (classes, functions, constants)
-│       └── ScopePhpDependencies.php # composer event handler invoking php-scoper
+│       ├── ScopePhpDependencies.php # composer event handler invoking php-scoper
+│       └── GenerateScopedAutoload.php # emits dependencies/scoper-autoload.php from the scoped tree
 ├── node/
 │   ├── tsconfig.base.json
 │   ├── eslint.config.base.mjs
 │   ├── stylelint.config.base.js
 │   └── playwright.config.base.js
-├── tests/                           # PHPUnit tests across 3 test files (CollectScopingStubsTest, ScopePhpDependenciesTest, ScoperBaseConfigTest); fixtures in tests/fixtures/
+├── tests/                           # PHPUnit unit tests (tests/Unit/); fixtures in tests/fixtures/
 ├── phpcs.dist.xml                   # SELF-lint — extends shared with WP-runtime exclusions (this repo's PHP is Composer-time tooling)
 ├── phpstan.dist.neon                # SELF-lint — includes shared, declares `paths: [php, tests]`
 ├── composer-require-checker.json    # whitelists Composer\* + Symfony\Finder (provided by composer/composer in require-dev)
-└── .github/workflows/               # 7 reusable + 5 self-CI (codeql, tests, tests-mutation, quality, workflow-checks)
+└── .github/workflows/               # 8 reusable + 5 self-CI (codeql, tests, tests-mutation, quality, workflow-checks)
 ```
 
 ## Reusable CI workflows
 
-7 reusable workflows in `.github/workflows/reusable-*.yml` (`workflow_call` only):
-`reusable-block-json-check`, `reusable-scripts-styles-lint`, `reusable-php-qa`, `reusable-php-syntax-check`, `reusable-phpunit`, `reusable-playwright-e2e`, `reusable-release`.
+8 reusable workflows in `.github/workflows/reusable-*.yml` (`workflow_call` only):
+`reusable-block-json-check`, `reusable-scripts-styles-lint`, `reusable-php-qa`, `reusable-php-syntax-check`, `reusable-phpunit`, `reusable-playwright-e2e`, `reusable-supply-chain-audit`, `reusable-release`.
 
 Plus 5 self-running for this repo's own CI: `codeql`, `tests`, `tests-mutation`, `quality`, `workflow-checks`. `quality` reuses this repo's own `reusable-php-qa.yml` plus runs composer-require-checker + lint:scripts as parallel jobs. `workflow-checks` runs actionlint (workflow YAML correctness) + zizmor (workflow security, SARIF → Security tab) on workflow changes.
 

@@ -38,9 +38,9 @@ return static function ( array $overrides = array() ): array {
 	}
 	$exclusions['constants'] ??= array();
 
-	// `exclude-functions`/`exclude-classes` cover direct calls. Strings like
-	// `function_exists('foo')` and `use` statements concatenated from strings
-	// still slip through and get prefixed; this patcher strips those after.
+	// `exclude-functions`/`exclude-classes` cover direct calls. php-scoper still prefixes
+	// excluded symbols referenced in string literals (e.g. `function_exists('foo')`) and in
+	// `use` statements; this patcher strips the prefix off those references after scoping.
 	$reference_stripper = static function ( string $file_path, string $prefix, string $content ) use ( $exclusions ): string {
 		// Replace `$search` with `$replacement`, but only when not followed by another name char or
 		// namespace separator. Prevents partial-name over-catch (e.g., excluded `Foo` matching `FooBar`)

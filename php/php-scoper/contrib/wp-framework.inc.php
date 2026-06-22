@@ -8,12 +8,10 @@ use Symfony\Component\Finder\Finder;
  *
  * When framework packages are present and the consumer's `composer.json` (at `$project_dir`,
  * defaulting to the parent of `$vendor_dir`) declares `extra.text-domain`, it also returns a
- * patcher that rewrites the framework's per-package `wp-framework-*` text domains (the SOURCE
- * domains framework gettext calls use, e.g. `wp-framework-bootstrap`) to the consumer's text
- * domain at scope time, so framework strings ship under the consumer's domain. The
- * `wp-framework-*` space is reserved for framework textdomains. Callers (a consumer's
- * `scoper.inc.php`) must forward the returned `patchers` into the base config's `patchers`
- * override to activate the rewrite.
+ * patcher that rewrites the reserved `wp-framework-*` source text domains (e.g.
+ * `wp-framework-bootstrap`) to the consumer's domain at scope time, so framework strings ship
+ * under the consumer's domain. Callers (a consumer's `scoper.inc.php`) must forward the returned
+ * `patchers` into the base config's `patchers` override, or the rewrite never runs.
  *
  * @throws \JsonException    If the consumer composer.json exists but cannot be parsed.
  * @throws \RuntimeException If glob() fails, the consumer composer.json cannot be read, or extra.text-domain is not a valid slug.
