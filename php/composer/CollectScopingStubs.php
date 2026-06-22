@@ -10,8 +10,8 @@ namespace DeepWebSolutions\Config\Composer;
  *
  * Each `extra.scoping-stubs` entry takes one of two forms:
  *
- *  - `vendor/package` — resolves the package's `autoload.files`, falling back to the
- *    `vendor/<vendor>/<package>/<package>.php` convention when `autoload.files` is absent.
+ *  - `vendor/package` — resolves the package's `autoload.files` plus the conventional
+ *    `vendor/<vendor>/<package>/<package>.php` path whenever it exists.
  *  - `vendor/package:relative/path/to/file.php` — resolves exactly that one file inside
  *    the package dir, for a secondary catalog the package ships but does not list in its
  *    `autoload.files` (e.g. `php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php`,
@@ -412,14 +412,14 @@ final class CollectScopingStubs {
 	 * Resolves one `extra.scoping-stubs` entry to its stubs-file paths.
 	 *
 	 * A bare `vendor/package` reads the package's `autoload.files` (multi-file catalogs
-	 * like `php-stubs/woocommerce-stubs`), falling back to the `<name>/<name>.php`
-	 * convention for minimal hand-rolled catalogs. The explicit-file form
+	 * like `php-stubs/woocommerce-stubs`) plus the conventional `<name>/<name>.php` path
+	 * whenever it exists (minimal hand-rolled catalogs ship only that). The explicit-file form
 	 * `vendor/package:relative/file.php` resolves that one named file inside the package
 	 * dir — for a secondary catalog the package ships but does not list in its
 	 * `autoload.files` (e.g. woocommerce-stubs' `woocommerce-packages-stubs.php`, which
 	 * declares the Action Scheduler `as_*` functions).
 	 *
-	 * Every candidate — each `autoload.files` entry, the conventional fallback, and the
+	 * Every candidate — each `autoload.files` entry, the conventional `<name>.php` path, and the
 	 * explicit-file form — is realpath-confined to the package dir via `confine_to_package`,
 	 * so a compromised package declaring a traversal `autoload.files` entry or shipping a
 	 * symlink that escapes its own dir cannot have an outside file's symbols harvested.

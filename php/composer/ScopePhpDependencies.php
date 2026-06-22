@@ -17,12 +17,9 @@ use Composer\Script\Event;
  */
 final class ScopePhpDependencies {
 	/**
-	 * When running the PHP scoper, the Composer autoloader will be executed first. However, that will throw a fatal
-	 * error if it contains files and directories that are scoped and which haven't been generated yet (e.g., when installing
-	 * the packages immediately after cloning the repository). Particularly, the `files` and `classmap` autoloaders are affected.
-	 *
-	 * This method is meant to ensure that any such files exist before the autoloader is executed to prevent
-	 * 'file-not-found' fatal errors.
+	 * Creates placeholders for the scoped `autoload.files`/`classmap` paths before Composer dumps the
+	 * autoloader. A fresh clone has not run php-scoper yet, so those paths are missing and the dump
+	 * would fatal with a 'file-not-found' error before scoping ever runs.
 	 *
 	 * @param   Event $event  Composer event object.
 	 *
@@ -93,8 +90,8 @@ final class ScopePhpDependencies {
 	}
 
 	/**
-	 * The PHP scoper and the to-be-scoped packages only exist in the development environment so this method acts
-	 * as a wrapper to scope the dependencies only when needed, and always after the packages have been installed or updated.
+	 * Scopes the dependencies — only in dev mode and only when php-scoper is installed — then emits the
+	 * optional scoped autoload. php-scoper and the to-be-scoped packages exist only in the dev environment.
 	 *
 	 * @param   Event $event  Composer event object.
 	 *
