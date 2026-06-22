@@ -689,6 +689,136 @@ final class CollectScopingStubsTest extends TestCase {
 		);
 	}
 
+	#[Test]
+	public function bare_package_does_not_read_autoload_files_traversal_entry(): void {
+		// A compromised stub package whose autoload.files points outside its own dir must
+		// not have the escaped file's symbols harvested. The bare-package resolver
+		// realpath-confines every candidate to the package dir.
+		$secret = $this->plantOutsideSecret( 'BareTraversalSecret', 'bare_traversal_secret' );
+
+		$package_dir = $this->vendor_dir . '/php-stubs/compromised';
+		\mkdir( $package_dir, 0755, true );
+		// In-package file the package legitimately ships alongside the escaping entry.
+		\copy( self::FIXTURES_DIR . '/stubs.php', $package_dir . '/in-package.php' );
+		\file_put_contents(
+			$package_dir . '/composer.json',
+			\json_encode(
+				array(
+					'name'     => 'php-stubs/compromised',
+					'autoload' => array(
+						'files' => array( 'in-package.php', '../../../' . \basename( $secret ) ),
+					),
+				),
+				JSON_THROW_ON_ERROR
+			)
+		);
+
+		$this->writeProjectComposer( array( 'php-stubs/compromised' ) );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		// The in-package file still resolves; the escaping one never does.
+		self::assertContains( 'add_action', $result['functions'] );
+		self::assertNotContains( 'bare_traversal_secret', $result['functions'] );
+		self::assertNotContains( 'BareTraversalSecret', $result['classes'] );
+	}
+
+	#[Test]
+	public function bare_package_does_not_follow_conventional_symlink_outside_package(): void {
+		// The conventional <name>/<name>.php fallback, if symlinked outside the package,
+		// must be rejected by the realpath confinement.
+		$secret = $this->plantOutsideSecret( 'BareSymlinkSecret', 'bare_symlink_secret' );
+
+		$package_dir = $this->vendor_dir . '/php-stubs/symlinked';
+		\mkdir( $package_dir, 0755, true );
+		\file_put_contents(
+			$package_dir . '/composer.json',
+			\json_encode( array( 'name' => 'php-stubs/symlinked' ), JSON_THROW_ON_ERROR )
+		);
+		if ( ! @\symlink( $secret, $package_dir . '/symlinked.php' ) ) {
+			self::markTestSkipped( 'Environment cannot create symlinks.' );
+		}
+
+		$this->writeProjectComposer( array( 'php-stubs/symlinked' ) );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertNotContains( 'bare_symlink_secret', $result['functions'] );
+		self::assertNotContains( 'BareSymlinkSecret', $result['classes'] );
+	}
+
+	#[Test]
+	public function explicit_file_does_not_follow_symlink_outside_package(): void {
+		// An explicit-file entry naming an in-package path that is itself a symlink pointing
+		// outside the package must be rejected — is_safe_relative_path cannot see through a
+		// symlink, so realpath confinement is the line of defence.
+		$secret = $this->plantOutsideSecret( 'ExplicitSymlinkSecret', 'explicit_symlink_secret' );
+
+		$package_dir = $this->vendor_dir . '/php-stubs/explicit-symlink';
+		\mkdir( $package_dir, 0755, true );
+		\file_put_contents(
+			$package_dir . '/composer.json',
+			\json_encode( array( 'name' => 'php-stubs/explicit-symlink' ), JSON_THROW_ON_ERROR )
+		);
+		if ( ! @\symlink( $secret, $package_dir . '/secondary.php' ) ) {
+			self::markTestSkipped( 'Environment cannot create symlinks.' );
+		}
+
+		$this->writeProjectComposer( array( 'php-stubs/explicit-symlink:secondary.php' ) );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertNotContains( 'explicit_symlink_secret', $result['functions'] );
+		self::assertNotContains( 'ExplicitSymlinkSecret', $result['classes'] );
+	}
+
+	#[Test]
+	public function explicit_file_entry_with_a_nul_byte_is_skipped_without_crashing(): void {
+		$io = new BufferIO();
+		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
+		// A NUL byte in the file part makes realpath throw a ValueError if it reaches it;
+		// the validation filter rejects it first, so the entry is dropped silently.
+		$this->writeProjectComposer( array( "php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php\0.php" ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+
+		self::assertSame(
+			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			$this->loadOutput( 'scoping-exclusions.json' )
+		);
+	}
+
+	#[Test]
+	public function bare_package_still_resolves_all_in_package_symbols(): void {
+		// Regression: the confinement refactor must not narrow legitimate in-package
+		// resolution — both an autoload.files entry and the conventional fallback resolve.
+		$package_dir = $this->vendor_dir . '/php-stubs/normal';
+		\mkdir( $package_dir, 0755, true );
+		\copy( self::FIXTURES_DIR . '/stubs.php',       $package_dir . '/listed.php' );
+		\copy( self::FIXTURES_DIR . '/stubs-extra.php', $package_dir . '/normal.php' );
+		\file_put_contents(
+			$package_dir . '/composer.json',
+			\json_encode(
+				array(
+					'name'     => 'php-stubs/normal',
+					'autoload' => array(
+						'files' => array( 'listed.php' ),
+					),
+				),
+				JSON_THROW_ON_ERROR
+			)
+		);
+
+		$this->writeProjectComposer( array( 'php-stubs/normal' ) );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		// autoload.files entry resolved.
+		self::assertContains( 'add_action', $result['functions'] );
+		// Conventional <name>.php fallback also resolved.
+		self::assertContains( 'wc_get_product', $result['functions'] );
+	}
+
 	private function event( bool $devMode = true, ?BufferIO $io = null ): Event {
 		$composer = new Composer();
 		$config   = new Config();
@@ -745,6 +875,18 @@ final class CollectScopingStubsTest extends TestCase {
 		$contents = \file_get_contents( $this->project_dir . '/' . $filename ) ?: throw new \RuntimeException( \sprintf( 'Could not read %s', $filename ) );
 
 		return \json_decode( $contents, true, 512, JSON_THROW_ON_ERROR );
+	}
+
+	/**
+	 * Plants a stubs file carrying a uniquely-named class + function OUTSIDE every test
+	 * package dir (at the project root), and returns its absolute path. A containment leak
+	 * would harvest these symbols; the confinement tests assert they never appear.
+	 */
+	private function plantOutsideSecret( string $class, string $function ): string {
+		$path = $this->project_dir . '/' . \uniqid( 'secret-' ) . '.php';
+		\file_put_contents( $path, "<?php\nclass $class {}\nfunction $function() {}\n" );
+
+		return $path;
 	}
 
 	private function rrmdir( string $dir ): void {

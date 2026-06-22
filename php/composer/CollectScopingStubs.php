@@ -284,9 +284,10 @@ final class CollectScopingStubs {
 	/**
 	 * Reports whether a relative path is safe to append to a package directory.
 	 *
-	 * Rejects empty strings, paths anchored at `/` or `\`, any `..` path segment (the
-	 * traversal vector), and non-`.php` files. Segment-checking on both separators
-	 * catches `..` whichever slash a hand-written entry uses.
+	 * Rejects empty strings, paths carrying a NUL byte (which would make `realpath()`
+	 * throw a `ValueError` and abort the hook), paths anchored at `/` or `\`, any `..`
+	 * path segment (the traversal vector), and non-`.php` files. Segment-checking on both
+	 * separators catches `..` whichever slash a hand-written entry uses.
 	 *
 	 * @param string $path Relative path drawn from a `package:file` declaration.
 	 *
@@ -294,6 +295,10 @@ final class CollectScopingStubs {
 	 */
 	private static function is_safe_relative_path( string $path ): bool {
 		if ( '' === $path ) {
+			return false;
+		}
+
+		if ( \str_contains( $path, "\0" ) ) {
 			return false;
 		}
 
@@ -405,8 +410,12 @@ final class CollectScopingStubs {
 	 * `vendor/package:relative/file.php` resolves that one named file inside the package
 	 * dir — for a secondary catalog the package ships but does not list in its
 	 * `autoload.files` (e.g. woocommerce-stubs' `woocommerce-packages-stubs.php`, which
-	 * declares the Action Scheduler `as_*` functions). The named file is realpath-confined
-	 * to the package dir, so a traversal entry that slipped validation still cannot escape.
+	 * declares the Action Scheduler `as_*` functions).
+	 *
+	 * Every candidate — each `autoload.files` entry, the conventional fallback, and the
+	 * explicit-file form — is realpath-confined to the package dir via `confine_to_package`,
+	 * so a compromised package declaring a traversal `autoload.files` entry or shipping a
+	 * symlink that escapes its own dir cannot have an outside file's symbols harvested.
 	 *
 	 * @param string                   $vendor_dir Composer vendor directory.
 	 * @param string                   $entry      Declaration entry: `vendor/package` or `vendor/package:relative/file.php`.
@@ -452,8 +461,9 @@ final class CollectScopingStubs {
 
 		$existing = array();
 		foreach ( $candidates as $candidate ) {
-			if ( \is_file( $candidate ) && ! \in_array( $candidate, $existing, true ) ) {
-				$existing[] = $candidate;
+			$confined = self::confine_to_package( $candidate, $package_dir );
+			if ( null !== $confined && ! \in_array( $confined, $existing, true ) ) {
+				$existing[] = $confined;
 			}
 		}
 
@@ -461,14 +471,46 @@ final class CollectScopingStubs {
 	}
 
 	/**
+	 * Realpath-confines a candidate file to a package directory.
+	 *
+	 * Resolves both the candidate and the package dir, and accepts the candidate only when
+	 * it exists, is a regular file, and resolves to a path strictly under the real package
+	 * dir. A regular file can never equal the package dir itself, so containment requires a
+	 * leading `<real package dir>/` prefix on the resolved candidate — closing both the `..`
+	 * traversal vector and the in-package-symlink-pointing-outward vector.
+	 *
+	 * @param string $candidate   Absolute candidate path (package dir joined with a relative file).
+	 * @param string $package_dir Absolute path to the package directory inside vendor.
+	 *
+	 * @return string|null The resolved, confined file path, or null if it cannot be safely resolved.
+	 */
+	private static function confine_to_package( string $candidate, string $package_dir ): ?string {
+		$real_candidate = \realpath( $candidate );
+		$real_package   = \realpath( $package_dir );
+
+		if ( false === $real_candidate || false === $real_package ) {
+			return null;
+		}
+
+		if ( ! \str_starts_with( $real_candidate, $real_package . DIRECTORY_SEPARATOR ) ) {
+			return null;
+		}
+
+		if ( ! \is_file( $real_candidate ) ) {
+			return null;
+		}
+
+		return $real_candidate;
+	}
+
+	/**
 	 * Resolves the explicit-file declaration form: the single named file inside a package.
 	 *
-	 * Containment is enforced exactly as `resolve_output_dir` enforces the output-dir
-	 * override — realpath both the candidate and the package dir, and require the real
-	 * candidate to live under the real package dir. A missing package, a missing file, or
-	 * a candidate that escapes the package dir yields an empty result + a skip note;
-	 * `is_safe_relative_path` already rejects `..` at validation, so this is the second
-	 * line of defence (symlinks inside the package can still point outward).
+	 * Containment is delegated to `confine_to_package` (shared with the bare-package path):
+	 * a missing package, a missing file, a candidate that escapes the package dir, or a
+	 * non-regular file yields an empty result + a skip note. `is_safe_relative_path` already
+	 * rejects `..` at validation, so this is the second line of defence — symlinks inside the
+	 * package can still point outward, and the realpath confinement catches them.
 	 *
 	 * @param string                   $package_dir Absolute path to the package directory inside vendor.
 	 * @param string                   $file        Validated relative path to the stubs file.
@@ -477,25 +519,13 @@ final class CollectScopingStubs {
 	 * @return list<string> Single-element list with the resolved file, or empty if it cannot be safely resolved.
 	 */
 	private static function resolve_explicit_file( string $package_dir, string $file, \Composer\IO\IOInterface $console_io ): array {
-		$candidate      = $package_dir . '/' . $file;
-		$real_candidate = \realpath( $candidate );
-		$real_package   = \realpath( $package_dir );
+		$confined = self::confine_to_package( $package_dir . '/' . $file, $package_dir );
 
-		if ( false === $real_candidate || false === $real_package ) {
-			$console_io->write( \sprintf( 'Skipping declared stubs file "%s" — it does not exist inside "%s".', $file, $package_dir ) );
+		if ( null === $confined ) {
+			$console_io->write( \sprintf( 'Skipping declared stubs file "%s" — it does not resolve to a regular file inside its package directory "%s".', $file, $package_dir ) );
 			return array();
 		}
 
-		if ( $real_candidate !== $real_package && ! \str_starts_with( $real_candidate, $real_package . DIRECTORY_SEPARATOR ) ) {
-			$console_io->write( \sprintf( 'Skipping declared stubs file "%s" — it resolves outside its package directory "%s".', $file, $real_package ) );
-			return array();
-		}
-
-		if ( ! \is_file( $real_candidate ) ) {
-			$console_io->write( \sprintf( 'Skipping declared stubs file "%s" — it is not a regular file.', $file ) );
-			return array();
-		}
-
-		return array( $real_candidate );
+		return array( $confined );
 	}
 }
