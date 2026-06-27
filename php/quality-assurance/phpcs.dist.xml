@@ -54,6 +54,8 @@
 		<properties>
 			<property name="skipIfInheritdoc" value="true" />
 		</properties>
+		<!-- Allow PHPStan generic types (class-string<X>, list<X>) in docblocks over the erased native hint (string, array). -->
+		<exclude name="Squiz.Commenting.FunctionComment.IncorrectTypeHint"/>
 	</rule>
 
 	<!-- Disabled rules. -->
