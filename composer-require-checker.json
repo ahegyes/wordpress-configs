@@ -1,6 +1,7 @@
 {
     "symbol-whitelist": [
         "Composer\\Factory",
+        "Composer\\IO\\IOInterface",
         "Composer\\Script\\Event",
         "Symfony\\Component\\Finder\\Finder"
     ],

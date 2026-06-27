@@ -268,7 +268,9 @@ final class CollectScopingStubs {
 	 * @return bool
 	 */
 	private static function is_valid_declaration( string $entry ): bool {
-		[ $package, $file ] = \array_pad( \explode( ':', $entry, 2 ), 2, null );
+		$parts   = \explode( ':', $entry, 2 );
+		$package = $parts[0];
+		$file    = $parts[1] ?? null;
 
 		if ( 1 !== \preg_match( self::PACKAGE_NAME_REGEX, $package ) ) {
 			return false;
