@@ -157,18 +157,130 @@ final class GenerateScopedAutoloadTest extends TestCase {
 	}
 
 	#[Test]
-	public function throws_clearly_when_a_scoped_package_uses_classmap(): void {
+	public function emits_classmap_entries_for_scoped_package_with_classes(): void {
+		// php-scoper rewrites the scoped class to the prefixed namespace; the scanner reads
+		// that prefixed declaration and the generator emits the FQCN verbatim.
 		$this->installScopedPackage(
 			'legacy/classmapped',
 			array(
 				'autoload' => array(
 					'classmap' => array( 'src/' ),
 				),
+			),
+			array(
+				'src/Widget.php' => "<?php\nnamespace MyPlugin\\Scoped\\Legacy;\nclass Widget {}\n",
+			)
+		);
+
+		GenerateScopedAutoload::generate( $this->dependencies_dir, 'MyPlugin\\Scoped' );
+
+		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
+		self::assertStringContainsString( '$loader->addClassMap( array(', $generated );
+		self::assertStringContainsString(
+			"'MyPlugin\\\\Scoped\\\\Legacy\\\\Widget' => __DIR__ . '/legacy/classmapped/src/Widget.php',",
+			$generated
+		);
+
+		// The emitted addClassMap block must be syntactically valid PHP.
+		$lint = \shell_exec( 'php -l ' . \escapeshellarg( $this->dependencies_dir . '/scoper-autoload.php' ) . ' 2>&1' );
+		self::assertStringContainsString( 'No syntax errors', (string) $lint );
+	}
+
+	#[Test]
+	public function treats_class_free_classmap_as_noop_and_still_emits_files(): void {
+		// The wp-framework-bootstrap shape: a classmap over a deliberately class-free src/
+		// (its functions load via the files aggregator). The empty scan must add nothing.
+		$this->installScopedPackage(
+			'ahegyes/wp-framework-bootstrap',
+			array(
+				'autoload' => array(
+					'classmap' => array( 'src/' ),
+					'files'    => array( 'functions.php' ),
+				),
+			),
+			array(
+				'src/helpers.php' => "<?php\nnamespace MyPlugin\\Scoped\\Boot;\nfunction check() { return true; }\n",
+				'functions.php'   => "<?php\nrequire_once __DIR__ . '/src/helpers.php';\n",
+			)
+		);
+
+		GenerateScopedAutoload::generate( $this->dependencies_dir, 'MyPlugin\\Scoped' );
+
+		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
+		self::assertStringNotContainsString( 'addClassMap', $generated );
+		self::assertStringContainsString(
+			"require_once __DIR__ . '/ahegyes/wp-framework-bootstrap/functions.php';",
+			$generated
+		);
+	}
+
+	#[Test]
+	public function classmap_entries_are_sorted_for_deterministic_diffs(): void {
+		$this->installScopedPackage(
+			'legacy/classmapped',
+			array(
+				'autoload' => array(
+					'classmap' => array( 'src/' ),
+				),
+			),
+			array(
+				'src/Zebra.php' => "<?php\nnamespace P\\Legacy;\nclass Zebra {}\n",
+				'src/Alpha.php' => "<?php\nnamespace P\\Legacy;\nclass Alpha {}\n",
+			)
+		);
+
+		GenerateScopedAutoload::generate( $this->dependencies_dir, 'P' );
+
+		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
+		$pos_alpha = \strpos( $generated, "P\\\\Legacy\\\\Alpha" );
+		$pos_zebra = \strpos( $generated, "P\\\\Legacy\\\\Zebra" );
+		self::assertNotFalse( $pos_alpha );
+		self::assertNotFalse( $pos_zebra );
+		self::assertLessThan( $pos_zebra, $pos_alpha );
+	}
+
+	#[Test]
+	public function throws_when_a_classmap_class_resolves_to_two_files(): void {
+		// A duplicate class would resolve by filesystem order, so the generator fails loud
+		// to protect byte-identical regeneration rather than silently pick one file.
+		$this->installScopedPackage(
+			'legacy/classmapped',
+			array(
+				'autoload' => array(
+					'classmap' => array( 'src/' ),
+				),
+			),
+			array(
+				'src/First.php'  => "<?php\nnamespace P\\Legacy;\nclass Duplicate {}\n",
+				'src/Second.php' => "<?php\nnamespace P\\Legacy;\nclass Duplicate {}\n",
 			)
 		);
 
 		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/classmap/' );
+		$this->expectExceptionMessageMatches( '/[Aa]mbiguous/' );
+
+		GenerateScopedAutoload::generate( $this->dependencies_dir, 'P' );
+	}
+
+	#[Test]
+	public function throws_when_a_package_declares_exclude_from_classmap(): void {
+		// The generator cannot honour autoload.exclude-from-classmap, so it fails loud rather
+		// than register an excluded class anyway and silently misbuild the autoload.
+		$this->installScopedPackage(
+			'legacy/classmapped',
+			array(
+				'autoload' => array(
+					'classmap'              => array( 'src/' ),
+					'exclude-from-classmap' => array( 'src/Generated/' ),
+				),
+			),
+			array(
+				'src/Widget.php' => "<?php\nnamespace P\\Legacy;\nclass Widget {}\n",
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/exclude-from-classmap/' );
 
 		GenerateScopedAutoload::generate( $this->dependencies_dir, 'P' );
 	}
@@ -203,9 +315,10 @@ final class GenerateScopedAutoloadTest extends TestCase {
 	}
 
 	/**
-	 * @param array<string, mixed> $composer_payload
+	 * @param array<string, mixed>  $composer_payload
+	 * @param array<string, string> $source_files Map of package-relative path => file contents (real files the classmap scanner reads).
 	 */
-	private function installScopedPackage( string $package_name, array $composer_payload ): void {
+	private function installScopedPackage( string $package_name, array $composer_payload, array $source_files = array() ): void {
 		$package_dir = $this->dependencies_dir . '/' . $package_name;
 		\mkdir( $package_dir, 0755, true );
 		$composer_payload['name'] = $composer_payload['name'] ?? $package_name;
@@ -213,6 +326,14 @@ final class GenerateScopedAutoloadTest extends TestCase {
 			$package_dir . '/composer.json',
 			\json_encode( $composer_payload, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT )
 		);
+		foreach ( $source_files as $relative_path => $contents ) {
+			$file_path = $package_dir . '/' . $relative_path;
+			$file_dir  = \dirname( $file_path );
+			if ( ! \is_dir( $file_dir ) ) {
+				\mkdir( $file_dir, 0755, true );
+			}
+			\file_put_contents( $file_path, $contents );
+		}
 	}
 
 	private function rrmdir( string $dir ): void {

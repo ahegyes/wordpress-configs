@@ -4,12 +4,13 @@ namespace DeepWebSolutions\Config\Composer;
 
 /**
  * Emits a single `dependencies/scoper-autoload.php` from each scoped package's
- * `autoload.psr-4` and `autoload.files`. Host plugins reference this one file
- * via their root `autoload.files`; new scoped packages flow in automatically
- * without host composer.json edits.
+ * `autoload.psr-4`, `autoload.classmap` and `autoload.files`. Host plugins
+ * reference this one file via their root `autoload.files`; new scoped packages
+ * flow in automatically without host composer.json edits.
  *
- * Deterministic: no `class_alias` / `expose-*`. The generated file is purely a
- * function of the scoped tree and the prefix, so it regenerates byte-identical.
+ * Deterministic: no `class_alias` / `expose-*`, and every entry is sorted before
+ * emission. The generated file is purely a function of the scoped tree and the
+ * prefix, so it regenerates byte-identical.
  */
 final class GenerateScopedAutoload {
 
@@ -19,7 +20,9 @@ final class GenerateScopedAutoload {
 	 * Scoped composer.json `autoload.psr-4` keys are already prefixed by php-scoper —
 	 * the generator emits them verbatim. `$prefix` is a sanity check; a mismatch
 	 * throws to catch pipeline drift between the consumer's prefix declaration and
-	 * what php-scoper actually applied.
+	 * what php-scoper actually applied. `autoload.classmap` directories are scanned
+	 * for their (already-prefixed) class declarations and emitted via `addClassMap`;
+	 * a class-free classmap (a functions-only package) contributes nothing.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -28,7 +31,7 @@ final class GenerateScopedAutoload {
 	 * @param   string $prefix           Scoping prefix passed to php-scoper (e.g. `DeepWebSolutions\\InternalComments\\Scoped`).
 	 *
 	 * @throws  \JsonException     If a scoped composer.json exists but cannot be parsed.
-	 * @throws  \RuntimeException  If a scoped composer.json or the output file cannot be read or written, or if a psr-4 key doesn't start with the declared prefix.
+	 * @throws  \RuntimeException  If a scoped composer.json or the output file cannot be read or written, if a psr-4 key doesn't start with the declared prefix, if a package declares autoload.exclude-from-classmap (unsupported), if no class-map scanner is available, or if a classmap class maps to more than one file.
 	 *
 	 * @return  string Absolute path to the generated scoper-autoload.php.
 	 */
@@ -37,8 +40,9 @@ final class GenerateScopedAutoload {
 
 		$prefix_normalised = self::rtrim_backslash( $prefix );
 
-		$psr4  = array();
-		$files = array();
+		$psr4       = array();
+		$files      = array();
+		$scan_roots = array();
 
 		foreach ( $packages as $pkg ) {
 			$autoload = self::read_autoload( $pkg );
@@ -48,14 +52,22 @@ final class GenerateScopedAutoload {
 
 			$pkg_rel = self::relative_path( $dependencies_dir, $pkg );
 
-			// classmap support not implemented; fail loud rather than silently drop pkgs.
-			if ( isset( $autoload['classmap'] ) && array() !== $autoload['classmap'] ) {
+			// exclude-from-classmap would require honouring Composer's exclusion globs, which the
+			// generator does not implement; fail loud rather than register an excluded class anyway.
+			if ( array() !== ( $autoload['exclude-from-classmap'] ?? array() ) ) {
 				throw new \RuntimeException(
 					\sprintf(
-						'Scoped package %s declares autoload.classmap, which the scoper-autoload generator does not yet support. Convert to psr-4 in the package, or extend GenerateScopedAutoload to scan classmap directories.',
+						'Scoped package %s declares autoload.exclude-from-classmap, which the scoped-autoload generator does not apply. Add exclusion support before scoping a package that declares it.',
 						$pkg_rel
 					)
 				);
+			}
+
+			foreach ( $autoload['classmap'] ?? array() as $classmap_entry ) {
+				if ( ! \is_string( $classmap_entry ) ) {
+					continue;
+				}
+				$scan_roots[] = $pkg . '/' . \trim( \str_replace( '\\', '/', $classmap_entry ), '/' );
 			}
 
 			foreach ( $autoload['psr-4'] ?? array() as $namespace => $sources ) {
@@ -92,7 +104,8 @@ final class GenerateScopedAutoload {
 			}
 		}
 
-		$content = self::render( $psr4, $files );
+		$classmap = self::scan_classmap_roots( $scan_roots, $dependencies_dir );
+		$content  = self::render( $psr4, $files, $classmap );
 
 		$output_path = $dependencies_dir . '/scoper-autoload.php';
 		\file_put_contents( $output_path, $content ) ?: throw new \RuntimeException( \sprintf( 'Could not write %s', $output_path ) );
@@ -141,7 +154,7 @@ final class GenerateScopedAutoload {
 	 *
 	 * @param   string $package_dir Absolute path to a scoped package directory.
 	 *
-	 * @return  array{psr-4?: array<string, string|list<string>>, classmap?: list<string>, files?: list<string>}
+	 * @return  array{psr-4?: array<string, string|list<string>>, classmap?: list<string>, exclude-from-classmap?: list<string>, files?: list<string>}
 	 *
 	 * @throws  \JsonException    If composer.json is malformed.
 	 * @throws  \RuntimeException If composer.json cannot be read.
@@ -156,6 +169,69 @@ final class GenerateScopedAutoload {
 		}
 		$autoload = $data['autoload'] ?? array();
 		return \is_array( $autoload ) ? $autoload : array();
+	}
+
+	/**
+	 * Scans the collected classmap roots for class declarations via Composer's own scanner.
+	 *
+	 * The generator runs inside Composer (`post-autoload-dump`) and under Composer's autoloader
+	 * in tests, so `composer/class-map-generator` — which Composer 2.4+ uses for its own dump —
+	 * is loaded; the scanner reads each file's already-scoped class declarations and the FQNs
+	 * are emitted verbatim. A single scanner spans all roots so a class defined in two scanned
+	 * files surfaces as ambiguous (the path filter is disabled so every duplicate fails loud,
+	 * not just non-test paths); an ambiguous class would otherwise resolve by filesystem order
+	 * and break byte-identical regeneration. `autoload.exclude-from-classmap` is rejected upstream
+	 * in generate() — the generator does not apply exclusion globs, so it fails loud rather than
+	 * register an excluded class.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   list<string> $scan_roots       Absolute classmap directories or files inside scoped packages.
+	 * @param   string       $dependencies_dir Absolute path to the scoped output directory the paths are relative to.
+	 *
+	 * @throws  \RuntimeException If Composer's class-map scanner cannot be resolved, or a class maps to more than one file.
+	 *
+	 * @return  array<int, array{class: string, path: string}> Class-map entries (fully-qualified name + dependencies-relative path).
+	 */
+	private static function scan_classmap_roots( array $scan_roots, string $dependencies_dir ): array {
+		if ( array() === $scan_roots ) {
+			return array();
+		}
+		if ( ! \class_exists( \Composer\ClassMapGenerator\ClassMapGenerator::class ) ) {
+			throw new \RuntimeException( "Composer's class-map scanner is unavailable; cannot resolve autoload.classmap entries." );
+		}
+
+		$scanner = new \Composer\ClassMapGenerator\ClassMapGenerator();
+		$scanner->avoidDuplicateScans();
+		foreach ( $scan_roots as $scan_root ) {
+			$scanner->scanPaths( $scan_root );
+		}
+
+		$class_map = $scanner->getClassMap();
+
+		// false disables the default test/fixture/example/stub path filter, so EVERY duplicate
+		// fails loud — no first-scanned-file resolution by filesystem order leaks in.
+		$ambiguous = $class_map->getAmbiguousClasses( false );
+		if ( array() !== $ambiguous ) {
+			$ambiguous_classes = \array_keys( $ambiguous );
+			\sort( $ambiguous_classes );
+			throw new \RuntimeException(
+				\sprintf(
+					'Ambiguous class definitions across scoped autoload.classmap entries: %s. Each class must map to a single file.',
+					\implode( ', ', $ambiguous_classes )
+				)
+			);
+		}
+
+		$classmap = array();
+		foreach ( $class_map->getMap() as $fqcn => $class_file ) {
+			$classmap[] = array(
+				'class' => $fqcn,
+				'path'  => self::relative_path( $dependencies_dir, $class_file ),
+			);
+		}
+		return $classmap;
 	}
 
 	/**
@@ -215,26 +291,40 @@ final class GenerateScopedAutoload {
 	/**
 	 * Renders the generated PHP source. Entries are sorted for deterministic diffs.
 	 *
-	 * @param   array<int, array{namespace: string, path: string}> $psr4  PSR-4 entries to emit.
-	 * @param   array<int, string>                                 $files Files to require at bootstrap.
+	 * @param   array<int, array{namespace: string, path: string}> $psr4     PSR-4 entries to emit.
+	 * @param   array<int, string>                                 $files    Files to require at bootstrap.
+	 * @param   array<int, array{class: string, path: string}>     $classmap Class-map entries to emit.
 	 *
 	 * @return  string
 	 */
-	private static function render( array $psr4, array $files ): string {
+	private static function render( array $psr4, array $files, array $classmap ): string {
 		\usort(
 			$psr4,
 			static fn( array $a, array $b ): int => \strcmp( $a['namespace'], $b['namespace'] ) ?: \strcmp( $a['path'], $b['path'] )
 		);
+		\usort(
+			$classmap,
+			static fn( array $a, array $b ): int => \strcmp( $a['class'], $b['class'] ) ?: \strcmp( $a['path'], $b['path'] )
+		);
 		\sort( $files );
 
-		$psr4_lines = array();
-		$file_lines = array();
+		$psr4_lines     = array();
+		$classmap_lines = array();
+		$file_lines     = array();
 
 		foreach ( $psr4 as $entry ) {
 			// Escape each `\` as `\\` for the single-quoted PHP literal we emit.
 			$psr4_lines[] = \sprintf(
 				"\$loader->addPsr4( '%s', __DIR__ . '/%s' );",
 				\str_replace( '\\', '\\\\', $entry['namespace'] ),
+				$entry['path']
+			);
+		}
+		foreach ( $classmap as $entry ) {
+			// Escape each `\` as `\\` for the single-quoted PHP literal we emit.
+			$classmap_lines[] = \sprintf(
+				"'%s' => __DIR__ . '/%s',",
+				\str_replace( '\\', '\\\\', $entry['class'] ),
 				$entry['path']
 			);
 		}
@@ -257,6 +347,15 @@ final class GenerateScopedAutoload {
 			foreach ( $psr4_lines as $line ) {
 				$body .= $line . "\n";
 			}
+		}
+
+		if ( array() !== $classmap_lines ) {
+			$body .= "\n";
+			$body .= "\$loader->addClassMap( array(\n";
+			foreach ( $classmap_lines as $line ) {
+				$body .= "\t" . $line . "\n";
+			}
+			$body .= ") );\n";
 		}
 
 		if ( array() !== $file_lines ) {

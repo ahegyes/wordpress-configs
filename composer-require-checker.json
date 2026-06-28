@@ -1,5 +1,6 @@
 {
     "symbol-whitelist": [
+        "Composer\\ClassMapGenerator\\ClassMapGenerator",
         "Composer\\Factory",
         "Composer\\IO\\IOInterface",
         "Composer\\Script\\Event",
