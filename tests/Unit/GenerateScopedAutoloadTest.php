@@ -133,9 +133,11 @@ final class GenerateScopedAutoloadTest extends TestCase {
 		GenerateScopedAutoload::generate( $this->dependencies_dir, 'X' );
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
-		self::assertStringContainsString( 'getRegisteredLoaders', $generated );
 		self::assertStringNotContainsString( 'addPsr4', $generated );
+		self::assertStringNotContainsString( 'addClassMap', $generated );
 		self::assertStringNotContainsString( 'require_once __DIR__', $generated );
+		// No mappings and no files ⇒ no loader is created at all.
+		self::assertStringNotContainsString( 'ClassLoader', $generated );
 	}
 
 	#[Test]
@@ -312,6 +314,76 @@ final class GenerateScopedAutoloadTest extends TestCase {
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
 		self::assertStringNotContainsString( 'silent/pkg', $generated );
+	}
+
+	#[Test]
+	public function throws_when_a_package_declares_psr0(): void {
+		// psr-0's directory mapping differs from psr-4; the generator fails loud rather than
+		// silently drop the package's classes from the autoload.
+		$this->installScopedPackage(
+			'legacy/psr0',
+			array(
+				'autoload' => array(
+					'psr-0' => array( 'Legacy_' => 'src/' ),
+				),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/psr-0/' );
+
+		GenerateScopedAutoload::generate( $this->dependencies_dir, 'P' );
+	}
+
+	#[Test]
+	public function generated_file_autoloads_scoped_classes_and_runs_files(): void {
+		// Proves the generated bootstrap works at runtime — its dedicated loader resolves both a
+		// scoped PSR-4 class and a scoped classmap class, and the autoload.files entry executes —
+		// not merely that the emitted source contains the right strings.
+		$this->installScopedPackage(
+			'acme/lib',
+			array(
+				'autoload' => array(
+					'psr-4'    => array( 'MyPlugin\\Scoped\\Acme\\Lib\\' => 'src/' ),
+					'classmap' => array( 'legacy/' ),
+					'files'    => array( 'bootstrap.php' ),
+				),
+			),
+			array(
+				'src/Thing.php'     => "<?php\nnamespace MyPlugin\\Scoped\\Acme\\Lib;\nclass Thing {}\n",
+				'legacy/Widget.php' => "<?php\nnamespace MyPlugin\\Scoped\\Acme\\Legacy;\nclass Widget {}\n",
+				'bootstrap.php'     => "<?php\n\\file_put_contents( __DIR__ . '/ran.marker', '1' );\n",
+			)
+		);
+
+		GenerateScopedAutoload::generate( $this->dependencies_dir, 'MyPlugin\\Scoped' );
+
+		$before = \spl_autoload_functions();
+		try {
+			// The require (which registers the dedicated loader) is inside the try so a failure
+			// mid-file still hits the finally cleanup.
+			require $this->dependencies_dir . '/scoper-autoload.php';
+
+			self::assertTrue(
+				\class_exists( 'MyPlugin\\Scoped\\Acme\\Lib\\Thing', true ),
+				'Generated autoload did not resolve the scoped PSR-4 class.'
+			);
+			self::assertTrue(
+				\class_exists( 'MyPlugin\\Scoped\\Acme\\Legacy\\Widget', true ),
+				'Generated autoload did not resolve the scoped classmap class.'
+			);
+			self::assertFileExists(
+				$this->dependencies_dir . '/acme/lib/ran.marker',
+				'Generated autoload did not run the autoload.files entry.'
+			);
+		} finally {
+			// The generated file registers a loader on the global spl stack; remove what this added.
+			foreach ( \spl_autoload_functions() as $fn ) {
+				if ( ! \in_array( $fn, $before, true ) ) {
+					\spl_autoload_unregister( $fn );
+				}
+			}
+		}
 	}
 
 	/**

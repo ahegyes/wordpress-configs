@@ -203,7 +203,7 @@ This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your
 
 #### Autoload generator (opt-in)
 
-`php/composer/GenerateScopedAutoload.php` — runs at the end of `ScopePhpDependencies::postAutoloadDump` and emits a single `dependencies/scoper-autoload.php` that wires every scoped package's `autoload.psr-4` and `autoload.files` into the host plugin's Composer ClassLoader. Host plugins reference this one file via their root `autoload.files` instead of hand-declaring a PSR-4 entry per scoped package.
+`php/composer/GenerateScopedAutoload.php` — runs at the end of `ScopePhpDependencies::postAutoloadDump` and emits a single `dependencies/scoper-autoload.php` that registers every scoped package's `autoload.psr-4` and `autoload.classmap` entries on a dedicated Composer `ClassLoader` it creates and registers (independent of whichever loader the host registered first), and `require_once`s each `autoload.files` entry. Host plugins reference this one file via their root `autoload.files` instead of hand-declaring a PSR-4 entry per scoped package.
 
 **Opt in by declaring both keys in your project's `composer.json`:**
 
@@ -231,13 +231,13 @@ This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your
 }
 ```
 
-That's it — adding a new scoped package never requires editing the host `composer.json` again. The generator reads each scoped package's `composer.json` and emits the corresponding `addPsr4()` calls and `require_once` statements at the next scoping run. Deterministic by design: no `class_alias`, no `expose-*` machinery — the output is purely a function of the scoped tree and the prefix.
+That's it — adding a new scoped package never requires editing the host `composer.json` again. The generator reads each scoped package's `composer.json` and emits the corresponding `addPsr4()` / `addClassMap()` calls and `require_once` statements at the next scoping run. Deterministic by design: no `class_alias`, no `expose-*` machinery — the output is purely a function of the scoped tree and the prefix.
 
 | Behavior          | When                                                                                                                                                        |
 |-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Generator runs    | Both `extra.scoped-dependencies-dir` and `extra.scoping-prefix` set                                                                                         |
 | Generator skipped | Either key missing or `dependencies/` doesn't exist after scoping                                                                                           |
-| Throws            | A scoped package's `psr-4` key doesn't start with the declared prefix (pipeline drift) or declares `autoload.classmap` (not yet supported by the generator) |
+| Throws            | A scoped package's `psr-4` key doesn't start with the declared prefix (pipeline drift), it declares `autoload.exclude-from-classmap` or `autoload.psr-0` (unsupported), or a classmap class resolves to more than one file |
 
 ### php-scoper Base Config
 
