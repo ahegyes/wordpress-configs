@@ -44,4 +44,6 @@ jobs:
           composer-options: '--prefer-dist'
       - name: composer ${{ matrix.script }}
         working-directory: ${{ inputs.project-path }}
-        run: composer ${{ matrix.script }}
+        env:
+          SCRIPT: ${{ matrix.script }}
+        run: composer "$SCRIPT"

@@ -3,8 +3,8 @@ name: Scripts/Styles Lint
 on:
   workflow_call:
     inputs:
-      plugin-path:
-        description: 'Path to the plugin (relative to repo root)'
+      project-path:
+        description: 'Path to the project (relative to repo root)'
         type: string
         required: false
         default: '.'
@@ -41,18 +41,18 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
           cache: 'npm'
-          cache-dependency-path: ${{ inputs.plugin-path }}/package-lock.json
+          cache-dependency-path: ${{ inputs.project-path }}/package-lock.json
 
       - name: Install npm dependencies
-        working-directory: ${{ inputs.plugin-path }}
+        working-directory: ${{ inputs.project-path }}
         run: npm ci
 
       - name: Lint scripts
         if: ${{ inputs.lint-scripts }}
-        working-directory: ${{ inputs.plugin-path }}
+        working-directory: ${{ inputs.project-path }}
         run: npm run lint:scripts
 
       - name: Lint styles
         if: ${{ inputs.lint-styles }}
-        working-directory: ${{ inputs.plugin-path }}
+        working-directory: ${{ inputs.project-path }}
         run: npm run lint:styles

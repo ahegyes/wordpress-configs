@@ -10,6 +10,10 @@ You can expect an initial response within 7 days. Once the report is triaged, yo
 
 This package is consumed via `dev-trunk` only — no version tags are published. Security fixes land on `trunk` and propagate immediately to all downstream consumers via their next `composer update`.
 
+## Release workflow ref pinning
+
+The reusable release workflow (`reusable-release.yml`) is consumed by downstream plugins at the mutable `@trunk` ref, consistent with the `dev-trunk` model above — immutable SHA pinning would defeat immediate fix propagation. Its privileged deploy job is gated instead by a GitHub Environment (`wp-org-release`) plus a version-tag guard (`if: github.ref_type == 'tag'`): the environment subjects the job to whatever deployment-protection rules the consumer configures (required reviewers, wait timers, allowed branches), and the guard restricts it to version-tag refs, so a non-tag invocation cannot publish to wp.org. The SVN credentials are passed as `workflow_call` secrets from the calling repository's secrets — the environment does not itself scope them; for that, consumers should store `SVN_USERNAME` / `SVN_PASSWORD` as `wp-org-release` **environment** secrets in the calling repository.
+
 ## Scope
 
 In scope:

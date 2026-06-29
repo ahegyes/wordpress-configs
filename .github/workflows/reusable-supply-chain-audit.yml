@@ -3,8 +3,8 @@ name: Supply-Chain Audit
 on:
   workflow_call:
     inputs:
-      plugin-path:
-        description: 'Path to the plugin (relative to repo root)'
+      project-path:
+        description: 'Path to the project (relative to repo root)'
         type: string
         required: false
         default: '.'
@@ -24,20 +24,25 @@ on:
         required: false
         default: true
       npm-audit:
-        description: 'Run `npm audit --omit=dev`. Set false for repos without package.json. Production-only by default — dev deps are noisy and rarely shipped.'
+        description: 'Run `npm audit`. Set false for repos without package.json. Audits the full dependency graph (dev/build deps included) by default.'
         type: boolean
         required: false
         default: true
       composer-audit-flags:
-        description: 'Extra flags passed to `composer audit`. Defaults to --no-dev to mirror the production install matrix.'
+        description: 'Extra flags passed to `composer audit`. Defaults to --abandoned=report — audits the full graph (dev/build deps included) and fails on security advisories, but reports abandoned packages instead of failing on them. Pass --no-dev to audit production deps only.'
         type: string
         required: false
-        default: '--no-dev'
+        default: '--abandoned=report'
       npm-audit-flags:
-        description: 'Extra flags passed to `npm audit`. Defaults to --omit=dev for the same reason.'
+        description: 'Extra flags passed to `npm audit`. Defaults to --audit-level=high — audits the full graph (dev/build deps included) and fails only on high/critical advisories; low/moderate are surfaced without failing. Pass --omit=dev to audit production deps only.'
         type: string
         required: false
-        default: '--omit=dev'
+        default: '--audit-level=high'
+      fail-on-findings:
+        description: 'Fail the job when an audit reports findings. Set false to run the audit advisory-only — findings are surfaced in the logs without blocking.'
+        type: boolean
+        required: false
+        default: true
 
 permissions:
   contents: read
@@ -58,10 +63,11 @@ jobs:
           tools: composer:v2
       - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
         with:
-          working-directory: ${{ inputs.plugin-path }}
+          working-directory: ${{ inputs.project-path }}
           composer-options: '--prefer-dist'
       - name: composer audit
-        working-directory: ${{ inputs.plugin-path }}
+        working-directory: ${{ inputs.project-path }}
+        continue-on-error: ${{ !inputs.fail-on-findings }}
         env:
           AUDIT_FLAGS: ${{ inputs.composer-audit-flags }}
         run: |
@@ -80,12 +86,13 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
           cache: 'npm'
-          cache-dependency-path: ${{ inputs.plugin-path }}/package-lock.json
+          cache-dependency-path: ${{ inputs.project-path }}/package-lock.json
       - name: npm ci
-        working-directory: ${{ inputs.plugin-path }}
+        working-directory: ${{ inputs.project-path }}
         run: npm ci
       - name: npm audit
-        working-directory: ${{ inputs.plugin-path }}
+        working-directory: ${{ inputs.project-path }}
+        continue-on-error: ${{ !inputs.fail-on-findings }}
         env:
           AUDIT_FLAGS: ${{ inputs.npm-audit-flags }}
         run: |
