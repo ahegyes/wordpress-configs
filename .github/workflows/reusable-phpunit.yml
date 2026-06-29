@@ -32,7 +32,7 @@ on:
         description: 'Node.js version for wp-env CLI'
         type: string
         required: false
-        default: 'lts/*'
+        default: '26'
       wp-env-config-file:
         description: 'Path to a wp-env config file (relative to project-path). Leave empty to use the default .wp-env.json. Use a separate file per environment (e.g., .wp-env.tests.json) to migrate off the deprecated implicit dev/tests split.'
         type: string
@@ -75,7 +75,7 @@ jobs:
         uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
         with:
           working-directory: ${{ inputs.project-path }}
-          composer-options: '--prefer-dist'
+          composer-options: '--prefer-dist --ignore-platform-reqs'
 
       - name: Install npm dependencies
         if: ${{ inputs.needs-wp-env }}

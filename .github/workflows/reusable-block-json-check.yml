@@ -12,7 +12,7 @@ on:
         description: 'Node.js version'
         type: string
         required: false
-        default: 'lts/*'
+        default: '26'
 
 permissions:
   contents: read
