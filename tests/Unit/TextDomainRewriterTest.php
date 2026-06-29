@@ -43,7 +43,7 @@ final class TextDomainRewriterTest extends TestCase {
 	}
 
 	#[Test]
-	#[DataProvider('gettextCallProvider')]
+	#[DataProvider( 'gettextCallProvider' )]
 	public function rewrites_framework_domain_across_gettext_call_shapes( string $input ): void {
 		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
 

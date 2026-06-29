@@ -30,7 +30,8 @@
         "format:all": "composer format:php && npm run format:scripts",
 
         "lint:scripts": "wp-scripts lint-js ./node --no-error-on-unmatched-pattern",
-        "lint:all": "composer lint:php && npm run lint:scripts",
+        "lint:config": "stylelint --print-config tests/fixtures/node-config/probe.css --config node/stylelint.config.base.js > /dev/null && tsc --noEmit -p tests/fixtures/node-config/tsconfig.json && node -e \"require('./node/playwright.config.base.js')\"",
+        "lint:all": "composer lint:php && npm run lint:scripts && npm run lint:config",
 
         "audit": "composer audit && npm audit",
         "audit:fix": "npm audit fix",

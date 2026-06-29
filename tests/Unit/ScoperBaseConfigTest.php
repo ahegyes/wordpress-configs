@@ -18,7 +18,7 @@ final class ScoperBaseConfigTest extends TestCase {
 	private \Closure $build_config;
 
 	protected function setUp(): void {
-		$this->project_dir  = \sys_get_temp_dir() . '/dws-wp-configs-scoper-' . \uniqid();
+		$this->project_dir = \sys_get_temp_dir() . '/dws-wp-configs-scoper-' . \uniqid();
 		\mkdir( $this->project_dir );
 		$this->build_config = require self::CONFIG_FILE;
 	}
@@ -41,10 +41,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function exclude_files_override_passes_through(): void {
-		$config = ( $this->build_config )( array(
-			'project_dir'   => $this->project_dir,
-			'exclude_files' => array( '/path/to/template.php', '/another/file.php' ),
-		) );
+		$config = ( $this->build_config )(
+			array(
+				'project_dir'   => $this->project_dir,
+				'exclude_files' => array( '/path/to/template.php', '/another/file.php' ),
+			)
+		);
 
 		self::assertSame(
 			array( '/path/to/template.php', '/another/file.php' ),
@@ -54,10 +56,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function reads_scoping_exclusions_into_excludes(): void {
-		$this->writeScopingExclusions( array(
-			'classes'   => array( 'WP_Post', 'WP_User' ),
-			'functions' => array( 'add_action', 'wp_filesystem' ),
-		) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post', 'WP_User' ),
+				'functions' => array( 'add_action', 'wp_filesystem' ),
+			)
+		);
 
 		$config = ( $this->build_config )( array( 'project_dir' => $this->project_dir ) );
 
@@ -84,14 +88,21 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function plugin_overrides_merge_into_excludes(): void {
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array(),
+			)
+		);
 
-		$config = ( $this->build_config )( array(
-			'project_dir'        => $this->project_dir,
-			'exclude_namespaces' => array( 'Custom\\Namespace' ),
-			'exclude_classes'    => array( 'CustomClass' ),
-			'exclude_functions'  => array( 'custom_function' ),
-		) );
+		$config = ( $this->build_config )(
+			array(
+				'project_dir'        => $this->project_dir,
+				'exclude_namespaces' => array( 'Custom\\Namespace' ),
+				'exclude_classes'    => array( 'CustomClass' ),
+				'exclude_functions'  => array( 'custom_function' ),
+			)
+		);
 
 		self::assertContains( 'Psr', $config['exclude-namespaces'] );
 		self::assertContains( 'Custom\\Namespace', $config['exclude-namespaces'] );
@@ -104,10 +115,12 @@ final class ScoperBaseConfigTest extends TestCase {
 	public function plugin_finders_pass_through(): void {
 		$marker_finder = (object) array( 'marker' => true );
 
-		$config = ( $this->build_config )( array(
-			'project_dir' => $this->project_dir,
-			'finders'     => array( $marker_finder ),
-		) );
+		$config = ( $this->build_config )(
+			array(
+				'project_dir' => $this->project_dir,
+				'finders'     => array( $marker_finder ),
+			)
+		);
 
 		self::assertSame( array( $marker_finder ), $config['finders'] );
 	}
@@ -116,10 +129,12 @@ final class ScoperBaseConfigTest extends TestCase {
 	public function plugin_patchers_are_appended_after_default(): void {
 		$plugin_patcher = static fn( string $f, string $p, string $c ): string => $c;
 
-		$config = ( $this->build_config )( array(
-			'project_dir' => $this->project_dir,
-			'patchers'    => array( $plugin_patcher ),
-		) );
+		$config = ( $this->build_config )(
+			array(
+				'project_dir' => $this->project_dir,
+				'patchers'    => array( $plugin_patcher ),
+			)
+		);
 
 		self::assertCount( 2, $config['patchers'] );
 		self::assertSame( $plugin_patcher, $config['patchers'][1] );
@@ -127,7 +142,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_strips_prefix_from_excluded_function_calls(): void {
-		$this->writeScopingExclusions( array( 'classes' => array(), 'functions' => array( 'add_action' ) ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array(),
+				'functions' => array( 'add_action' ),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = '<?php \\MyPrefix\\add_action(\'init\', $cb);';
@@ -139,7 +159,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_strips_prefix_from_excluded_class_references(): void {
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = '<?php $post = new \\MyPrefix\\WP_Post();';
@@ -151,7 +176,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_handles_function_exists_string_arguments(): void {
-		$this->writeScopingExclusions( array( 'classes' => array(), 'functions' => array( 'add_action' ) ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array(),
+				'functions' => array( 'add_action' ),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php if (function_exists('MyPrefix\\\\add_action')) {}";
@@ -163,7 +193,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_restores_global_use_statement_for_excluded_class(): void {
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php\nuse MyPrefix\\WP_Post;\n\$x = 1;";
@@ -175,7 +210,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_handles_class_exists_string_arguments(): void {
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php if (class_exists('MyPrefix\\\\WP_Post')) {}";
@@ -187,7 +227,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_handles_method_exists_string_arguments(): void {
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Query' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Query' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php if (method_exists('MyPrefix\\\\WP_Query', 'have_posts')) {}";
@@ -199,7 +244,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_handles_is_a_string_arguments(): void {
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php if (is_a(\$obj, 'MyPrefix\\\\WP_Post')) {}";
@@ -211,7 +261,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_handles_is_subclass_of_string_arguments(): void {
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Widget' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Widget' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php if (is_subclass_of(\$x, 'MyPrefix\\\\WP_Widget')) {}";
@@ -223,7 +278,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_handles_reflection_class_string_arguments(): void {
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php \$r = new \\ReflectionClass('MyPrefix\\\\WP_Post');";
@@ -236,11 +296,13 @@ final class ScoperBaseConfigTest extends TestCase {
 	#[Test]
 	public function patcher_does_not_strip_prefix_when_excluded_class_is_a_namespace_segment_of_a_longer_fqcn(): void {
 		// `A\Foo` is excluded — but `A\Foo\Bar` is a DIFFERENT class that's still prefixed.
-		$this->writeScopingExclusions( array(
-			'classes'   => array( 'A\\Foo' ),
-			'functions' => array(),
-			'constants' => array(),
-		) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'A\\Foo' ),
+				'functions' => array(),
+				'constants' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = '<?php $x = new \\Prefix\\A\\Foo\\Bar(); $y = new \\Prefix\\A\\Foo();';
@@ -253,7 +315,12 @@ final class ScoperBaseConfigTest extends TestCase {
 	#[Test]
 	public function patcher_does_not_strip_prefix_from_extended_class_names(): void {
 		// WP_Post is excluded, WP_Post_Type is NOT — partial-name match must respect a word boundary.
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = '<?php $a = new \\MyPrefix\\WP_Post(); $b = new \\MyPrefix\\WP_Post_Type();';
@@ -266,7 +333,12 @@ final class ScoperBaseConfigTest extends TestCase {
 	#[Test]
 	public function patcher_does_not_strip_prefix_from_extended_function_names_in_function_exists(): void {
 		// add_action is excluded, add_action_link is NOT.
-		$this->writeScopingExclusions( array( 'classes' => array(), 'functions' => array( 'add_action' ) ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array(),
+				'functions' => array( 'add_action' ),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php function_exists('MyPrefix\\\\add_action'); function_exists('MyPrefix\\\\add_action_link');";
@@ -278,7 +350,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_strips_prefix_from_use_as_alias_statements(): void {
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php\nuse MyPrefix\\WP_Post as Aliased;\n\$x = new Aliased();";
@@ -290,7 +367,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_handles_function_names_as_plain_strings(): void {
-		$this->writeScopingExclusions( array( 'classes' => array(), 'functions' => array( 'add_action' ) ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array(),
+				'functions' => array( 'add_action' ),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php array_map('MyPrefix\\\\add_action', \$arr);";
@@ -302,7 +384,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_does_not_strip_prefix_from_extended_function_names_in_string_refs(): void {
-		$this->writeScopingExclusions( array( 'classes' => array(), 'functions' => array( 'add_action' ) ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array(),
+				'functions' => array( 'add_action' ),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php array_map('MyPrefix\\\\add_action', \$arr); array_map('MyPrefix\\\\add_action_link', \$arr);";
@@ -315,7 +402,12 @@ final class ScoperBaseConfigTest extends TestCase {
 	#[Test]
 	public function patcher_does_not_strip_prefix_from_extended_class_names_in_string_refs(): void {
 		// WP_Post excluded, WP_Post_Type not.
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php class_exists('MyPrefix\\\\WP_Post'); class_exists('MyPrefix\\\\WP_Post_Type');";
@@ -334,11 +426,13 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function reads_constants_into_excludes(): void {
-		$this->writeScopingExclusions( array(
-			'classes'   => array(),
-			'functions' => array(),
-			'constants' => array( 'WP_DEBUG', 'ABSPATH' ),
-		) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array( 'WP_DEBUG', 'ABSPATH' ),
+			)
+		);
 
 		$config = ( $this->build_config )( array( 'project_dir' => $this->project_dir ) );
 
@@ -348,16 +442,20 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function plugin_exclude_constants_override_merges_in(): void {
-		$this->writeScopingExclusions( array(
-			'classes'   => array(),
-			'functions' => array(),
-			'constants' => array( 'WP_DEBUG' ),
-		) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array( 'WP_DEBUG' ),
+			)
+		);
 
-		$config = ( $this->build_config )( array(
-			'project_dir'       => $this->project_dir,
-			'exclude_constants' => array( 'CUSTOM_CONST' ),
-		) );
+		$config = ( $this->build_config )(
+			array(
+				'project_dir'       => $this->project_dir,
+				'exclude_constants' => array( 'CUSTOM_CONST' ),
+			)
+		);
 
 		self::assertContains( 'WP_DEBUG', $config['exclude-constants'] );
 		self::assertContains( 'CUSTOM_CONST', $config['exclude-constants'] );
@@ -365,11 +463,13 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_strips_prefix_from_excluded_constant_references(): void {
-		$this->writeScopingExclusions( array(
-			'classes'   => array(),
-			'functions' => array(),
-			'constants' => array( 'WP_DEBUG' ),
-		) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array( 'WP_DEBUG' ),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = '<?php $x = \\MyPrefix\\WP_DEBUG;';
@@ -381,11 +481,13 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_handles_defined_string_arguments(): void {
-		$this->writeScopingExclusions( array(
-			'classes'   => array(),
-			'functions' => array(),
-			'constants' => array( 'WP_DEBUG' ),
-		) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array( 'WP_DEBUG' ),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php if (defined('MyPrefix\\\\WP_DEBUG')) {}";
@@ -397,11 +499,13 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_does_not_strip_prefix_from_extended_constant_names(): void {
-		$this->writeScopingExclusions( array(
-			'classes'   => array(),
-			'functions' => array(),
-			'constants' => array( 'WP_DEBUG' ),
-		) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array( 'WP_DEBUG' ),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = '<?php $x = \\MyPrefix\\WP_DEBUG; $y = \\MyPrefix\\WP_DEBUG_LOG;';
@@ -413,7 +517,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_does_not_rewrite_pattern_inside_inline_comments(): void {
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php\n// References \\MyPrefix\\WP_Post and 'MyPrefix\\\\WP_Post'\n\$x = new \\MyPrefix\\WP_Post();";
@@ -426,7 +535,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_does_not_rewrite_pattern_inside_doc_comments(): void {
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php\n/**\n * @see \\MyPrefix\\WP_Post\n */\n\$x = new \\MyPrefix\\WP_Post();";
@@ -438,7 +552,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_leaves_non_excluded_references_unchanged(): void {
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array( 'add_action' ) ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array( 'add_action' ),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = '<?php $a = new \\MyPrefix\\Some\\OtherClass(); \\MyPrefix\\some_function();';
@@ -452,7 +571,12 @@ final class ScoperBaseConfigTest extends TestCase {
 		// Regression: the single-segment prefixes the other tests use hid a backslash bug.
 		// A real multi-segment prefix is double-backslash-escaped inside php-scoper's string
 		// output, which the old text-matching patcher never matched — it silently no-op'd.
-		$this->writeScopingExclusions( array( 'classes' => array(), 'functions' => array( 'add_action' ) ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array(),
+				'functions' => array( 'add_action' ),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php if (function_exists('DeepWebSolutions\\\\Scoped\\\\add_action')) {}";
@@ -464,7 +588,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_strips_multi_segment_prefix_from_class_reference(): void {
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = '<?php $p = new \\DeepWebSolutions\\Scoped\\WP_Post();';
@@ -476,7 +605,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_strips_multi_segment_prefix_from_use_statement(): void {
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php\nuse DeepWebSolutions\\Scoped\\WP_Post;\n\$x = 1;";
@@ -488,7 +622,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_strips_prefix_from_double_quoted_string_references(): void {
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = '<?php if (class_exists("MyPrefix\\\\WP_Post")) {}';
@@ -502,17 +641,24 @@ final class ScoperBaseConfigTest extends TestCase {
 	public function rejects_unknown_override_key(): void {
 		$this->expectException( \InvalidArgumentException::class );
 
-		( $this->build_config )( array(
-			'project_dir'     => $this->project_dir,
-			'exclude-classes' => array( 'SomeClass' ),
-		) );
+		( $this->build_config )(
+			array(
+				'project_dir'     => $this->project_dir,
+				'exclude-classes' => array( 'SomeClass' ),
+			)
+		);
 	}
 
 	#[Test]
 	public function patcher_does_not_rewrite_namespace_declarations(): void {
 		// The scoped file's own namespace stays prefixed even if it collides with an excluded
 		// name — a leading backslash on a namespace declaration is a parse error.
-		$this->writeScopingExclusions( array( 'classes' => array( 'A\\Foo' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'A\\Foo' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php\nnamespace MyPrefix\\A\\Foo;\n\$x = 1;";
@@ -524,7 +670,12 @@ final class ScoperBaseConfigTest extends TestCase {
 
 	#[Test]
 	public function patcher_strips_prefix_from_static_callable_string_keeping_member(): void {
-		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array(),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php \$cb = 'MyPrefix\\\\WP_Post::factory';";
@@ -539,11 +690,13 @@ final class ScoperBaseConfigTest extends TestCase {
 		// Guards the whole invalid-PHP class: namespace declarations, every `use` form
 		// (plain, alias, function, const), expression references, and the callable string must
 		// all round-trip to parseable PHP.
-		$this->writeScopingExclusions( array(
-			'classes'   => array( 'WP_Post', 'A\\Foo' ),
-			'functions' => array( 'add_action' ),
-			'constants' => array( 'WP_DEBUG' ),
-		) );
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post', 'A\\Foo' ),
+				'functions' => array( 'add_action' ),
+				'constants' => array( 'WP_DEBUG' ),
+			)
+		);
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php\n"

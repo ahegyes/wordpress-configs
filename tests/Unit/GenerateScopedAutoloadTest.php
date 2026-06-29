@@ -102,8 +102,8 @@ final class GenerateScopedAutoloadTest extends TestCase {
 		GenerateScopedAutoload::generate( $this->dependencies_dir, 'MyPlugin\\Scoped' );
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
-		self::assertStringContainsString( "MyPlugin\\\\Scoped\\\\DeepWebSolutions\\\\Framework\\\\Core\\\\", $generated );
-		self::assertStringContainsString( "MyPlugin\\\\Scoped\\\\DI\\\\", $generated );
+		self::assertStringContainsString( 'MyPlugin\\\\Scoped\\\\DeepWebSolutions\\\\Framework\\\\Core\\\\', $generated );
+		self::assertStringContainsString( 'MyPlugin\\\\Scoped\\\\DI\\\\', $generated );
 		self::assertStringContainsString( "require_once __DIR__ . '/php-di/php-di/src/functions.php';", $generated );
 	}
 
@@ -121,8 +121,8 @@ final class GenerateScopedAutoloadTest extends TestCase {
 		GenerateScopedAutoload::generate( $this->dependencies_dir, 'P' );
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
-		$pos_a = \strpos( $generated, "P\\\\A\\\\" );
-		$pos_z = \strpos( $generated, "P\\\\Z\\\\" );
+		$pos_a     = \strpos( $generated, 'P\\\\A\\\\' );
+		$pos_z     = \strpos( $generated, 'P\\\\Z\\\\' );
 		self::assertNotFalse( $pos_a );
 		self::assertNotFalse( $pos_z );
 		self::assertLessThan( $pos_z, $pos_a );
@@ -234,8 +234,8 @@ final class GenerateScopedAutoloadTest extends TestCase {
 		GenerateScopedAutoload::generate( $this->dependencies_dir, 'P' );
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
-		$pos_alpha = \strpos( $generated, "P\\\\Legacy\\\\Alpha" );
-		$pos_zebra = \strpos( $generated, "P\\\\Legacy\\\\Zebra" );
+		$pos_alpha = \strpos( $generated, 'P\\\\Legacy\\\\Alpha' );
+		$pos_zebra = \strpos( $generated, 'P\\\\Legacy\\\\Zebra' );
 		self::assertNotFalse( $pos_alpha );
 		self::assertNotFalse( $pos_zebra );
 		self::assertLessThan( $pos_zebra, $pos_alpha );

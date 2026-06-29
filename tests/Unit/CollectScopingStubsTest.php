@@ -64,7 +64,11 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event() );
 
 		self::assertSame(
-			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array(),
+			),
 			$this->loadOutput( 'scoping-exclusions.json' )
 		);
 	}
@@ -139,7 +143,11 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event() );
 
 		self::assertSame(
-			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array(),
+			),
 			$this->loadOutput( 'scoping-exclusions.json' )
 		);
 	}
@@ -182,7 +190,11 @@ final class CollectScopingStubsTest extends TestCase {
 		self::assertStringNotContainsString( '../etc/passwd', $io->getOutput() );
 		self::assertStringNotContainsString( '/etc/shadow', $io->getOutput() );
 		self::assertSame(
-			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array(),
+			),
 			$this->loadOutput( 'scoping-exclusions.json' )
 		);
 	}
@@ -475,7 +487,7 @@ final class CollectScopingStubsTest extends TestCase {
 		// Mimics woocommerce-stubs, which ships woocommerce-stubs.php + woocommerce-packages-stubs.php.
 		$package_dir = $this->vendor_dir . '/php-stubs/multi';
 		\mkdir( $package_dir, 0755, true );
-		\copy( self::FIXTURES_DIR . '/stubs.php',       $package_dir . '/core-stubs.php' );
+		\copy( self::FIXTURES_DIR . '/stubs.php', $package_dir . '/core-stubs.php' );
 		\copy( self::FIXTURES_DIR . '/stubs-extra.php', $package_dir . '/extra-stubs.php' );
 		\file_put_contents(
 			$package_dir . '/composer.json',
@@ -495,7 +507,7 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event() );
 
 		$result = $this->loadOutput( 'scoping-exclusions.json' );
-		self::assertContains( 'add_action',     $result['functions'] );
+		self::assertContains( 'add_action', $result['functions'] );
 		self::assertContains( 'wc_get_product', $result['functions'] );
 	}
 
@@ -600,7 +612,11 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
 
 		self::assertSame(
-			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array(),
+			),
 			$this->loadOutput( 'scoping-exclusions.json' )
 		);
 		self::assertStringContainsString( 'Skipping declared stubs file', $io->getOutput() );
@@ -616,7 +632,11 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
 
 		self::assertSame(
-			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array(),
+			),
 			$this->loadOutput( 'scoping-exclusions.json' )
 		);
 		self::assertStringContainsString( 'Skipping declared stubs file', $io->getOutput() );
@@ -649,7 +669,11 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
 
 		self::assertSame(
-			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array(),
+			),
 			$this->loadOutput( 'scoping-exclusions.json' )
 		);
 		self::assertStringNotContainsString( '/etc/passwd', $io->getOutput() );
@@ -666,7 +690,11 @@ final class CollectScopingStubsTest extends TestCase {
 
 		self::assertStringNotContainsString( 'README.md', $io->getOutput() );
 		self::assertSame(
-			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array(),
+			),
 			$this->loadOutput( 'scoping-exclusions.json' )
 		);
 	}
@@ -682,7 +710,11 @@ final class CollectScopingStubsTest extends TestCase {
 
 		self::assertStringNotContainsString( 'woocommerce-stubs:', $io->getOutput() );
 		self::assertSame(
-			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array(),
+			),
 			$this->loadOutput( 'scoping-exclusions.json' )
 		);
 	}
@@ -697,7 +729,11 @@ final class CollectScopingStubsTest extends TestCase {
 
 		self::assertStringNotContainsString( 'Foo/Bar', $io->getOutput() );
 		self::assertSame(
-			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array(),
+			),
 			$this->loadOutput( 'scoping-exclusions.json' )
 		);
 	}
@@ -799,7 +835,11 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
 
 		self::assertSame(
-			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array(),
+			),
 			$this->loadOutput( 'scoping-exclusions.json' )
 		);
 	}
@@ -815,7 +855,11 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
 
 		self::assertSame(
-			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array(),
+			),
 			$this->loadOutput( 'scoping-exclusions.json' )
 		);
 		self::assertStringNotContainsString( 'C:/secret.php', $io->getOutput() );
@@ -832,7 +876,11 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
 
 		self::assertSame(
-			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array(),
+			),
 			$this->loadOutput( 'scoping-exclusions.json' )
 		);
 		self::assertStringNotContainsString( 'foo:bar.php', $io->getOutput() );
@@ -849,7 +897,11 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
 
 		self::assertSame(
-			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array(),
+			),
 			$this->loadOutput( 'scoping-exclusions.json' )
 		);
 		self::assertStringNotContainsString( ':stream.php', $io->getOutput() );
@@ -861,7 +913,7 @@ final class CollectScopingStubsTest extends TestCase {
 		// resolution — both an autoload.files entry and the conventional fallback resolve.
 		$package_dir = $this->vendor_dir . '/php-stubs/normal';
 		\mkdir( $package_dir, 0755, true );
-		\copy( self::FIXTURES_DIR . '/stubs.php',       $package_dir . '/listed.php' );
+		\copy( self::FIXTURES_DIR . '/stubs.php', $package_dir . '/listed.php' );
 		\copy( self::FIXTURES_DIR . '/stubs-extra.php', $package_dir . '/normal.php' );
 		\file_put_contents(
 			$package_dir . '/composer.json',
@@ -1012,7 +1064,11 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event() );
 
 		self::assertSame(
-			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array(),
+			),
 			$this->loadOutput( 'scoping-exclusions.json' )
 		);
 	}
