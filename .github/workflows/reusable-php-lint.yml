@@ -41,7 +41,7 @@ jobs:
       - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
         with:
           working-directory: ${{ inputs.project-path }}
-          composer-options: '--prefer-dist'
+          composer-options: '--prefer-dist --ignore-platform-reqs'
       - name: composer ${{ matrix.script }}
         working-directory: ${{ inputs.project-path }}
         env:

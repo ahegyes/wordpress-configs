@@ -12,7 +12,7 @@ on:
         description: 'Node.js version'
         type: string
         required: false
-        default: 'lts/*'
+        default: '26'
       lint-scripts:
         description: 'Run `npm run lint:scripts` (ESLint). Set false for repos without JS sources.'
         type: boolean
