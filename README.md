@@ -370,7 +370,7 @@ For test fixtures (admin login, block editor helpers, REST request utilities), i
 
 `CollectScopingStubs`, `ScopePhpDependencies`, `scoper-base.inc.php`, and the autoload generator compose into a complete dependency-scoping pipeline. On a dev-mode `composer install`, the composer hooks fire in this order:
 
-1. **`pre-autoload-dump` → `ScopePhpDependencies::preAutoloadDump`** — creates any missing `autoload.files`/`classmap` paths so the upcoming autoloader dump doesn't error on a fresh clone.
+1. **`pre-autoload-dump` → `ScopePhpDependencies::preAutoloadDump`** — creates any missing `autoload.files`/`classmap` paths **under `extra.scoped-dependencies-dir`** so the upcoming autoloader dump doesn't error on a fresh clone (a non-scoped path is left for Composer to fail on, surfacing typos).
 2. **composer dumps the autoloader.**
 3. **`post-autoload-dump`**, two handlers in sequence:
    - `CollectScopingStubs::postAutoloadDump` — walks vendor + project `composer.json`, reads every `extra.scoping-stubs` declaration, and writes `scoping-exclusions.json` with the unioned symbols.
