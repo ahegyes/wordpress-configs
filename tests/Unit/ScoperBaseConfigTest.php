@@ -162,13 +162,14 @@ final class ScoperBaseConfigTest extends TestCase {
 	}
 
 	#[Test]
-	public function patcher_removes_use_statements_for_excluded_classes(): void {
+	public function patcher_restores_global_use_statement_for_excluded_class(): void {
 		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
 		$patcher = $this->getDefaultPatcher();
 
 		$input  = "<?php\nuse MyPrefix\\WP_Post;\n\$x = 1;";
 		$output = $patcher( '/file.php', 'MyPrefix', $input );
 
+		self::assertStringContainsString( 'use \\WP_Post;', $output );
 		self::assertStringNotContainsString( 'use MyPrefix\\WP_Post', $output );
 	}
 
@@ -444,6 +445,135 @@ final class ScoperBaseConfigTest extends TestCase {
 		$output = $patcher( '/file.php', 'MyPrefix', $input );
 
 		self::assertSame( $input, $output );
+	}
+
+	#[Test]
+	public function patcher_strips_multi_segment_prefix_from_function_exists_string(): void {
+		// Regression: the single-segment prefixes the other tests use hid a backslash bug.
+		// A real multi-segment prefix is double-backslash-escaped inside php-scoper's string
+		// output, which the old text-matching patcher never matched — it silently no-op'd.
+		$this->writeScopingExclusions( array( 'classes' => array(), 'functions' => array( 'add_action' ) ) );
+		$patcher = $this->getDefaultPatcher();
+
+		$input  = "<?php if (function_exists('DeepWebSolutions\\\\Scoped\\\\add_action')) {}";
+		$output = $patcher( '/file.php', 'DeepWebSolutions\\Scoped', $input );
+
+		self::assertStringContainsString( "function_exists('\\add_action'", $output );
+		self::assertStringNotContainsString( 'DeepWebSolutions', $output );
+	}
+
+	#[Test]
+	public function patcher_strips_multi_segment_prefix_from_class_reference(): void {
+		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$patcher = $this->getDefaultPatcher();
+
+		$input  = '<?php $p = new \\DeepWebSolutions\\Scoped\\WP_Post();';
+		$output = $patcher( '/file.php', 'DeepWebSolutions\\Scoped', $input );
+
+		self::assertStringContainsString( 'new \\WP_Post()', $output );
+		self::assertStringNotContainsString( 'DeepWebSolutions', $output );
+	}
+
+	#[Test]
+	public function patcher_strips_multi_segment_prefix_from_use_statement(): void {
+		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$patcher = $this->getDefaultPatcher();
+
+		$input  = "<?php\nuse DeepWebSolutions\\Scoped\\WP_Post;\n\$x = 1;";
+		$output = $patcher( '/file.php', 'DeepWebSolutions\\Scoped', $input );
+
+		self::assertStringContainsString( 'use \\WP_Post;', $output );
+		self::assertStringNotContainsString( 'DeepWebSolutions', $output );
+	}
+
+	#[Test]
+	public function patcher_strips_prefix_from_double_quoted_string_references(): void {
+		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$patcher = $this->getDefaultPatcher();
+
+		$input  = '<?php if (class_exists("MyPrefix\\\\WP_Post")) {}';
+		$output = $patcher( '/file.php', 'MyPrefix', $input );
+
+		self::assertStringContainsString( "class_exists('\\WP_Post'", $output );
+		self::assertStringNotContainsString( 'MyPrefix', $output );
+	}
+
+	#[Test]
+	public function rejects_unknown_override_key(): void {
+		$this->expectException( \InvalidArgumentException::class );
+
+		( $this->build_config )( array(
+			'project_dir'     => $this->project_dir,
+			'exclude-classes' => array( 'SomeClass' ),
+		) );
+	}
+
+	#[Test]
+	public function patcher_does_not_rewrite_namespace_declarations(): void {
+		// The scoped file's own namespace stays prefixed even if it collides with an excluded
+		// name — a leading backslash on a namespace declaration is a parse error.
+		$this->writeScopingExclusions( array( 'classes' => array( 'A\\Foo' ), 'functions' => array() ) );
+		$patcher = $this->getDefaultPatcher();
+
+		$input  = "<?php\nnamespace MyPrefix\\A\\Foo;\n\$x = 1;";
+		$output = $patcher( '/file.php', 'MyPrefix', $input );
+
+		self::assertStringContainsString( 'namespace MyPrefix\\A\\Foo;', $output );
+		self::assertStringNotContainsString( 'namespace \\A\\Foo', $output );
+	}
+
+	#[Test]
+	public function patcher_strips_prefix_from_static_callable_string_keeping_member(): void {
+		$this->writeScopingExclusions( array( 'classes' => array( 'WP_Post' ), 'functions' => array() ) );
+		$patcher = $this->getDefaultPatcher();
+
+		$input  = "<?php \$cb = 'MyPrefix\\\\WP_Post::factory';";
+		$output = $patcher( '/file.php', 'MyPrefix', $input );
+
+		self::assertStringContainsString( "'\\WP_Post::factory'", $output );
+		self::assertStringNotContainsString( 'MyPrefix', $output );
+	}
+
+	#[Test]
+	public function patched_output_is_syntactically_valid_php(): void {
+		// Guards the whole invalid-PHP class: namespace declarations, every `use` form
+		// (plain, alias, function, const), expression references, and the callable string must
+		// all round-trip to parseable PHP.
+		$this->writeScopingExclusions( array(
+			'classes'   => array( 'WP_Post', 'A\\Foo' ),
+			'functions' => array( 'add_action' ),
+			'constants' => array( 'WP_DEBUG' ),
+		) );
+		$patcher = $this->getDefaultPatcher();
+
+		$input  = "<?php\n"
+			. "namespace MyPrefix\\Acme\\Lib;\n"
+			. "use MyPrefix\\WP_Post;\n"
+			. "use MyPrefix\\A\\Foo as Aliased;\n"
+			. "use function MyPrefix\\add_action;\n"
+			. "use const MyPrefix\\WP_DEBUG;\n"
+			. "function go() {\n"
+			. "\t\$p = new \\MyPrefix\\WP_Post();\n"
+			. "\tif ( function_exists( 'MyPrefix\\\\add_action' ) ) {}\n"
+			. "\t\$d = defined( 'MyPrefix\\\\WP_DEBUG' );\n"
+			. "\t\$c = 'MyPrefix\\\\WP_Post::factory';\n"
+			. "\treturn \\MyPrefix\\WP_DEBUG;\n"
+			. "}\n";
+		$output = $patcher( '/file.php', 'MyPrefix', $input );
+
+		// TOKEN_PARSE runs the real parser in-process and throws on invalid PHP — a hermetic
+		// syntax check (no shelling out) that catches the whole "patcher emitted unparseable code"
+		// class, e.g. the `namespace \A\Foo;` corruption.
+		$error  = null;
+		$tokens = array();
+		try {
+			$tokens = \token_get_all( $output, TOKEN_PARSE );
+		} catch ( \ParseError $e ) {
+			$error = $e->getMessage();
+		}
+
+		self::assertNull( $error, 'Patched output is not valid PHP: ' . ( $error ?? '' ) . "\n--- output ---\n" . $output );
+		self::assertNotEmpty( $tokens );
 	}
 
 	/**
