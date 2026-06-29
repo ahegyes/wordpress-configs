@@ -13,9 +13,6 @@ jobs:
     name: PHP QA
     # Eat our own dog food — this repo's quality.yml uses its own reusable-php-qa.
     uses: ./.github/workflows/reusable-php-qa.yml
-    with:
-      phpcs-config: './phpcs.dist.xml'
-      phpstan-config: './phpstan.dist.neon'
 
   composer-require-checker:
     name: Composer Require Checker
