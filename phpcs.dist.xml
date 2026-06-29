@@ -2,6 +2,9 @@
 <ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="vendor/squizlabs/php_codesniffer/phpcs.xsd">
 	<description>Lints this repo's own PHP. Excludes WP-runtime sniffs from the shared ruleset since this code is Composer-time tooling, not WP code.</description>
 
+	<!-- Test fixtures are intentionally minimal stub files with deliberate redeclarations — not linted. -->
+	<exclude-pattern>*/tests/fixtures/*</exclude-pattern>
+
 	<rule ref="./php/quality-assurance/phpcs.dist.xml">
 		<!-- No WP runtime — native PHP functions (file_get_contents, json_encode) are correct here. -->
 		<exclude name="WordPress.WP"/>
@@ -11,5 +14,17 @@
 		<exclude name="WordPress.NamingConventions.ValidFunctionName"/>
 		<!-- Output goes to CLI / exception messages, not HTML — no escape needed. -->
 		<exclude name="WordPress.Security"/>
+	</rule>
+
+	<!-- This repo's scoping tests legitimately use shell_exec/putenv (running php-scoper, setting
+	     COMPOSER), @-silenced symlink probes, and reserved-word params. Scoped to tests/. -->
+	<rule ref="WordPress.PHP.NoSilencedErrors">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.PHP.DiscouragedPHPFunctions">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="Universal.NamingConventions.NoReservedKeywordParameterNames">
+		<exclude-pattern>*/tests/*</exclude-pattern>
 	</rule>
 </ruleset>

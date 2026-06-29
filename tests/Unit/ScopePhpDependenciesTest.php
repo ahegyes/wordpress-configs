@@ -32,10 +32,12 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 	#[Test]
 	public function pre_autoload_dump_creates_missing_scoped_paths(): void {
-		$this->writeComposerJson( array(
-			'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-			'autoload' => array( 'files' => array( 'dependencies/scoper-autoload.php' ) ),
-		) );
+		$this->writeComposerJson(
+			array(
+				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
+				'autoload' => array( 'files' => array( 'dependencies/scoper-autoload.php' ) ),
+			)
+		);
 
 		ScopePhpDependencies::preAutoloadDump( $this->event() );
 
@@ -46,10 +48,12 @@ final class ScopePhpDependenciesTest extends TestCase {
 	public function pre_autoload_dump_does_not_create_paths_outside_the_scoped_dir(): void {
 		// A typo'd real autoload path must NOT become an empty placeholder — Composer's own dump
 		// should fail loudly on it. Only paths under the scoped-dependencies-dir are pre-created.
-		$this->writeComposerJson( array(
-			'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-			'autoload' => array( 'files' => array( 'dependencies/scoper-autoload.php', 'src/boostrap.php' ) ),
-		) );
+		$this->writeComposerJson(
+			array(
+				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
+				'autoload' => array( 'files' => array( 'dependencies/scoper-autoload.php', 'src/boostrap.php' ) ),
+			)
+		);
 
 		ScopePhpDependencies::preAutoloadDump( $this->event() );
 
@@ -60,9 +64,11 @@ final class ScopePhpDependenciesTest extends TestCase {
 	#[Test]
 	public function pre_autoload_dump_is_a_noop_without_a_scoped_dependencies_dir(): void {
 		// A consumer that does not scope has nothing to pre-create.
-		$this->writeComposerJson( array(
-			'autoload' => array( 'files' => array( 'src/missing.php' ) ),
-		) );
+		$this->writeComposerJson(
+			array(
+				'autoload' => array( 'files' => array( 'src/missing.php' ) ),
+			)
+		);
 
 		ScopePhpDependencies::preAutoloadDump( $this->event() );
 
@@ -71,10 +77,12 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 	#[Test]
 	public function pre_autoload_dump_creates_missing_scoped_classmap_directories(): void {
-		$this->writeComposerJson( array(
-			'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-			'autoload' => array( 'classmap' => array( 'dependencies/scoped-pkg' ) ),
-		) );
+		$this->writeComposerJson(
+			array(
+				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
+				'autoload' => array( 'classmap' => array( 'dependencies/scoped-pkg' ) ),
+			)
+		);
 
 		ScopePhpDependencies::preAutoloadDump( $this->event() );
 
@@ -86,10 +94,12 @@ final class ScopePhpDependenciesTest extends TestCase {
 		\mkdir( $this->project_dir . '/dependencies', 0755, true );
 		\file_put_contents( $this->project_dir . '/dependencies/scoper-autoload.php', "<?php\n// keep this content\n" );
 
-		$this->writeComposerJson( array(
-			'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-			'autoload' => array( 'files' => array( 'dependencies/scoper-autoload.php' ) ),
-		) );
+		$this->writeComposerJson(
+			array(
+				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
+				'autoload' => array( 'files' => array( 'dependencies/scoper-autoload.php' ) ),
+			)
+		);
 
 		ScopePhpDependencies::preAutoloadDump( $this->event() );
 
@@ -99,11 +109,13 @@ final class ScopePhpDependenciesTest extends TestCase {
 	#[Test]
 	public function pre_autoload_dump_omits_dev_scoped_entries_in_non_dev_mode(): void {
 		// Catches Coalesce + UnwrapArrayMerge on the autoload-dev fallback.
-		$this->writeComposerJson( array(
-			'extra'        => array( 'scoped-dependencies-dir' => 'dependencies' ),
-			'autoload'     => array( 'files' => array( 'dependencies/prod.php' ) ),
-			'autoload-dev' => array( 'files' => array( 'dependencies/dev-only.php' ) ),
-		) );
+		$this->writeComposerJson(
+			array(
+				'extra'        => array( 'scoped-dependencies-dir' => 'dependencies' ),
+				'autoload'     => array( 'files' => array( 'dependencies/prod.php' ) ),
+				'autoload-dev' => array( 'files' => array( 'dependencies/dev-only.php' ) ),
+			)
+		);
 
 		ScopePhpDependencies::preAutoloadDump( $this->event( devMode: false ) );
 
@@ -113,11 +125,13 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 	#[Test]
 	public function pre_autoload_dump_includes_dev_scoped_entries_in_dev_mode(): void {
-		$this->writeComposerJson( array(
-			'extra'        => array( 'scoped-dependencies-dir' => 'dependencies' ),
-			'autoload'     => array( 'files' => array( 'dependencies/prod.php' ) ),
-			'autoload-dev' => array( 'files' => array( 'dependencies/dev.php' ) ),
-		) );
+		$this->writeComposerJson(
+			array(
+				'extra'        => array( 'scoped-dependencies-dir' => 'dependencies' ),
+				'autoload'     => array( 'files' => array( 'dependencies/prod.php' ) ),
+				'autoload-dev' => array( 'files' => array( 'dependencies/dev.php' ) ),
+			)
+		);
 
 		ScopePhpDependencies::preAutoloadDump( $this->event( devMode: true ) );
 
@@ -128,10 +142,12 @@ final class ScopePhpDependenciesTest extends TestCase {
 	#[Test]
 	public function pre_autoload_dump_handles_composer_json_without_autoload_dev_section(): void {
 		// Catches Coalesce on `$composer_config['autoload-dev']['files'] ?? array()`.
-		$this->writeComposerJson( array(
-			'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-			'autoload' => array( 'files' => array( 'dependencies/only-prod.php' ) ),
-		) );
+		$this->writeComposerJson(
+			array(
+				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
+				'autoload' => array( 'files' => array( 'dependencies/only-prod.php' ) ),
+			)
+		);
 
 		ScopePhpDependencies::preAutoloadDump( $this->event( devMode: true ) );
 
@@ -158,9 +174,11 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 	#[Test]
 	public function pre_autoload_dump_rejects_scoped_dependencies_dir_with_traversal(): void {
-		$this->writeComposerJson( array(
-			'extra' => array( 'scoped-dependencies-dir' => '../escape' ),
-		) );
+		$this->writeComposerJson(
+			array(
+				'extra' => array( 'scoped-dependencies-dir' => '../escape' ),
+			)
+		);
 
 		$this->expectException( \RuntimeException::class );
 		$this->expectExceptionMessageMatches( '/parent-directory traversal/' );
@@ -169,9 +187,11 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 	#[Test]
 	public function pre_autoload_dump_rejects_absolute_scoped_dependencies_dir(): void {
-		$this->writeComposerJson( array(
-			'extra' => array( 'scoped-dependencies-dir' => '/etc/escape' ),
-		) );
+		$this->writeComposerJson(
+			array(
+				'extra' => array( 'scoped-dependencies-dir' => '/etc/escape' ),
+			)
+		);
 
 		$this->expectException( \RuntimeException::class );
 		$this->expectExceptionMessageMatches( '/absolute autoload path/' );
@@ -181,10 +201,12 @@ final class ScopePhpDependenciesTest extends TestCase {
 	#[Test]
 	public function pre_autoload_dump_rejects_scoped_path_with_parent_traversal(): void {
 		// A path that starts under the scoped dir but still escapes via `..` is rejected.
-		$this->writeComposerJson( array(
-			'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-			'autoload' => array( 'files' => array( 'dependencies/../../escape.php' ) ),
-		) );
+		$this->writeComposerJson(
+			array(
+				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
+				'autoload' => array( 'files' => array( 'dependencies/../../escape.php' ) ),
+			)
+		);
 
 		$this->expectException( \RuntimeException::class );
 		$this->expectExceptionMessageMatches( '/parent-directory traversal/' );
@@ -199,13 +221,15 @@ final class ScopePhpDependenciesTest extends TestCase {
 		// dispatched script the generation alone would still pass, so this guards both steps.
 		$this->installFakePhpScoper();
 		\mkdir( $this->project_dir . '/dependencies', 0755, true );
-		$this->writeComposerJson( array(
-			'scripts' => array( 'scope-php-dependencies' => self::class . '::succeedingScopeScript' ),
-			'extra'   => array(
-				'scoped-dependencies-dir' => 'dependencies',
-				'scoping-prefix'          => 'MyPlugin\\Scoped',
-			),
-		) );
+		$this->writeComposerJson(
+			array(
+				'scripts' => array( 'scope-php-dependencies' => self::class . '::succeedingScopeScript' ),
+				'extra'   => array(
+					'scoped-dependencies-dir' => 'dependencies',
+					'scoping-prefix'          => 'MyPlugin\\Scoped',
+				),
+			)
+		);
 
 		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
 
@@ -217,10 +241,12 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 	#[Test]
 	public function pre_autoload_dump_creates_scoped_path_with_leading_dot_slash(): void {
-		$this->writeComposerJson( array(
-			'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-			'autoload' => array( 'files' => array( './dependencies/scoper-autoload.php' ) ),
-		) );
+		$this->writeComposerJson(
+			array(
+				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
+				'autoload' => array( 'files' => array( './dependencies/scoper-autoload.php' ) ),
+			)
+		);
 
 		ScopePhpDependencies::preAutoloadDump( $this->event() );
 
@@ -229,10 +255,12 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 	#[Test]
 	public function pre_autoload_dump_creates_classmap_dir_equal_to_the_scoped_dir(): void {
-		$this->writeComposerJson( array(
-			'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-			'autoload' => array( 'classmap' => array( 'dependencies' ) ),
-		) );
+		$this->writeComposerJson(
+			array(
+				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
+				'autoload' => array( 'classmap' => array( 'dependencies' ) ),
+			)
+		);
 
 		ScopePhpDependencies::preAutoloadDump( $this->event() );
 
@@ -244,9 +272,11 @@ final class ScopePhpDependenciesTest extends TestCase {
 		// A scope-php-dependencies callback returning false yields a non-zero dispatch code, which
 		// must stop the run before generating the autoload over partial output.
 		$this->installFakePhpScoper();
-		$this->writeComposerJson( array(
-			'scripts' => array( 'scope-php-dependencies' => self::class . '::failingScopeScript' ),
-		) );
+		$this->writeComposerJson(
+			array(
+				'scripts' => array( 'scope-php-dependencies' => self::class . '::failingScopeScript' ),
+			)
+		);
 
 		$this->expectException( \RuntimeException::class );
 		$this->expectExceptionMessageMatches( '/scope-php-dependencies script failed/' );
@@ -257,12 +287,14 @@ final class ScopePhpDependenciesTest extends TestCase {
 	public function post_autoload_dump_rejects_scoped_dependencies_dir_with_traversal(): void {
 		// The scoped-dir confinement guards the generation path too, not only preAutoloadDump.
 		$this->installFakePhpScoper();
-		$this->writeComposerJson( array(
-			'extra' => array(
-				'scoped-dependencies-dir' => '../escape',
-				'scoping-prefix'          => 'MyPlugin\\Scoped',
-			),
-		) );
+		$this->writeComposerJson(
+			array(
+				'extra' => array(
+					'scoped-dependencies-dir' => '../escape',
+					'scoping-prefix'          => 'MyPlugin\\Scoped',
+				),
+			)
+		);
 
 		$this->expectException( \RuntimeException::class );
 		$this->expectExceptionMessageMatches( '/parent-directory traversal/' );
@@ -272,12 +304,14 @@ final class ScopePhpDependenciesTest extends TestCase {
 	#[Test]
 	public function post_autoload_dump_rejects_absolute_scoped_dependencies_dir(): void {
 		$this->installFakePhpScoper();
-		$this->writeComposerJson( array(
-			'extra' => array(
-				'scoped-dependencies-dir' => '/etc/escape',
-				'scoping-prefix'          => 'MyPlugin\\Scoped',
-			),
-		) );
+		$this->writeComposerJson(
+			array(
+				'extra' => array(
+					'scoped-dependencies-dir' => '/etc/escape',
+					'scoping-prefix'          => 'MyPlugin\\Scoped',
+				),
+			)
+		);
 
 		$this->expectException( \RuntimeException::class );
 		$this->expectExceptionMessageMatches( '/absolute autoload path/' );
@@ -288,12 +322,14 @@ final class ScopePhpDependenciesTest extends TestCase {
 	public function post_autoload_dump_skips_generation_for_empty_scoped_dependencies_dir(): void {
 		// An empty scoped-dependencies-dir must not resolve to the project root.
 		$this->installFakePhpScoper();
-		$this->writeComposerJson( array(
-			'extra' => array(
-				'scoped-dependencies-dir' => '',
-				'scoping-prefix'          => 'MyPlugin\\Scoped',
-			),
-		) );
+		$this->writeComposerJson(
+			array(
+				'extra' => array(
+					'scoped-dependencies-dir' => '',
+					'scoping-prefix'          => 'MyPlugin\\Scoped',
+				),
+			)
+		);
 
 		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
 

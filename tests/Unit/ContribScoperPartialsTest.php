@@ -38,11 +38,13 @@ final class ContribScoperPartialsTest extends TestCase {
 		\mkdir( $this->vendor_dir . '/laravel/serializable-closure', 0755, true );
 
 		$php_di        = ( require self::PHP_DI_PARTIAL )( $this->vendor_dir );
-		$scoper_config = ( require self::SCOPER_BASE )( array(
-			'project_dir'   => $this->vendor_dir,
-			'finders'       => $php_di['finders'],
-			'exclude_files' => $php_di['exclude_files'],
-		) );
+		$scoper_config = ( require self::SCOPER_BASE )(
+			array(
+				'project_dir'   => $this->vendor_dir,
+				'finders'       => $php_di['finders'],
+				'exclude_files' => $php_di['exclude_files'],
+			)
+		);
 
 		self::assertContains(
 			$this->vendor_dir . '/php-di/php-di/src/Compiler/Template.php',
@@ -59,7 +61,13 @@ final class ContribScoperPartialsTest extends TestCase {
 		$factory = require self::WP_FRAMEWORK_PARTIAL;
 		$config  = $factory( $this->vendor_dir );
 
-		self::assertSame( array( 'finders' => array(), 'patchers' => array() ), $config );
+		self::assertSame(
+			array(
+				'finders'  => array(),
+				'patchers' => array(),
+			),
+			$config
+		);
 	}
 
 	#[Test]
@@ -74,7 +82,7 @@ final class ContribScoperPartialsTest extends TestCase {
 
 		$paths = $this->finderPaths( $config['finders'][0] );
 
-		self::assertContains( \realpath( $this->vendor_dir . '/ahegyes/wp-framework-core/src/Kernel.php' ),   $paths );
+		self::assertContains( \realpath( $this->vendor_dir . '/ahegyes/wp-framework-core/src/Kernel.php' ), $paths );
 		self::assertContains( \realpath( $this->vendor_dir . '/ahegyes/wp-framework-shared/src/Result.php' ), $paths );
 	}
 
@@ -119,10 +127,12 @@ final class ContribScoperPartialsTest extends TestCase {
 		\file_put_contents( $this->vendor_dir . '/ahegyes/wp-framework-core/src/Kernel.php', '<?php class Kernel {}' );
 
 		$wp_framework  = ( require self::WP_FRAMEWORK_PARTIAL )( $this->vendor_dir );
-		$scoper_config = ( require self::SCOPER_BASE )( array(
-			'project_dir' => $this->vendor_dir,
-			'finders'     => $wp_framework['finders'],
-		) );
+		$scoper_config = ( require self::SCOPER_BASE )(
+			array(
+				'project_dir' => $this->vendor_dir,
+				'finders'     => $wp_framework['finders'],
+			)
+		);
 
 		self::assertSame( $wp_framework['finders'], $scoper_config['finders'] );
 	}

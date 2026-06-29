@@ -58,11 +58,24 @@ if ( \is_file( $project_dir . '/style.css' ) ) {
 }
 
 // WPCompat needs EITHER pluginFile OR requiresAtLeast set or it errors per-file.
-// Themes fall through to requiresAtLeast — WPCompat has no themeFile key.
+// Themes fall through to requiresAtLeast — WPCompat has no themeFile key; honour the
+// theme's own `Requires at least:` contract, floored at the framework minimum.
 if ( null !== $plugin_file ) {
 	$config['parameters']['WPCompat']['pluginFile'] = $plugin_file;
 } else {
-	$config['parameters']['WPCompat']['requiresAtLeast'] = '7.0';
+	$requires_at_least = '7.0';
+	$style_css         = $project_dir . '/style.css';
+	if ( \is_file( $style_css ) ) {
+		$style_header = \file_get_contents( $style_css, false, null, 0, 8192 );
+		if ( false !== $style_header && 1 === \preg_match( '/^[ \t\/*#@]*Requires at least:[ \t]*([^\r\n]+)/mi', $style_header, $matches ) ) {
+			$declared = \trim( $matches[1] );
+			// Validate a strict numeric version first — version_compare() would rank garbage like "8.x" above 7.0.
+			if ( 1 === \preg_match( '/^\d+(?:\.\d+){0,2}$/', $declared ) && \version_compare( $declared, '7.0', '>' ) ) {
+				$requires_at_least = $declared;
+			}
+		}
+	}
+	$config['parameters']['WPCompat']['requiresAtLeast'] = $requires_at_least;
 }
 
 $vendor_dir    = 'vendor';

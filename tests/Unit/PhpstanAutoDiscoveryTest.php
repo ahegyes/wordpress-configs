@@ -100,6 +100,42 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 	}
 
 	#[Test]
+	public function honours_theme_requires_at_least_header_above_framework_floor(): void {
+		\file_put_contents( $this->project_dir . '/style.css', "/*\nTheme Name: T\nRequires at least: 7.2\n*/\n" );
+
+		$config = require self::CONFIG_FILE;
+
+		self::assertSame( '7.2', $config['parameters']['WPCompat']['requiresAtLeast'] );
+	}
+
+	#[Test]
+	public function floors_theme_requires_at_least_header_below_framework_floor(): void {
+		\file_put_contents( $this->project_dir . '/style.css', "/*\nTheme Name: T\nRequires at least: 6.0\n*/\n" );
+
+		$config = require self::CONFIG_FILE;
+
+		self::assertSame( '7.0', $config['parameters']['WPCompat']['requiresAtLeast'] );
+	}
+
+	#[Test]
+	public function floors_theme_requires_at_least_header_with_non_numeric_value(): void {
+		\file_put_contents( $this->project_dir . '/style.css', "/*\nTheme Name: T\nRequires at least: 8.x\n*/\n" );
+
+		$config = require self::CONFIG_FILE;
+
+		self::assertSame( '7.0', $config['parameters']['WPCompat']['requiresAtLeast'] );
+	}
+
+	#[Test]
+	public function honours_theme_requires_at_least_patch_version(): void {
+		\file_put_contents( $this->project_dir . '/style.css', "/*\nTheme Name: T\nRequires at least: 7.2.1\n*/\n" );
+
+		$config = require self::CONFIG_FILE;
+
+		self::assertSame( '7.2.1', $config['parameters']['WPCompat']['requiresAtLeast'] );
+	}
+
+	#[Test]
 	public function reads_custom_vendor_dir_from_composer_json(): void {
 		\file_put_contents(
 			$this->project_dir . '/composer.json',
