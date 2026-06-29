@@ -3,8 +3,8 @@ name: PHP Quality Assurance
 on:
   workflow_call:
     inputs:
-      plugin-path:
-        description: 'Path to the plugin (relative to repo root)'
+      project-path:
+        description: 'Path to the project (relative to repo root)'
         type: string
         required: false
         default: '.'
@@ -13,16 +13,6 @@ on:
         type: string
         required: false
         default: '8.5'
-      phpcs-config:
-        description: 'Path to PHPCS ruleset file (relative to plugin-path)'
-        type: string
-        required: false
-        default: './phpcs.dist.xml'
-      phpstan-config:
-        description: 'Path to PHPStan config file (relative to plugin-path)'
-        type: string
-        required: false
-        default: './phpstan.dist.neon'
 
 permissions:
   contents: read
@@ -42,13 +32,11 @@ jobs:
           tools: composer:v2
       - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
         with:
-          working-directory: ${{ inputs.plugin-path }}
+          working-directory: ${{ inputs.project-path }}
           composer-options: '--prefer-dist'
       - name: Run PHPCS
-        working-directory: ${{ inputs.plugin-path }}
-        env:
-          PHPCS_CONFIG: ${{ inputs.phpcs-config }}
-        run: vendor/bin/phpcs --standard="$PHPCS_CONFIG" --basepath=. ./ -v --report=full
+        working-directory: ${{ inputs.project-path }}
+        run: composer lint:php:phpcs
 
   phpstan:
     name: PHPStan
@@ -64,10 +52,8 @@ jobs:
           tools: composer:v2
       - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
         with:
-          working-directory: ${{ inputs.plugin-path }}
+          working-directory: ${{ inputs.project-path }}
           composer-options: '--prefer-dist'
       - name: Run PHPStan
-        working-directory: ${{ inputs.plugin-path }}
-        env:
-          PHPSTAN_CONFIG: ${{ inputs.phpstan-config }}
-        run: vendor/bin/phpstan analyse -c "$PHPSTAN_CONFIG" -v --memory-limit=1G --no-progress
+        working-directory: ${{ inputs.project-path }}
+        run: composer lint:php:phpstan
