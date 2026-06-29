@@ -137,7 +137,7 @@ Each Composer package in the dep graph (and the consuming project itself) declar
 }
 ```
 
-The hook walks `vendor/<vendor>/<package>/composer.json` plus the project root, parses every stubs file each declared package ships (each entry in the package's own `autoload.files` plus the conventional `vendor/<vendor>/<package>/<package>.php` path whenever it exists), unions every class-like declaration (`class`, `interface`, `trait`, `enum`), function, and constant (top-level `const` declarations and `define()` calls) it finds, and writes `scoping-exclusions.json`. Names are recorded as FQCNs (`A\Foo` ≠ `B\Foo`) so namespaced stubs catalogs are handled correctly. Multi-file catalogs like `php-stubs/woocommerce-stubs` (which ships both `woocommerce-stubs.php` and `woocommerce-packages-stubs.php`) are fully covered via this lookup.
+The hook reads each `extra.scoping-stubs` declaration straight from Composer's in-memory metadata — the root package plus every installed package in the local repository (no filesystem walk), so a path-repository package symlinked into vendor in monorepo dev is covered exactly like a normally-installed one. It resolves each declared package's directory through Composer's own install path (honouring `target-dir` and custom installer paths), parses every stubs file the package ships (each entry in its own `autoload.files` plus the conventional `<package>.php` path whenever it exists), unions every class-like declaration (`class`, `interface`, `trait`, `enum`), function, and constant (top-level `const` declarations and `define()` calls) it finds, and writes `scoping-exclusions.json`. Names are recorded as FQCNs (`A\Foo` ≠ `B\Foo`) so namespaced stubs catalogs are handled correctly. Multi-file catalogs like `php-stubs/woocommerce-stubs` (which ships both `woocommerce-stubs.php` and `woocommerce-packages-stubs.php`) are fully covered via this lookup.
 
 **Wire it in your project's `composer.json`:**
 
@@ -373,7 +373,7 @@ For test fixtures (admin login, block editor helpers, REST request utilities), i
 1. **`pre-autoload-dump` → `ScopePhpDependencies::preAutoloadDump`** — creates any missing `autoload.files`/`classmap` paths **under `extra.scoped-dependencies-dir`** so the upcoming autoloader dump doesn't error on a fresh clone (a non-scoped path is left for Composer to fail on, surfacing typos).
 2. **composer dumps the autoloader.**
 3. **`post-autoload-dump`**, two handlers in sequence:
-   - `CollectScopingStubs::postAutoloadDump` — walks vendor + project `composer.json`, reads every `extra.scoping-stubs` declaration, and writes `scoping-exclusions.json` with the unioned symbols.
+   - `CollectScopingStubs::postAutoloadDump` — reads every `extra.scoping-stubs` declaration from Composer's root package + local-repository metadata (no filesystem walk), and writes `scoping-exclusions.json` with the unioned symbols.
    - `ScopePhpDependencies::postAutoloadDump` — gated on dev mode + php-scoper installed; dispatches the `scope-php-dependencies` script, then generates `dependencies/scoper-autoload.php` if opted in.
 4. **`scope-php-dependencies` (consumer-defined)** — runs `php-scoper add-prefix`, whose `scoper.inc.php` loads `scoper-base.inc.php`: it reads `scoping-exclusions.json`, excludes the declared symbols + `Psr\*`, and strips the prefix from excluded references in the scoped output.
 

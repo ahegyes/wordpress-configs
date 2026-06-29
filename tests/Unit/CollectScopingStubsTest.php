@@ -2,10 +2,10 @@
 
 namespace DeepWebSolutions\Config\Tests\Unit;
 
-use Composer\Composer;
-use Composer\Config;
 use Composer\IO\BufferIO;
 use Composer\IO\NullIO;
+use Composer\Package\CompletePackage;
+use Composer\Repository\InstalledArrayRepository;
 use Composer\Script\Event;
 use DeepWebSolutions\Config\Composer\CollectScopingStubs;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -25,6 +25,15 @@ final class CollectScopingStubsTest extends TestCase {
 	private string $project_dir;
 	private string $vendor_dir;
 
+	/**
+	 * Packages registered in the Composer local repository for the run under test.
+	 * The script reads `extra.scoping-stubs` + `autoload.files` from these in-memory objects
+	 * (mirroring a real install, where every package is both on disk and in installed.json).
+	 *
+	 * @var list<CompletePackage>
+	 */
+	private array $installed_packages = array();
+
 	protected function setUp(): void {
 		// Clear all env vars CollectScopingStubs reads, so each test starts from a known state.
 		// `CI` is set by GitHub Actions; without this, tests that need the script to run would
@@ -33,8 +42,9 @@ final class CollectScopingStubsTest extends TestCase {
 			\putenv( $var );
 		}
 
-		$this->project_dir = \sys_get_temp_dir() . '/dws-wp-configs-test-' . \uniqid();
-		$this->vendor_dir  = $this->project_dir . '/vendor';
+		$this->installed_packages = array();
+		$this->project_dir        = \sys_get_temp_dir() . '/dws-wp-configs-test-' . \uniqid();
+		$this->vendor_dir         = $this->project_dir . '/vendor';
 		\mkdir( $this->vendor_dir, 0755, true );
 
 		\putenv( 'COMPOSER=' . $this->project_dir . '/composer.json' );
@@ -451,6 +461,7 @@ final class CollectScopingStubsTest extends TestCase {
 				JSON_THROW_ON_ERROR
 			)
 		);
+		$this->registerPackage( 'php-stubs/foo', autoload: array( 'files' => array( 'build/stubs-bundled.php' ) ) );
 
 		$this->writeProjectComposer( array( 'php-stubs/foo' ) );
 		CollectScopingStubs::postAutoloadDump( $this->event() );
@@ -478,6 +489,7 @@ final class CollectScopingStubsTest extends TestCase {
 				JSON_THROW_ON_ERROR
 			)
 		);
+		$this->registerPackage( 'php-stubs/multi', autoload: array( 'files' => array( 'core-stubs.php', 'extra-stubs.php' ) ) );
 
 		$this->writeProjectComposer( array( 'php-stubs/multi' ) );
 		CollectScopingStubs::postAutoloadDump( $this->event() );
@@ -569,6 +581,7 @@ final class CollectScopingStubsTest extends TestCase {
 			$package_dir . '/composer.json',
 			\json_encode( array( 'name' => 'php-stubs/woocommerce-stubs' ), JSON_THROW_ON_ERROR )
 		);
+		$this->registerPackage( 'php-stubs/woocommerce-stubs' );
 		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:build/packages.php' ) );
 
 		CollectScopingStubs::postAutoloadDump( $this->event() );
@@ -712,6 +725,7 @@ final class CollectScopingStubsTest extends TestCase {
 				JSON_THROW_ON_ERROR
 			)
 		);
+		$this->registerPackage( 'php-stubs/compromised', autoload: array( 'files' => array( 'in-package.php', '../../../' . \basename( $secret ) ) ) );
 
 		$this->writeProjectComposer( array( 'php-stubs/compromised' ) );
 		CollectScopingStubs::postAutoloadDump( $this->event() );
@@ -738,6 +752,7 @@ final class CollectScopingStubsTest extends TestCase {
 		if ( ! @\symlink( $secret, $package_dir . '/symlinked.php' ) ) {
 			self::markTestSkipped( 'Environment cannot create symlinks.' );
 		}
+		$this->registerPackage( 'php-stubs/symlinked' );
 
 		$this->writeProjectComposer( array( 'php-stubs/symlinked' ) );
 		CollectScopingStubs::postAutoloadDump( $this->event() );
@@ -763,6 +778,7 @@ final class CollectScopingStubsTest extends TestCase {
 		if ( ! @\symlink( $secret, $package_dir . '/secondary.php' ) ) {
 			self::markTestSkipped( 'Environment cannot create symlinks.' );
 		}
+		$this->registerPackage( 'php-stubs/explicit-symlink' );
 
 		$this->writeProjectComposer( array( 'php-stubs/explicit-symlink:secondary.php' ) );
 		CollectScopingStubs::postAutoloadDump( $this->event() );
@@ -859,6 +875,7 @@ final class CollectScopingStubsTest extends TestCase {
 				JSON_THROW_ON_ERROR
 			)
 		);
+		$this->registerPackage( 'php-stubs/normal', autoload: array( 'files' => array( 'listed.php' ) ) );
 
 		$this->writeProjectComposer( array( 'php-stubs/normal' ) );
 		CollectScopingStubs::postAutoloadDump( $this->event() );
@@ -870,13 +887,199 @@ final class CollectScopingStubsTest extends TestCase {
 		self::assertContains( 'wc_get_product', $result['functions'] );
 	}
 
-	private function event( bool $devMode = true, ?BufferIO $io = null ): Event {
-		$composer = new Composer();
-		$config   = new Config();
-		$config->merge( array( 'config' => array( 'vendor-dir' => $this->vendor_dir ) ) );
-		$composer->setConfig( $config );
+	#[Test]
+	public function collects_scoping_stubs_from_a_symlinked_path_repository_package(): void {
+		// A Composer path-repository package symlinked into vendor (monorepo dev) that declares
+		// extra.scoping-stubs. A vendor directory walk does not descend the symlink and silently
+		// misses the declaration; reading Composer's in-memory package list catches it. The
+		// declared catalog (wordpress-stubs) is a normally-installed package.
+		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
 
-		return new Event( 'post-autoload-dump', $composer, $io ?? new NullIO(), $devMode );
+		// Real path-repo source dir OUTSIDE vendor.
+		$source_dir = $this->project_dir . '/packages/wp-framework-bootstrap';
+		\mkdir( $source_dir, 0755, true );
+		\file_put_contents(
+			$source_dir . '/composer.json',
+			\json_encode(
+				array(
+					'name'  => 'ahegyes/wp-framework-bootstrap',
+					'extra' => array( 'scoping-stubs' => array( 'php-stubs/wordpress-stubs' ) ),
+				),
+				JSON_THROW_ON_ERROR
+			)
+		);
+
+		// Symlink it into vendor at the standard layout, exactly as Composer's path repo does.
+		\mkdir( $this->vendor_dir . '/ahegyes', 0755, true );
+		if ( ! @\symlink( $source_dir, $this->vendor_dir . '/ahegyes/wp-framework-bootstrap' ) ) {
+			self::markTestSkipped( 'Environment cannot create symlinks.' );
+		}
+		$this->registerPackage( 'ahegyes/wp-framework-bootstrap', extra: array( 'scoping-stubs' => array( 'php-stubs/wordpress-stubs' ) ) );
+
+		// The project itself declares nothing — the only source of the declaration is the
+		// symlinked path-repo package.
+		$this->writeProjectComposer( array() );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'add_action', $result['functions'] );
+		self::assertContains( 'WP_Filesystem_Base', $result['classes'] );
+	}
+
+	#[Test]
+	public function resolves_stubs_through_a_symlinked_path_repository_install_path(): void {
+		// A symlinked path-repo package that ships its own stub catalog must still have that
+		// catalog resolved: the package dir is the standard vendor layout (the symlink), and the
+		// realpath confinement resolves through it to the real source.
+		$source_dir = $this->project_dir . '/packages/wp-framework-shared';
+		\mkdir( $source_dir, 0755, true );
+		\copy( self::FIXTURES_DIR . '/stubs-extra.php', $source_dir . '/shared-stubs.php' );
+		\file_put_contents(
+			$source_dir . '/composer.json',
+			\json_encode(
+				array(
+					'name'     => 'ahegyes/wp-framework-shared',
+					'autoload' => array( 'files' => array( 'shared-stubs.php' ) ),
+				),
+				JSON_THROW_ON_ERROR
+			)
+		);
+
+		\mkdir( $this->vendor_dir . '/ahegyes', 0755, true );
+		if ( ! @\symlink( $source_dir, $this->vendor_dir . '/ahegyes/wp-framework-shared' ) ) {
+			self::markTestSkipped( 'Environment cannot create symlinks.' );
+		}
+		$this->registerPackage( 'ahegyes/wp-framework-shared', autoload: array( 'files' => array( 'shared-stubs.php' ) ) );
+
+		$this->writeProjectComposer( array( 'ahegyes/wp-framework-shared' ) );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'wc_get_product', $result['functions'] );
+	}
+
+	#[Test]
+	public function resolves_stubs_through_the_install_path_honoring_target_dir(): void {
+		// A package with a target-dir installs under vendor/<name>/<target-dir>; the script must
+		// resolve its stubs via Composer's getInstallPath (which appends the target-dir), not a
+		// synthesized vendor/<name> layout. The stub lives ONLY under the target-dir subpath, so a
+		// layout that ignored target-dir would find nothing.
+		$install_dir = $this->vendor_dir . '/php-stubs/targeted/Stubs/Build';
+		\mkdir( $install_dir, 0755, true );
+		\copy( self::FIXTURES_DIR . '/stubs.php', $install_dir . '/targeted.php' );
+
+		$package = new CompletePackage( 'php-stubs/targeted', '1.0.0.0', '1.0.0' );
+		$package->setTargetDir( 'Stubs/Build' );
+		$this->installed_packages[] = $package;
+
+		$this->writeProjectComposer( array( 'php-stubs/targeted' ) );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'add_action', $result['functions'] );
+	}
+
+	#[Test]
+	public function tolerates_installed_packages_with_absent_or_malformed_scoping_stubs(): void {
+		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
+		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs' ) );
+
+		// No extra at all; extra present but no scoping-stubs key; a scalar (non-array) value;
+		// and an object/associative-array value whose entries are not valid declarations — every
+		// malformed shape must be skipped without disturbing the valid project declaration.
+		$this->registerPackage( 'some/plain-package' );
+		$this->registerPackage( 'some/other-extra', extra: array( 'branch-alias' => array( 'dev-main' => '1.x-dev' ) ) );
+		$this->registerPackage( 'some/scalar-stubs', extra: array( 'scoping-stubs' => 'php-stubs/wordpress-stubs' ) );
+		$this->registerPackage( 'some/object-stubs', extra: array( 'scoping-stubs' => array( 'key' => 'value' ) ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'add_action', $result['functions'] );
+		// The scalar shape names a real package but is not a list, so it contributes nothing —
+		// add_action appears exactly once (from the project declaration), not duplicated.
+		self::assertSame( 1, \count( \array_keys( $result['functions'], 'add_action', true ) ) );
+	}
+
+	#[Test]
+	public function tolerates_project_scoping_stubs_that_is_not_an_array(): void {
+		// A malformed root declaration (scoping-stubs as a string, not a list) must be tolerated.
+		\file_put_contents(
+			$this->project_dir . '/composer.json',
+			\json_encode( array( 'extra' => array( 'scoping-stubs' => 'php-stubs/wordpress-stubs' ) ), JSON_THROW_ON_ERROR )
+		);
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		self::assertSame(
+			array( 'classes' => array(), 'functions' => array(), 'constants' => array() ),
+			$this->loadOutput( 'scoping-exclusions.json' )
+		);
+	}
+
+	#[Test]
+	public function output_symbol_lists_are_sorted_for_deterministic_regeneration(): void {
+		// Two catalogs whose symbols interleave; the merged lists must come out sorted so the
+		// file regenerates byte-identical regardless of package iteration order.
+		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
+		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
+		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs', 'php-stubs/wordpress-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		foreach ( array( 'classes', 'functions', 'constants' ) as $kind ) {
+			$sorted = $result[ $kind ];
+			\sort( $sorted );
+			self::assertSame( $sorted, $result[ $kind ], "$kind list is not sorted" );
+		}
+		self::assertNotSame( array(), $result['functions'] );
+	}
+
+	#[Test]
+	public function writes_output_and_leaves_no_temp_file_behind(): void {
+		// Happy-path smoke check, NOT an atomicity guarantee: write_atomically's temp-then-rename
+		// internals are @infection-ignore-all (an accepted decision), so this only asserts a
+		// successful run produces the final file and leaves no leftover `.tmp.*` sibling.
+		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
+		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		self::assertFileExists( $this->project_dir . '/scoping-exclusions.json' );
+		$leftovers = \glob( $this->project_dir . '/scoping-exclusions.json.tmp.*' ) ?: array();
+		self::assertSame( array(), $leftovers, 'A temp file was left behind by the atomic write.' );
+	}
+
+	private function event( bool $devMode = true, ?BufferIO $io = null ): Event {
+		$io_instance = $io ?? new NullIO();
+
+		// A real Factory-assembled Composer wires a genuine InstallationManager, so the script's
+		// getInstallPath() resolves package dirs exactly as production does (honouring target-dir
+		// and custom installer paths). The root package's extra is read from the on-disk
+		// composer.json; the local repository is swapped for the run's registered packages.
+		$composer = \Composer\Factory::create( $io_instance, $this->project_dir . '/composer.json', true );
+		$composer->getRepositoryManager()->setLocalRepository( new InstalledArrayRepository( $this->installed_packages ) );
+
+		return new Event( 'post-autoload-dump', $composer, $io_instance, $devMode );
+	}
+
+	/**
+	 * Registers a package in the Composer local repository for the run under test.
+	 *
+	 * @param array<array-key, mixed> $extra    The package's `extra` metadata.
+	 * @param array<array-key, mixed> $autoload The package's `autoload` rules.
+	 */
+	private function registerPackage( string $name, array $extra = array(), array $autoload = array() ): void {
+		$package = new CompletePackage( $name, '1.0.0.0', '1.0.0' );
+		if ( array() !== $extra ) {
+			$package->setExtra( $extra );
+		}
+		if ( array() !== $autoload ) {
+			$package->setAutoload( $autoload );
+		}
+
+		$this->installed_packages[] = $package;
 	}
 
 	/**
@@ -902,9 +1105,16 @@ final class CollectScopingStubsTest extends TestCase {
 			$package_dir . '/composer.json',
 			\json_encode( $composer_payload, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT )
 		);
+
+		$extra    = isset( $composer_payload['extra'] ) && \is_array( $composer_payload['extra'] ) ? $composer_payload['extra'] : array();
+		$autoload = isset( $composer_payload['autoload'] ) && \is_array( $composer_payload['autoload'] ) ? $composer_payload['autoload'] : array();
+		$this->registerPackage( $package_name, $extra, $autoload );
 	}
 
-	private function installStubsPackage( string $package_name, string $stubs_source_path ): void {
+	/**
+	 * @param array<array-key, mixed> $autoload The package's `autoload` rules (empty ⇒ convention-only).
+	 */
+	private function installStubsPackage( string $package_name, string $stubs_source_path, array $autoload = array() ): void {
 		$package_dir = $this->vendor_dir . '/' . $package_name;
 		\mkdir( $package_dir, 0755, true );
 
@@ -917,6 +1127,8 @@ final class CollectScopingStubsTest extends TestCase {
 			$package_dir . '/composer.json',
 			\json_encode( array( 'name' => $package_name ), JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT )
 		);
+
+		$this->registerPackage( $package_name, autoload: $autoload );
 	}
 
 	/**

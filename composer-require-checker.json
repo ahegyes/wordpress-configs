@@ -1,8 +1,10 @@
 {
     "symbol-whitelist": [
         "Composer\\ClassMapGenerator\\ClassMapGenerator",
+        "Composer\\Composer",
         "Composer\\Factory",
         "Composer\\IO\\IOInterface",
+        "Composer\\Installer\\InstallationManager",
         "Composer\\Script\\Event",
         "Symfony\\Component\\Finder\\Finder"
     ],
