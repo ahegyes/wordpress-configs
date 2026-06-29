@@ -44,4 +44,4 @@ jobs:
 
       # Advanced Security mode: findings go to the Security tab, do not fail CI.
       - name: Run zizmor
-        uses: zizmorcore/zizmor-action@5f14fd08f7cf1cb1609c1e344975f152c7ee938d
+        uses: zizmorcore/zizmor-action@192e21d79ab29983730a13d1382995c2307fbcaa
