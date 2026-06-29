@@ -7,9 +7,10 @@ use Composer\Script\Event;
 /**
  * Composer event handlers wrapping the php-scoper invocation.
  *
- * `preAutoloadDump` creates placeholder files/directories for any `dependencies/`
- * paths declared in the consumer's `autoload.files`/`autoload.classmap`, so the
- * autoloader dump doesn't fail before scoping has populated those paths.
+ * `preAutoloadDump` creates placeholder files/directories for the consumer's
+ * `autoload.files`/`autoload.classmap` paths that sit under its
+ * `extra.scoped-dependencies-dir`, so the autoloader dump doesn't fail before
+ * scoping has populated that not-yet-generated scoped output.
  *
  * `postAutoloadDump` dispatches the consumer's `scope-php-dependencies` script
  * once `humbug/php-scoper` is installed and dev mode is on. The script itself
@@ -33,10 +34,21 @@ final class ScopePhpDependencies {
 		$composer_file = \Composer\Factory::getComposerFile();
 		$project_dir   = \dirname( $composer_file );
 
-		$console_io->write( 'Making sure autoloaded files exist...' );
-
 		$composer_contents = \file_get_contents( $composer_file ) ?: throw new \RuntimeException( \sprintf( 'Could not read composer.json at %s', $composer_file ) );
 		$composer_config   = \json_decode( $composer_contents, true, flags: JSON_THROW_ON_ERROR );
+
+		// Placeholders cover only the not-yet-generated scoped output under the consumer's
+		// scoped-dependencies-dir. A consumer that does not scope has nothing to pre-create — and
+		// placeholdering its real autoload paths would mask a typo as an empty file instead of
+		// letting Composer's autoload dump fail loudly on the missing source.
+		$scoped_dir = $composer_config['extra']['scoped-dependencies-dir'] ?? null;
+		if ( ! \is_string( $scoped_dir ) || '' === $scoped_dir ) {
+			return;
+		}
+		self::assert_project_relative( $scoped_dir );
+		$scoped_dir_normalised = \rtrim( self::normalise_for_match( $scoped_dir ), '/' );
+
+		$console_io->write( 'Making sure scoped autoload paths exist...' );
 
 		$autoloaded_files       = $composer_config['autoload']['files'] ?? array();
 		$autoloaded_directories = $composer_config['autoload']['classmap'] ?? array();
@@ -46,6 +58,9 @@ final class ScopePhpDependencies {
 		}
 
 		foreach ( $autoloaded_files as $file ) {
+			if ( ! \is_string( $file ) || ! self::is_under_scoped_dir( $file, $scoped_dir_normalised ) ) {
+				continue;
+			}
 			self::assert_project_relative( $file );
 
 			$file = $project_dir . DIRECTORY_SEPARATOR . $file;
@@ -57,11 +72,51 @@ final class ScopePhpDependencies {
 		}
 
 		foreach ( $autoloaded_directories as $directory ) {
+			if ( ! \is_string( $directory ) || ! self::is_under_scoped_dir( $directory, $scoped_dir_normalised ) ) {
+				continue;
+			}
 			self::assert_project_relative( $directory );
 
 			$directory = $project_dir . DIRECTORY_SEPARATOR . $directory;
 			\is_dir( $directory ) || \mkdir( $directory, 0755, true ) || \is_dir( $directory ) || throw new \RuntimeException( \sprintf( 'Directory "%s" was not created', $directory ) );
 		}
+	}
+
+	/**
+	 * Reports whether an autoload entry sits at or under the scoped-dependencies-dir — i.e. is one
+	 * of the not-yet-generated scoped paths to pre-create. Tolerates a leading `./` and an exact
+	 * directory match, while keeping the `dir/` boundary so `dependencies-foo/` is not mistaken for
+	 * `dependencies/`.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   string $path                  Autoload entry from `composer.json`.
+	 * @param   string $scoped_dir_normalised Scoped-dependencies-dir, forward-slashed, no trailing slash.
+	 *
+	 * @return  bool
+	 */
+	private static function is_under_scoped_dir( string $path, string $scoped_dir_normalised ): bool {
+		$normalised = self::normalise_for_match( $path );
+
+		return $normalised === $scoped_dir_normalised || \str_starts_with( $normalised, $scoped_dir_normalised . '/' );
+	}
+
+	/**
+	 * Forward-slashes a path and strips a single leading `./`, so the scoped dir and the autoload
+	 * entries are compared on the same footing whichever spelling composer.json uses.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   string $path Path to normalise.
+	 *
+	 * @return  string
+	 */
+	private static function normalise_for_match( string $path ): string {
+		$normalised = \str_replace( '\\', '/', $path );
+
+		return \str_starts_with( $normalised, './' ) ? \substr( $normalised, 2 ) : $normalised;
 	}
 
 	/**
@@ -95,6 +150,9 @@ final class ScopePhpDependencies {
 	 *
 	 * @param   Event $event  Composer event object.
 	 *
+	 * @throws  \JsonException     If composer.json cannot be parsed during scoped-autoload generation.
+	 * @throws  \RuntimeException  If the scope-php-dependencies script fails, or scoped-autoload generation fails.
+	 *
 	 * @return  void
 	 */
 	public static function postAutoloadDump( Event $event ): void {
@@ -113,7 +171,16 @@ final class ScopePhpDependencies {
 		$console_io->write( 'Scoping dependencies...' );
 
 		$event_dispatcher = $event->getComposer()->getEventDispatcher();
-		$event_dispatcher->dispatchScript( 'scope-php-dependencies', $event->isDevMode() );
+		$exit_code        = $event_dispatcher->dispatchScript( 'scope-php-dependencies', $event->isDevMode() );
+
+		// A PHP-callback scope script that returns false maps to a non-zero code Composer hands
+		// back here (only shell-command failures throw on their own); stop before regenerating the
+		// scoped autoload over partial or stale output.
+		if ( 0 !== $exit_code ) {
+			throw new \RuntimeException(
+				\sprintf( 'The scope-php-dependencies script failed with exit code %d; not generating the scoped autoload.', $exit_code )
+			);
+		}
 
 		self::generate_scoped_autoload( $event );
 	}
@@ -140,9 +207,13 @@ final class ScopePhpDependencies {
 		$dependencies_rel = $composer_config['extra']['scoped-dependencies-dir'] ?? null;
 		$prefix           = $composer_config['extra']['scoping-prefix'] ?? null;
 
-		if ( ! \is_string( $dependencies_rel ) || ! \is_string( $prefix ) ) {
+		if ( ! \is_string( $dependencies_rel ) || '' === $dependencies_rel || ! \is_string( $prefix ) ) {
 			return;
 		}
+
+		// Confine the scoped output dir to the project, like every other path in this class — its
+		// scan + the scoper-autoload.php write must not escape via an absolute path or `..`.
+		self::assert_project_relative( $dependencies_rel );
 
 		$dependencies_dir = $project_dir . DIRECTORY_SEPARATOR . \ltrim( $dependencies_rel, '/\\' );
 		if ( ! \is_dir( $dependencies_dir ) ) {
