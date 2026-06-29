@@ -386,7 +386,7 @@ Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Pl
 | Workflow                              | Purpose                                          | Key Inputs                                                   |
 |---------------------------------------|--------------------------------------------------|--------------------------------------------------------------|
 | `reusable-php-syntax-check.yml`       | `php -l` matrix across PHP versions              | `plugin-path`, `php-versions[]`                              |
-| `reusable-php-qa.yml`                 | PHPCS + PHPStan (parallel jobs)                  | `plugin-path`, `php-version`                                 |
+| `reusable-php-lint.yml`               | Named composer scripts as parallel jobs          | `project-path`, `php-version`, `scripts[]`                   |
 | `reusable-scripts-styles-lint.yml`    | ESLint + Stylelint via npm scripts               | `plugin-path`, `node-version`                                |
 | `reusable-phpunit.yml`                | PHPUnit; wp-env startup gated by `needs-wp-env`  | `plugin-path`, `php-version`, `wp-version`, `needs-wp-env`   |
 | `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `plugin-path`, `plugin-slug`, `php-version`                  |
@@ -413,8 +413,10 @@ jobs:
     uses: ahegyes/wordpress-configs/.github/workflows/reusable-php-syntax-check.yml@trunk
     with:
       php-versions: '["8.5","8.6"]'
-  qa:
-    uses: ahegyes/wordpress-configs/.github/workflows/reusable-php-qa.yml@trunk
+  lint-php:
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-php-lint.yml@trunk
+    with:
+      scripts: '["lint:php:phpcs", "lint:php:phpstan"]'
   block-json:
     uses: ahegyes/wordpress-configs/.github/workflows/reusable-block-json-check.yml@trunk
   lint-scripts-styles:

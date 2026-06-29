@@ -9,27 +9,11 @@ permissions:
   contents: read
 
 jobs:
-  php-qa:
-    name: PHP QA
-    # Eat our own dog food — this repo's quality.yml uses its own reusable-php-qa.
-    uses: ./.github/workflows/reusable-php-qa.yml
-
-  composer-require-checker:
-    name: Composer Require Checker
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          persist-credentials: false
-      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
-        with:
-          php-version: '8.5'
-          coverage: none
-          tools: composer:v2
-      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
-        with:
-          composer-options: '--prefer-dist'
-      - run: composer lint:php:composer-require-checker
+  lint-php:
+    name: PHP Lint
+    uses: ./.github/workflows/reusable-php-lint.yml
+    with:
+      scripts: '["lint:php:phpcs", "lint:php:phpstan", "lint:php:composer-require-checker"]'
 
   lint-scripts:
     name: Lint scripts (ESLint)

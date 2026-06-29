@@ -1,0 +1,47 @@
+name: PHP Lint
+
+on:
+  workflow_call:
+    inputs:
+      scripts:
+        description: 'JSON array of composer scripts; each runs as its own parallel job.'
+        type: string
+        required: true
+      php-version:
+        description: 'PHP version to run against.'
+        type: string
+        required: false
+        default: '8.5'
+      project-path:
+        description: 'Path to the project (relative to repo root).'
+        type: string
+        required: false
+        default: '.'
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: ${{ matrix.script }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        script: ${{ fromJSON(inputs.scripts) }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
+        with:
+          php-version: ${{ inputs.php-version }}
+          coverage: none
+          tools: composer:v2
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
+        with:
+          working-directory: ${{ inputs.project-path }}
+          composer-options: '--prefer-dist'
+      - name: composer ${{ matrix.script }}
+        working-directory: ${{ inputs.project-path }}
+        run: composer ${{ matrix.script }}

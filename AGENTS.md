@@ -38,9 +38,9 @@ wordpress-configs/
 ## Reusable CI workflows
 
 8 reusable workflows in `.github/workflows/reusable-*.yml` (`workflow_call` only):
-`reusable-block-json-check`, `reusable-scripts-styles-lint`, `reusable-php-qa`, `reusable-php-syntax-check`, `reusable-phpunit`, `reusable-playwright-e2e`, `reusable-supply-chain-audit`, `reusable-release`.
+`reusable-block-json-check`, `reusable-scripts-styles-lint`, `reusable-php-lint`, `reusable-php-syntax-check`, `reusable-phpunit`, `reusable-playwright-e2e`, `reusable-supply-chain-audit`, `reusable-release`.
 
-Plus 5 self-running for this repo's own CI: `codeql`, `tests`, `tests-mutation`, `quality`, `workflow-checks`. `quality` reuses this repo's own `reusable-php-qa.yml` plus runs composer-require-checker + lint:scripts as parallel jobs. `workflow-checks` runs actionlint (workflow YAML correctness) + zizmor (workflow security, SARIF → Security tab) on workflow changes.
+Plus 5 self-running for this repo's own CI: `codeql`, `tests`, `tests-mutation`, `quality`, `workflow-checks`. `quality` reuses this repo's own `reusable-php-lint.yml` (phpcs, phpstan, and composer-require-checker as parallel jobs) plus lint:scripts. `workflow-checks` runs actionlint (workflow YAML correctness) + zizmor (workflow security, SARIF → Security tab) on workflow changes.
 
 ## Conventions
 
