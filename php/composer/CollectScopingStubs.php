@@ -3,10 +3,13 @@
 namespace DeepWebSolutions\Config\Composer;
 
 /**
- * Composer post-autoload-dump hook. Walks `vendor/<vendor>/<package>/composer.json`
- * + the project root, reads each `extra.scoping-stubs` array, parses every stubs
- * file each declared entry resolves to, and writes the unioned class/function/constant
- * symbol set to `scoping-exclusions.json`.
+ * Composer post-autoload-dump hook. Reads each `extra.scoping-stubs` array from the
+ * root package and every installed package — straight off Composer's in-memory package
+ * metadata, so a path-repository package symlinked into vendor (monorepo dev) is included
+ * exactly like a normally-installed one. It parses every stubs file each declared entry
+ * resolves to and writes the unioned class/function/constant symbol set to
+ * `scoping-exclusions.json`. The class/function/constant lists are sorted before writing,
+ * so the output regenerates byte-identical regardless of package iteration order.
  *
  * Each `extra.scoping-stubs` entry takes one of two forms:
  *
@@ -47,13 +50,14 @@ final class CollectScopingStubs {
 	 *
 	 * @param \Composer\Script\Event $event Composer event object.
 	 *
-	 * @throws \JsonException    If JSON parsing or encoding fails.
+	 * @throws \JsonException    If encoding the output JSON fails.
 	 * @throws \PhpParser\Error  If the PHP parser fails to initialise.
-	 * @throws \RuntimeException If a declared stubs file or a vendor composer.json cannot be read, or the output file cannot be written.
+	 * @throws \RuntimeException If a declared stubs file cannot be read, or the output file cannot be written.
 	 */
 	public static function postAutoloadDump( \Composer\Script\Event $event ): void {
+		$composer    = $event->getComposer();
 		$console_io  = $event->getIO();
-		$vendor_dir  = $event->getComposer()->getConfig()->get( 'vendor-dir' );
+		$vendor_dir  = $composer->getConfig()->get( 'vendor-dir' );
 		$project_dir = \dirname( \Composer\Factory::getComposerFile() );
 
 		if ( ! $event->isDevMode() ) {
@@ -61,7 +65,9 @@ final class CollectScopingStubs {
 			return;
 		}
 
-		$declared = self::collect_declarations( $project_dir, $vendor_dir );
+		$declared             = self::collect_declarations( $composer );
+		$packages_by_name     = self::index_packages_by_name( $composer );
+		$installation_manager = $composer->getInstallationManager();
 
 		$classes   = array();
 		$functions = array();
@@ -71,7 +77,7 @@ final class CollectScopingStubs {
 			$parser = new \PhpParser\ParserFactory()->createForNewestSupportedVersion();
 
 			foreach ( $declared as $entry ) {
-				$stubs_paths = self::resolve_stubs_paths( $vendor_dir, $entry, $console_io );
+				$stubs_paths = self::resolve_stubs_paths( $entry, $packages_by_name, $installation_manager, $console_io );
 				if ( array() === $stubs_paths ) {
 					// Explicit-file entries already wrote their own precise note inside the resolver.
 					if ( ! \str_contains( $entry, ':' ) ) {
@@ -88,84 +94,28 @@ final class CollectScopingStubs {
 						continue;
 					}
 
-					$visitor   = new class() extends \PhpParser\NodeVisitorAbstract {
-						/**
-						 * Fully-qualified class names collected from the parsed stubs.
-						 *
-						 * @var list<string>
-						 */
-						public array $classes = array();
-
-						/**
-						 * Fully-qualified function names collected from the parsed stubs.
-						 *
-						 * @var list<string>
-						 */
-						public array $functions = array();
-
-						/**
-						 * Fully-qualified constant names collected from the parsed stubs.
-						 * Includes both `const FOO = ...;` declarations and `define('FOO', ...)` calls.
-						 *
-						 * @var list<string>
-						 */
-						public array $constants = array();
-
-						/**
-						 * {@inheritDoc}
-						 *
-						 * @param \PhpParser\Node $node Node being visited.
-						 */
-						public function enterNode( \PhpParser\Node $node ): int|null {
-							switch ( \get_class( $node ) ) {
-								// Class-like declarations all flow into `$classes` — php-scoper's `exclude-classes` covers all of them.
-								case \PhpParser\Node\Stmt\Class_::class:
-								case \PhpParser\Node\Stmt\Interface_::class:
-								case \PhpParser\Node\Stmt\Trait_::class:
-								case \PhpParser\Node\Stmt\Enum_::class:
-									if ( null !== $node->namespacedName ) {
-										$this->classes[] = $node->namespacedName->toString();
-									}
-									return \PhpParser\NodeVisitor::DONT_TRAVERSE_CHILDREN;
-								case \PhpParser\Node\Stmt\Function_::class:
-									if ( null !== $node->namespacedName ) {
-										$this->functions[] = $node->namespacedName->toString();
-									}
-									break;
-								case \PhpParser\Node\Stmt\Const_::class:
-									foreach ( $node->consts as $const ) {
-										if ( null !== $const->namespacedName ) {
-											$this->constants[] = $const->namespacedName->toString();
-										}
-									}
-									break;
-								case \PhpParser\Node\Expr\FuncCall::class:
-									if (
-										$node->name instanceof \PhpParser\Node\Name
-										&& 'define' === $node->name->toString()
-										&& isset( $node->args[0] )
-										&& $node->args[0] instanceof \PhpParser\Node\Arg
-										&& $node->args[0]->value instanceof \PhpParser\Node\Scalar\String_
-									) {
-										$this->constants[] = $node->args[0]->value->value;
-									}
-									break;
-							}
-							return null;
-						}
-					};
+					$collector = new StubSymbolCollector();
 					$traverser = new \PhpParser\NodeTraverser();
 					// NameResolver populates `namespacedName` on Class_, Function_, Const_ — needed for FQCN distinction across namespaced stubs.
 					$traverser->addVisitor( new \PhpParser\NodeVisitor\NameResolver() );
-					$traverser->addVisitor( $visitor );
+					$traverser->addVisitor( $collector );
 					$traverser->traverse( $parsed );
 
-					$classes   = \array_merge( $classes, $visitor->classes );
-					$functions = \array_merge( $functions, $visitor->functions );
-					$constants = \array_merge( $constants, $visitor->constants );
+					$classes   = \array_merge( $classes, $collector->classes );
+					$functions = \array_merge( $functions, $collector->functions );
+					$constants = \array_merge( $constants, $collector->constants );
 				}
 			}
 		}
+
+		// Sort each list so the output is a deterministic function of the declared symbol
+		// set, independent of package iteration order — the file regenerates byte-identical.
+		$classes   = \array_unique( $classes );
+		$functions = \array_unique( $functions );
+		$constants = \array_unique( $constants );
+		\sort( $classes );
+		\sort( $functions );
+		\sort( $constants );
 
 		$output_dir  = self::resolve_output_dir( $project_dir, $vendor_dir );
 		$output_file = self::resolve_output_file();
@@ -174,9 +124,9 @@ final class CollectScopingStubs {
 			"$output_dir/$output_file",
 			\json_encode(
 				array(
-					'classes'   => \array_values( \array_unique( $classes ) ),
-					'functions' => \array_values( \array_unique( $functions ) ),
-					'constants' => \array_values( \array_unique( $constants ) ),
+					'classes'   => $classes,
+					'functions' => $functions,
+					'constants' => $constants,
 				),
 				JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT
 			)
@@ -184,63 +134,44 @@ final class CollectScopingStubs {
 	}
 
 	/**
-	 * Walks the vendor directory + project root, collecting all
-	 * `extra.scoping-stubs` package declarations.
+	 * Collects every `extra.scoping-stubs` declaration across the root package and all
+	 * installed packages, reading Composer's in-memory metadata rather than walking vendor.
 	 *
-	 * @param string $project_dir Project root directory.
-	 * @param string $vendor_dir  Composer vendor directory.
+	 * Composer's package list carries path-repository packages (symlinked into vendor in
+	 * monorepo dev) the same as normally-installed ones, so a symlinked package that declares
+	 * stubs is no longer silently missed. The result is deduplicated and sorted so the
+	 * downstream symbol union is order-independent.
 	 *
-	 * @throws \JsonException    If a composer.json file cannot be parsed.
-	 * @throws \RuntimeException If a composer.json file exists but cannot be read.
+	 * @param \Composer\Composer $composer Composer instance for the current run.
 	 *
 	 * @return list<string>
 	 */
-	private static function collect_declarations( string $project_dir, string $vendor_dir ): array {
-		$declared = self::read_declaration( $project_dir . '/composer.json' );
+	private static function collect_declarations( \Composer\Composer $composer ): array {
+		$declared = self::extract_declarations( $composer->getPackage()->getExtra() );
 
-		if ( \is_dir( $vendor_dir ) ) {
-			// Walk packages installed at the standard composer layout:
-			// `vendor/<vendor>/<package>/composer.json`. Finder's depth is 0-indexed,
-			// so depth 2 is the file two directories below the search root.
-			//
-			// Consumers using `extra.installer-paths` to redirect packages to a
-			// non-standard depth inside vendor would be missed by this walk —
-			// scoped deps generally don't go through custom installer-paths, so
-			// this trade-off favours noise reduction (no false matches from
-			// bundled sub-project composer.json files deeper in the tree).
-			$finder = \Symfony\Component\Finder\Finder::create()
-				->in( $vendor_dir )
-				->files()
-				->name( 'composer.json' )
-				->depth( 2 );
-
-			foreach ( $finder as $file ) {
-				$declared = \array_merge( $declared, self::read_declaration( $file->getPathname() ) );
-			}
+		foreach ( $composer->getRepositoryManager()->getLocalRepository()->getPackages() as $package ) {
+			$declared = \array_merge( $declared, self::extract_declarations( $package->getExtra() ) );
 		}
 
-		return \array_values( \array_unique( $declared ) );
+		$declared = \array_values( \array_unique( $declared ) );
+		\sort( $declared );
+
+		return $declared;
 	}
 
 	/**
-	 * Reads `extra.scoping-stubs` from a single composer.json file.
+	 * Filters one package's `extra` array down to its valid `extra.scoping-stubs` entries.
 	 *
-	 * @param string $composer_json_path Path to the composer.json file.
+	 * Tolerates every malformed shape: an absent `extra.scoping-stubs`, or a value that is
+	 * not an array (a scalar or object), yields an empty list. Surviving entries are the
+	 * strings passing `is_valid_declaration`, re-indexed to a list.
+	 *
+	 * @param array<array-key, mixed> $extra A package's `extra` metadata.
 	 *
 	 * @return list<string>
-	 *
-	 * @throws \JsonException    If the file exists but cannot be parsed.
-	 * @throws \RuntimeException If the file exists but cannot be read.
 	 */
-	private static function read_declaration( string $composer_json_path ): array {
-		if ( ! \is_file( $composer_json_path ) ) {
-			return array();
-		}
-
-		$contents = \file_get_contents( $composer_json_path ) ?: throw new \RuntimeException( \sprintf( 'Could not read %s', $composer_json_path ) );
-		$data     = \json_decode( $contents, true, flags: JSON_THROW_ON_ERROR );
-
-		$declared = $data['extra']['scoping-stubs'] ?? array();
+	private static function extract_declarations( array $extra ): array {
+		$declared = $extra['scoping-stubs'] ?? array();
 		if ( ! \is_array( $declared ) ) {
 			return array();
 		}
@@ -251,6 +182,23 @@ final class CollectScopingStubs {
 				static fn ( mixed $entry ): bool => \is_string( $entry ) && self::is_valid_declaration( $entry )
 			)
 		);
+	}
+
+	/**
+	 * Indexes the installed packages by name, for resolving a declared entry's `autoload.files`
+	 * from in-memory metadata instead of re-reading each package's composer.json from disk.
+	 *
+	 * @param \Composer\Composer $composer Composer instance for the current run.
+	 *
+	 * @return array<string, \Composer\Package\PackageInterface>
+	 */
+	private static function index_packages_by_name( \Composer\Composer $composer ): array {
+		$packages_by_name = array();
+		foreach ( $composer->getRepositoryManager()->getLocalRepository()->getPackages() as $package ) {
+			$packages_by_name[ $package->getName() ] = $package;
+		}
+
+		return $packages_by_name;
 	}
 
 	/**
@@ -414,59 +362,77 @@ final class CollectScopingStubs {
 	 * Resolves one `extra.scoping-stubs` entry to its stubs-file paths.
 	 *
 	 * A bare `vendor/package` reads the package's `autoload.files` (multi-file catalogs
-	 * like `php-stubs/woocommerce-stubs`) plus the conventional `<name>/<name>.php` path
-	 * whenever it exists (minimal hand-rolled catalogs ship only that). The explicit-file form
-	 * `vendor/package:relative/file.php` resolves that one named file inside the package
-	 * dir — for a secondary catalog the package ships but does not list in its
-	 * `autoload.files` (e.g. woocommerce-stubs' `woocommerce-packages-stubs.php`, which
+	 * like `php-stubs/woocommerce-stubs`) from its in-memory metadata plus the conventional
+	 * `<name>/<name>.php` path whenever it exists (minimal hand-rolled catalogs ship only
+	 * that). The explicit-file form `vendor/package:relative/file.php` resolves that one named
+	 * file inside the package dir — for a secondary catalog the package ships but does not list
+	 * in its `autoload.files` (e.g. woocommerce-stubs' `woocommerce-packages-stubs.php`, which
 	 * declares the Action Scheduler `as_*` functions).
 	 *
-	 * Every candidate — each `autoload.files` entry, the conventional `<name>.php` path, and the
-	 * explicit-file form — is realpath-confined to the package dir via `confine_to_package`,
-	 * so a compromised package declaring a traversal `autoload.files` entry or shipping a
-	 * symlink that escapes its own dir cannot have an outside file's symbols harvested.
+	 * The package directory is Composer's own `InstallationManager::getInstallPath()` for the
+	 * matched package — the canonical install location, which honours `target-dir` and custom
+	 * installer/plugin relocations, and is the symlink location for a path-repository package
+	 * (so realpath confinement resolves through the symlink to the real source). A declared
+	 * package absent from the local repository (declared but not installed), or one with no
+	 * install path (a metapackage), yields nothing. Every candidate — each `autoload.files`
+	 * entry, the conventional `<name>.php` path, and the explicit-file form — is realpath-confined
+	 * to that directory via `confine_to_package`, so a compromised package declaring a traversal
+	 * `autoload.files` entry or shipping a symlink that escapes its own dir cannot have an outside
+	 * file's symbols harvested.
 	 *
-	 * @param string                   $vendor_dir Composer vendor directory.
-	 * @param string                   $entry      Declaration entry: `vendor/package` or `vendor/package:relative/file.php`.
-	 * @param \Composer\IO\IOInterface $console_io Composer console for skip notes.
-	 *
-	 * @throws \JsonException    If the package's composer.json exists but cannot be parsed.
-	 * @throws \RuntimeException If the package's composer.json exists but cannot be read.
+	 * @param string                                            $entry                Declaration entry: `vendor/package` or `vendor/package:relative/file.php`.
+	 * @param array<string, \Composer\Package\PackageInterface> $packages_by_name     Installed packages indexed by name.
+	 * @param \Composer\Installer\InstallationManager           $installation_manager Composer's install-path resolver.
+	 * @param \Composer\IO\IOInterface                          $console_io           Composer console for skip notes.
 	 *
 	 * @return list<string> Existing-file paths in order; empty if nothing found.
 	 */
-	private static function resolve_stubs_paths( string $vendor_dir, string $entry, \Composer\IO\IOInterface $console_io ): array {
+	private static function resolve_stubs_paths( string $entry, array $packages_by_name, \Composer\Installer\InstallationManager $installation_manager, \Composer\IO\IOInterface $console_io ): array {
 		if ( \str_contains( $entry, ':' ) ) {
 			[ $package, $file ] = \explode( ':', $entry, 2 );
-			return self::resolve_explicit_file( $vendor_dir . '/' . $package, $file, $console_io );
+		} else {
+			$package = $entry;
+			$file    = null;
 		}
 
-		$package = $entry;
-		$parts   = \explode( '/', $package );
-		if ( 2 !== \count( $parts ) ) {
+		// A bare entry's skip note is emitted by the caller; an explicit-file entry, which
+		// otherwise owns its note inside resolve_explicit_file, notes here so the reason is not lost.
+		$declared_package = $packages_by_name[ $package ] ?? null;
+		if ( null === $declared_package ) {
+			if ( null !== $file ) {
+				$console_io->write( \sprintf( 'Skipping declared stubs file "%s" — its package "%s" is not installed.', $file, $package ) );
+			}
 			return array();
 		}
 
-		$package_dir   = $vendor_dir . '/' . $package;
-		$composer_json = $package_dir . '/composer.json';
+		$package_dir = $installation_manager->getInstallPath( $declared_package );
+		if ( null === $package_dir ) {
+			// A metapackage (or anything with nothing on disk) has no install path.
+			if ( null !== $file ) {
+				$console_io->write( \sprintf( 'Skipping declared stubs file "%s" — its package "%s" has no installation path.', $file, $package ) );
+			}
+			return array();
+		}
+
+		if ( null !== $file ) {
+			return self::resolve_explicit_file( $package_dir, $file, $console_io );
+		}
 
 		$candidates = array();
 
-		if ( \is_file( $composer_json ) ) {
-			$contents = \file_get_contents( $composer_json ) ?: throw new \RuntimeException( \sprintf( 'Could not read %s', $composer_json ) );
-			$data     = \json_decode( $contents, true, flags: JSON_THROW_ON_ERROR );
-
-			$files = $data['autoload']['files'] ?? array();
-			if ( \is_array( $files ) ) {
-				foreach ( $files as $relative ) {
-					if ( \is_string( $relative ) ) {
-						$candidates[] = $package_dir . '/' . $relative;
-					}
+		$files = $declared_package->getAutoload()['files'] ?? array();
+		if ( \is_array( $files ) ) {
+			foreach ( $files as $relative ) {
+				if ( \is_string( $relative ) ) {
+					$candidates[] = $package_dir . '/' . $relative;
 				}
 			}
 		}
 
-		$candidates[] = $package_dir . '/' . $parts[1] . '.php';
+		$parts = \explode( '/', $package );
+		if ( 2 === \count( $parts ) ) {
+			$candidates[] = $package_dir . '/' . $parts[1] . '.php';
+		}
 
 		$existing = array();
 		foreach ( $candidates as $candidate ) {
