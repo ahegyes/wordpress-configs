@@ -3,8 +3,8 @@ name: block.json Schema Check
 on:
   workflow_call:
     inputs:
-      plugin-path:
-        description: 'Path to the plugin (relative to repo root)'
+      project-path:
+        description: 'Path to the project (relative to repo root)'
         type: string
         required: false
         default: '.'
@@ -31,26 +31,20 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
-      - name: Find block.json files
-        id: find-blocks
-        working-directory: ${{ inputs.plugin-path }}
+      - name: Validate block.json files against the WordPress schema
+        working-directory: ${{ inputs.project-path }}
         run: |
-          files=$(find . -path ./node_modules -prune -o -path ./vendor -prune -o -name 'block.json' -print | tr '\n' ' ')
-          if [ -z "$files" ]; then
+          # Validate one file per -d invocation; a single joined string breaks multi-block plugins.
+          mapfile -d '' files < <(find . -path ./node_modules -prune -o -path ./vendor -prune -o -name 'block.json' -print0)
+          if [ "${#files[@]}" -eq 0 ]; then
             echo "No block.json files found — nothing to validate."
-            echo "found=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "found=true" >> "$GITHUB_OUTPUT"
-            echo "files=$files" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-
-      - name: Validate against WordPress block.json schema
-        if: steps.find-blocks.outputs.found == 'true'
-        working-directory: ${{ inputs.plugin-path }}
-        env:
-          BLOCK_FILES: ${{ steps.find-blocks.outputs.files }}
-        run: |
-          npx --yes ajv-cli validate \
-            -s https://schemas.wp.org/trunk/block.json \
-            -d "$BLOCK_FILES" \
-            --strict=false
+          # schemas.wp.org publishes no versioned block.json path; trunk is the only (mutable) schema source.
+          for file in "${files[@]}"; do
+            echo "Validating $file"
+            npx --yes ajv-cli@5.0.0 validate \
+              -s https://schemas.wp.org/trunk/block.json \
+              -d "$file" \
+              --strict=false
+          done

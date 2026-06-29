@@ -5,6 +5,10 @@ on:
     branches: [trunk]
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -15,9 +19,23 @@ jobs:
     with:
       scripts: '["lint:php:phpcs", "lint:php:phpstan", "lint:php:composer-require-checker"]'
 
+  php-syntax:
+    name: PHP Syntax
+    # Scoped to php/ — tests/fixtures/ holds intentional php -l failures (duplicate stub declarations).
+    uses: ./.github/workflows/reusable-php-syntax-check.yml
+    with:
+      project-path: php
+
   lint-scripts:
     name: Lint scripts (ESLint)
     # Reuse the standard scripts/styles workflow with lint-styles disabled (no CSS in this repo).
     uses: ./.github/workflows/reusable-scripts-styles-lint.yml
     with:
       lint-styles: false
+
+  supply-chain:
+    name: Supply-chain audit
+    # Advisory until the upstream dev-tooling advisories (wp-scripts/playwright trees) are triaged; reports without blocking merges.
+    uses: ./.github/workflows/reusable-supply-chain-audit.yml
+    with:
+      fail-on-findings: false

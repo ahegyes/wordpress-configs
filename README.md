@@ -385,14 +385,14 @@ Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Pl
 
 | Workflow                              | Purpose                                          | Key Inputs                                                   |
 |---------------------------------------|--------------------------------------------------|--------------------------------------------------------------|
-| `reusable-php-syntax-check.yml`       | `php -l` matrix across PHP versions              | `plugin-path`, `php-versions[]`                              |
+| `reusable-php-syntax-check.yml`       | `php -l` matrix across PHP versions              | `project-path`, `php-versions[]`                             |
 | `reusable-php-lint.yml`               | Named composer scripts as parallel jobs          | `project-path`, `php-version`, `scripts[]`                   |
-| `reusable-scripts-styles-lint.yml`    | ESLint + Stylelint via npm scripts               | `plugin-path`, `node-version`                                |
-| `reusable-phpunit.yml`                | PHPUnit; wp-env startup gated by `needs-wp-env`  | `plugin-path`, `php-version`, `wp-version`, `needs-wp-env`   |
-| `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `plugin-path`, `plugin-slug`, `php-version`                  |
-| `reusable-block-json-check.yml`       | Validates block.json against wp.org schema       | `plugin-path`, `node-version`                                |
-| `reusable-supply-chain-audit.yml`     | `composer audit` + `npm audit` (parallel jobs)   | `plugin-path`, `composer-audit`, `npm-audit`, plus `*-flags` |
-| `reusable-release.yml`                | Build → test built artifact → deploy to wp.org   | `plugin-slug`, `plugin-path`, `php-version` + secrets        |
+| `reusable-scripts-styles-lint.yml`    | ESLint + Stylelint via npm scripts               | `project-path`, `node-version`                               |
+| `reusable-phpunit.yml`                | PHPUnit; wp-env startup gated by `needs-wp-env`  | `project-path`, `php-version`, `wp-version`, `needs-wp-env`  |
+| `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `project-path`, `plugin-slug`, `php-version`                 |
+| `reusable-block-json-check.yml`       | Validates block.json against wp.org schema       | `project-path`, `node-version`                              |
+| `reusable-supply-chain-audit.yml`     | `composer audit` + `npm audit` (parallel jobs)   | `project-path`, `composer-audit`, `npm-audit`, plus `*-flags` |
+| `reusable-release.yml`                | Build → test built artifact → deploy to wp.org   | `plugin-slug`, `plugin-path`, `php-version` + secrets       |
 
 **`php-versions[]` vs `php-version`:** `reusable-php-syntax-check.yml` accepts an array because matrixing across PHP versions is the whole point of syntax checking. The other reusables run a single PHP version per call — to test multiple versions, wrap the reusable in your own matrix. This asymmetry is intentional; consolidating either direction would force the wrong shape on the side that doesn't want it.
 
@@ -448,6 +448,9 @@ on:
 
 jobs:
   release:
+    # A reusable workflow can't elevate above the caller's token; grant the GitHub Release scope here.
+    permissions:
+      contents: write
     uses: ahegyes/wordpress-configs/.github/workflows/reusable-release.yml@trunk
     with:
       plugin-slug: your-plugin-slug
@@ -455,6 +458,8 @@ jobs:
       SVN_USERNAME: ${{ secrets.WP_ORG_SVN_USERNAME }}
       SVN_PASSWORD: ${{ secrets.WP_ORG_SVN_PASSWORD }}
 ```
+
+Store `SVN_USERNAME` / `SVN_PASSWORD` as `wp-org-release` **environment** secrets in your plugin repo so they are scoped to the gated deploy job rather than exposed repo-wide.
 
 ## Typical Composer Scripts
 

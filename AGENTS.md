@@ -40,7 +40,9 @@ wordpress-configs/
 8 reusable workflows in `.github/workflows/reusable-*.yml` (`workflow_call` only):
 `reusable-block-json-check`, `reusable-scripts-styles-lint`, `reusable-php-lint`, `reusable-php-syntax-check`, `reusable-phpunit`, `reusable-playwright-e2e`, `reusable-supply-chain-audit`, `reusable-release`.
 
-Plus 5 self-running for this repo's own CI: `codeql`, `tests`, `tests-mutation`, `quality`, `workflow-checks`. `quality` reuses this repo's own `reusable-php-lint.yml` (phpcs, phpstan, and composer-require-checker as parallel jobs) plus lint:scripts. `workflow-checks` runs actionlint (workflow YAML correctness) + zizmor (workflow security, SARIF → Security tab) on workflow changes.
+Plus 5 self-running for this repo's own CI: `codeql`, `tests`, `tests-mutation`, `quality`, `workflow-checks`. `quality` dogfoods this repo's own reusables — `reusable-php-lint` (phpcs, phpstan, composer-require-checker as parallel jobs), `reusable-php-syntax-check` (scoped to `php/`, since `tests/fixtures/` carries intentional `php -l` redeclaration failures), `reusable-supply-chain-audit`, and `reusable-scripts-styles-lint` (lint:scripts; styles disabled). `workflow-checks` runs actionlint (workflow YAML correctness) + zizmor (workflow security; uploads SARIF → Security tab and fails the job on findings) on workflow changes.
+
+Dogfooding scope: `reusable-php-lint`, `reusable-scripts-styles-lint`, `reusable-supply-chain-audit`, and `reusable-php-syntax-check` are run against this repo in self-CI. The other four — `reusable-block-json-check`, `reusable-phpunit`, `reusable-playwright-e2e`, and `reusable-release` — are plugin-shaped with no meaningful target here, so they are validated by actionlint + zizmor static checks only, not behaviorally exercised.
 
 ## Conventions
 

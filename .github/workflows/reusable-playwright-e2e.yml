@@ -3,8 +3,8 @@ name: Playwright E2E
 on:
   workflow_call:
     inputs:
-      plugin-path:
-        description: 'Path to the plugin (relative to repo root)'
+      project-path:
+        description: 'Path to the project (relative to repo root)'
         type: string
         required: false
         default: '.'
@@ -33,7 +33,7 @@ on:
         required: false
         default: 'build'
       wp-env-config-file:
-        description: 'Path to a wp-env config file (relative to plugin-path). Leave empty to use the default .wp-env.json.'
+        description: 'Path to a wp-env config file (relative to project-path). Leave empty to use the default .wp-env.json.'
         type: string
         required: false
         default: ''
@@ -67,39 +67,53 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
           cache: 'npm'
-          cache-dependency-path: ${{ inputs.plugin-path }}/package-lock.json
+          cache-dependency-path: ${{ inputs.project-path }}/package-lock.json
 
       - name: Install Composer dependencies
         uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
         with:
-          working-directory: ${{ inputs.plugin-path }}
+          working-directory: ${{ inputs.project-path }}
           composer-options: ${{ inputs.composer-options }}
 
       - name: Install npm dependencies
-        working-directory: ${{ inputs.plugin-path }}
+        working-directory: ${{ inputs.project-path }}
         run: npm ci
 
       - name: Build assets
         if: inputs.build-script != ''
-        working-directory: ${{ inputs.plugin-path }}
+        working-directory: ${{ inputs.project-path }}
         env:
           BUILD_SCRIPT: ${{ inputs.build-script }}
         run: npm run "$BUILD_SCRIPT"
 
+      - name: Resolve Playwright version
+        id: playwright
+        working-directory: ${{ inputs.project-path }}
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
+
       - name: Install Playwright browsers
-        working-directory: ${{ inputs.plugin-path }}
+        working-directory: ${{ inputs.project-path }}
         run: npx playwright install --with-deps chromium
 
       - name: Start wp-env
-        working-directory: ${{ inputs.plugin-path }}
+        working-directory: ${{ inputs.project-path }}
         env:
-          WP_ENV_ARGS: ${{ inputs.wp-env-config-file != '' && format('--config {0}', inputs.wp-env-config-file) || '' }}
+          WP_ENV_CONFIG_FILE: ${{ inputs.wp-env-config-file }}
         run: |
-          # shellcheck disable=SC2086
-          npx --yes @wordpress/env $WP_ENV_ARGS start
+          args=()
+          if [ -n "$WP_ENV_CONFIG_FILE" ]; then
+            args+=(--config "$WP_ENV_CONFIG_FILE")
+          fi
+          npx --yes @wordpress/env@11.9.0 "${args[@]}" start
 
       - name: Run Playwright tests
-        working-directory: ${{ inputs.plugin-path }}
+        working-directory: ${{ inputs.project-path }}
         env:
           PLAYWRIGHT_SCRIPT: ${{ inputs.playwright-script }}
         run: npm run "$PLAYWRIGHT_SCRIPT"
@@ -109,14 +123,17 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: playwright-report-${{ inputs.plugin-slug }}
-          path: ${{ inputs.plugin-path }}/playwright-report
+          path: ${{ inputs.project-path }}/playwright-report
           retention-days: 7
 
       - name: Stop wp-env
         if: always()
-        working-directory: ${{ inputs.plugin-path }}
+        working-directory: ${{ inputs.project-path }}
         env:
-          WP_ENV_ARGS: ${{ inputs.wp-env-config-file != '' && format('--config {0}', inputs.wp-env-config-file) || '' }}
+          WP_ENV_CONFIG_FILE: ${{ inputs.wp-env-config-file }}
         run: |
-          # shellcheck disable=SC2086
-          npx --yes @wordpress/env $WP_ENV_ARGS stop
+          args=()
+          if [ -n "$WP_ENV_CONFIG_FILE" ]; then
+            args+=(--config "$WP_ENV_CONFIG_FILE")
+          fi
+          npx --yes @wordpress/env@11.9.0 "${args[@]}" stop

@@ -12,6 +12,10 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions: {}
 
 jobs:
@@ -42,6 +46,18 @@ jobs:
         with:
           persist-credentials: false
 
-      # Advanced Security mode: findings go to the Security tab, do not fail CI.
+      # Advanced Security mode uploads the SARIF but never fails the job, so the next step gates CI on the result count.
       - name: Run zizmor
+        id: zizmor
         uses: zizmorcore/zizmor-action@192e21d79ab29983730a13d1382995c2307fbcaa
+
+      - name: Fail on zizmor findings
+        env:
+          SARIF: ${{ steps.zizmor.outputs.output-file }}
+        run: |
+          count=$(jq '[.runs[]?.results[]?] | length' "$SARIF")
+          echo "zizmor reported $count finding(s)."
+          if [ "$count" -ne 0 ]; then
+            echo "::error::zizmor reported $count finding(s) — see the Security tab."
+            exit 1
+          fi
