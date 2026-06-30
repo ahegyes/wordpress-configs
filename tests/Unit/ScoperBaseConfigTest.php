@@ -72,6 +72,18 @@ final class ScoperBaseConfigTest extends TestCase {
 	}
 
 	#[Test]
+	public function throws_json_exception_when_scoping_exclusions_file_is_malformed(): void {
+		\file_put_contents(
+			$this->project_dir . '/scoping-exclusions.json',
+			'{ this is not valid json'
+		);
+
+		$this->expectException( \JsonException::class );
+
+		( $this->build_config )( array( 'project_dir' => $this->project_dir ) );
+	}
+
+	#[Test]
 	public function returns_empty_excludes_when_scoping_exclusions_file_is_missing(): void {
 		$config = ( $this->build_config )( array( 'project_dir' => $this->project_dir ) );
 

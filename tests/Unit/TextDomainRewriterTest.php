@@ -225,6 +225,16 @@ final class TextDomainRewriterTest extends TestCase {
 		( require self::WP_FRAMEWORK_PARTIAL )( $this->vendor_dir, $this->project_dir );
 	}
 
+	#[Test]
+	public function throws_on_malformed_composer_json(): void {
+		$this->installFrameworkPackage();
+		\file_put_contents( $this->project_dir . '/composer.json', '{ "extra": { not valid json' );
+
+		$this->expectException( \JsonException::class );
+
+		( require self::WP_FRAMEWORK_PARTIAL )( $this->vendor_dir, $this->project_dir );
+	}
+
 	private function installFrameworkPackage(): void {
 		\mkdir( $this->vendor_dir . '/ahegyes/wp-framework-core', 0755, true );
 	}

@@ -156,20 +156,52 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 	#[Test]
 	public function post_autoload_dump_skips_in_non_dev_mode(): void {
+		// The skip's observable effect is that no scoped autoload is generated — the wording of the
+		// informational message is incidental. php-scoper is installed and the scope script is wired,
+		// so non-dev mode is the sole reason nothing is produced; in dev mode this same setup writes
+		// dependencies/scoper-autoload.php (see post_autoload_dump_runs_scope_script_...).
+		$this->installFakePhpScoper();
+		\mkdir( $this->project_dir . '/dependencies', 0755, true );
+		$this->writeComposerJson(
+			array(
+				'scripts' => array( 'scope-php-dependencies' => self::class . '::succeedingScopeScript' ),
+				'extra'   => array(
+					'scoped-dependencies-dir' => 'dependencies',
+					'scoping-prefix'          => 'MyPlugin\\Scoped',
+				),
+			)
+		);
+
 		$io = new BufferIO();
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( $io, devMode: false ) );
 
-		ScopePhpDependencies::postAutoloadDump( $this->event( devMode: false, io: $io ) );
-
-		self::assertStringContainsString( 'not a development environment', $io->getOutput() );
+		self::assertFileDoesNotExist( $this->project_dir . '/dependencies/scoper-autoload.php' );
+		// A skip must surface a notice to the developer; the exact wording is incidental, but some output is required.
+		self::assertNotSame( '', $io->getOutput() );
 	}
 
 	#[Test]
 	public function post_autoload_dump_skips_when_php_scoper_is_not_installed(): void {
+		// No fake php-scoper installed: the skip's observable effect is that no scoped autoload is
+		// generated, independent of the message wording. Everything else is wired to succeed in dev
+		// mode, so the missing php-scoper binary is the sole reason nothing is produced.
+		\mkdir( $this->project_dir . '/dependencies', 0755, true );
+		$this->writeComposerJson(
+			array(
+				'scripts' => array( 'scope-php-dependencies' => self::class . '::succeedingScopeScript' ),
+				'extra'   => array(
+					'scoped-dependencies-dir' => 'dependencies',
+					'scoping-prefix'          => 'MyPlugin\\Scoped',
+				),
+			)
+		);
+
 		$io = new BufferIO();
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( $io ) );
 
-		ScopePhpDependencies::postAutoloadDump( $this->event( io: $io ) );
-
-		self::assertStringContainsString( 'PHP scoper is not installed', $io->getOutput() );
+		self::assertFileDoesNotExist( $this->project_dir . '/dependencies/scoper-autoload.php' );
+		// A skip must surface a notice to the developer; the exact wording is incidental, but some output is required.
+		self::assertNotSame( '', $io->getOutput() );
 	}
 
 	#[Test]
@@ -365,12 +397,12 @@ final class ScopePhpDependenciesTest extends TestCase {
 	 * COMPOSER env var is set in setUp), so postAutoloadDump's `dispatchScript` path — including a
 	 * PHP-callback script — runs against a fully-wired Composer.
 	 */
-	private function factoryEvent( BufferIO $io ): Event {
+	private function factoryEvent( BufferIO $io, bool $devMode = true ): Event {
 		// Pass the fixture composer.json explicitly so Composer's base dir is the temp project — its
 		// `vendor-dir` then resolves to this test's vendor/ (the fake php-scoper), not the repo's.
 		$composer = \Composer\Factory::create( $io, $this->project_dir . '/composer.json', true );
 
-		return new Event( 'post-autoload-dump', $composer, $io, true );
+		return new Event( 'post-autoload-dump', $composer, $io, $devMode );
 	}
 
 	/** Scope-script stub that signals failure (Composer maps a `false` return to a non-zero code). */
