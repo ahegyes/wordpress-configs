@@ -22,6 +22,16 @@ import wordpress from '@wordpress/eslint-plugin';
 
 export default [
 	...wordpress.configs.recommended,
+	// The plugin ships its test rules as separate presets; scope them to the DWS test layout
+	// so Jest globals and Playwright-specific rules apply where those files actually live.
+	...wordpress.configs['test-unit'].map((config) => ({
+		...config,
+		files: ['**/test/**', '**/*.test.*'],
+	})),
+	...wordpress.configs['test-playwright'].map((config) => ({
+		...config,
+		files: ['tests/e2e/**'],
+	})),
 	{
 		rules: {
 			'no-console': ['warn', { allow: ['warn', 'error'] }],

@@ -324,7 +324,7 @@ return $build_config( array(
 
 Shared baseline configurations for Node-ecosystem tooling — one central config per tool, extended and tweaked per project (the same central-defaults-plus-overrides pattern `@wordpress/scripts` itself uses). Live in `node/` (parallel to `php/`). Plugins extend each via `extends`-style composition.
 
-The baselines assume the consuming plugin has installed `@wordpress/scripts` (which transitively brings `@wordpress/eslint-plugin`, `@wordpress/stylelint-config`, `@playwright/test`, etc.) — the standard modern WP plugin stack.
+The baselines assume the consuming plugin has installed `@wordpress/scripts` — the standard modern WP plugin stack. It brings `@wordpress/eslint-plugin` and `@wordpress/stylelint-config` transitively and declares `@playwright/test` as a peer dependency (npm installs peers automatically; stricter package managers may need it declared explicitly).
 
 The bare `@ahegyes/wordpress-configs/node/...` require resolves through `node_modules`, not `vendor/`, so the package must also be installed on the npm side — a git devDependency pinned to a commit SHA:
 
@@ -338,7 +338,7 @@ The bare `@ahegyes/wordpress-configs/node/...` require resolves through `node_mo
 
 #### TypeScript
 
-`node/tsconfig.base.json` — modern TS base targeting ES2022 with `bundler` module resolution (matches `@wordpress/scripts`). Strict mode on, `react-jsx` for blocks.
+`node/tsconfig.base.json` — assumes TypeScript 6+ and states only deltas from its defaults (which already provide strict mode, `bundler` resolution, and a latest-ES target that floats with the compiler): `react-jsx` for blocks plus a few extra checks (`noImplicitReturns`, `noFallthroughCasesInSwitch`, `isolatedModules`, `noEmit`).
 
 Create a `tsconfig.json` in your project:
 
@@ -352,7 +352,7 @@ Create a `tsconfig.json` in your project:
 
 #### ESLint
 
-`node/eslint.config.base.mjs` — flat-config wrapping `@wordpress/eslint-plugin`'s recommended preset plus DWS defaults. Requires `@wordpress/eslint-plugin` v25+ and ESLint v9+.
+`node/eslint.config.base.mjs` — flat-config wrapping `@wordpress/eslint-plugin`'s recommended preset plus DWS defaults, with the plugin's `test-unit` / `test-playwright` presets scoped to the DWS test layout (`**/test/**`, `tests/e2e/**`). Requires `@wordpress/eslint-plugin` v25+ and ESLint v9+ (the flat format is the only one ESLint v10 supports).
 
 Create an `eslint.config.mjs` in your project:
 
@@ -371,7 +371,7 @@ export default [
 
 #### Stylelint
 
-`node/stylelint.config.base.js` — extends `@wordpress/stylelint-config/scss` with DWS defaults.
+`node/stylelint.config.base.js` — extends `@wordpress/stylelint-config/scss` with DWS defaults. Declare `ignoreFiles` in your own config (or `.stylelintignore`) — Stylelint resolves those globs against the declaring config file's directory, so a shared base cannot carry them.
 
 Create a `stylelint.config.js` in your project:
 
@@ -399,7 +399,11 @@ const baseConfig = require('@ahegyes/wordpress-configs/node/playwright.config.ba
 
 module.exports = defineConfig({
     ...baseConfig,
-    // Plugin-specific overrides go here.
+    use: {
+        ...baseConfig.use,
+        // Plugin-specific overrides go here — spread nested keys (use, webServer,
+        // projects) individually, or the top-level spread drops the WP defaults.
+    },
 });
 ```
 

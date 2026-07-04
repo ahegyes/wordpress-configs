@@ -1,21 +1,15 @@
 {
 	"$schema": "https://json.schemastore.org/tsconfig",
+	// Assumes TypeScript 6+, whose defaults already provide strict mode, module "esnext",
+	// moduleResolution "bundler", esModuleInterop, and a latest-ES target/lib that floats
+	// with the compiler. Only deltas from those defaults live here.
 	"compilerOptions": {
-		"target": "ES2022",
-		"module": "ESNext",
-		"moduleResolution": "bundler",
-		"lib": ["ES2022", "DOM", "DOM.Iterable"],
-
 		"jsx": "react-jsx",
 
-		"strict": true,
 		"noImplicitReturns": true,
 		"noFallthroughCasesInSwitch": true,
 
 		"skipLibCheck": true,
-		"esModuleInterop": true,
-		"allowSyntheticDefaultImports": true,
-		"forceConsistentCasingInFileNames": true,
 		"isolatedModules": true,
 		"resolveJsonModule": true,
 

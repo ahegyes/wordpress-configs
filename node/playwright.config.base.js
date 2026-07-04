@@ -5,14 +5,20 @@
  * Playwright config from @wordpress/scripts), adjusting `testDir` to match
  * DWS plugin layout (`tests/e2e/`).
  *
- * Plugins extend this in their own `playwright.config.js`:
+ * Plugins extend this in their own `playwright.config.js`. Nested keys
+ * (`use`, `webServer`, `projects`) must be spread individually — a top-level
+ * spread replaces the whole nested object and drops the inherited WP defaults
+ * (storage state, tracing, screenshots, viewport):
  *
  *     const { defineConfig } = require('@playwright/test');
  *     const baseConfig = require('@ahegyes/wordpress-configs/node/playwright.config.base.js');
  *
  *     module.exports = defineConfig({
  *         ...baseConfig,
- *         // Plugin-specific overrides go here.
+ *         use: {
+ *             ...baseConfig.use,
+ *             // Plugin-specific overrides go here.
+ *         },
  *     });
  *
  * For test fixtures (admin login, editor utilities, etc.) import from
