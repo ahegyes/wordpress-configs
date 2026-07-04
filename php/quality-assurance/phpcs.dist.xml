@@ -80,6 +80,30 @@
 	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
 		<exclude-pattern>*/tests/*</exclude-pattern>
 	</rule>
+	<rule ref="Generic.CodeAnalysis.UnusedFunctionParameter">
+		<!-- Test doubles and recorders must match the signature they stand in for. -->
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="Generic.Files.OneObjectStructurePerFile">
+		<!-- Fixture classes co-locate with the test that owns them. -->
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.Security.EscapeOutput.ExceptionNotEscaped">
+		<!-- Test and smoke-script exceptions surface in CLI output, not HTML. -->
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.NamingConventions.ValidHookName.UseUnderscores">
+		<!-- Tests fire deliberately malformed hook names at validators. -->
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.WP.AlternativeFunctions">
+		<!-- Unit/fixture code runs without WordPress, so WP_Filesystem does not exist. -->
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.PHP.DevelopmentFunctions">
+		<!-- Smoke fixtures trap warnings via set_error_handler and dump diagnostics on failure. -->
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
 
 	<!-- Disabled rules. -->
 	<rule ref="PSR12.Files.FileHeader.IncorrectOrder">
