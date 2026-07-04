@@ -1,4 +1,0 @@
-{
-	"extends": "../../../node/tsconfig.base.json",
-	"files": ["probe.ts"]
-}

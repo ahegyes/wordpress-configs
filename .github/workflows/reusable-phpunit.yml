@@ -38,6 +38,11 @@ on:
         type: string
         required: false
         default: ''
+      wp-env-xdebug:
+        description: 'Value for wp-env start --xdebug=<mode>; e.g. ''coverage'' for in-container coverage drivers. Leave empty to start without Xdebug.'
+        type: string
+        required: false
+        default: ''
       needs-wp-env:
         description: 'Set false for unit-only suites that do not need a WordPress runtime. Skips npm ci, wp-env start, and wp-env stop steps.'
         type: boolean
@@ -47,17 +52,21 @@ on:
 permissions:
   contents: read
 
+env:
+  # Single-sourced here because npx-inline versions are invisible to dependabot.
+  WP_ENV_VERSION: '11.9.0'
+
 jobs:
   phpunit:
     name: PHPUnit (PHP ${{ inputs.php-version }} / WP ${{ inputs.wp-env-core != '' && inputs.wp-env-core || inputs.wp-version != '' && inputs.wp-version || (inputs.needs-wp-env && 'consumer-default' || 'no-wp-env') }})
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: ${{ inputs.php-version }}
           coverage: none
@@ -65,14 +74,14 @@ jobs:
 
       - name: Setup Node.js (for wp-env)
         if: ${{ inputs.needs-wp-env }}
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: ${{ inputs.node-version }}
           cache: 'npm'
           cache-dependency-path: ${{ inputs.project-path }}/package-lock.json
 
       - name: Install Composer dependencies
-        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
         with:
           working-directory: ${{ inputs.project-path }}
           composer-options: '--prefer-dist --ignore-platform-reqs'
@@ -91,12 +100,16 @@ jobs:
           # config file `core` setting.
           WP_ENV_CORE: ${{ inputs.wp-env-core != '' && inputs.wp-env-core || (inputs.wp-version != '' && format('WordPress/WordPress#tags/{0}', inputs.wp-version)) || '' }}
           WP_ENV_CONFIG_FILE: ${{ inputs.wp-env-config-file }}
+          WP_ENV_XDEBUG: ${{ inputs.wp-env-xdebug }}
         run: |
           args=()
           if [ -n "$WP_ENV_CONFIG_FILE" ]; then
             args+=(--config "$WP_ENV_CONFIG_FILE")
           fi
-          npx --yes @wordpress/env@11.9.0 "${args[@]}" start
+          if [ -n "$WP_ENV_XDEBUG" ]; then
+            args+=(--xdebug="$WP_ENV_XDEBUG")
+          fi
+          npx --yes @wordpress/env@"$WP_ENV_VERSION" "${args[@]}" start
 
       - name: Run tests
         working-directory: ${{ inputs.project-path }}
@@ -114,4 +127,4 @@ jobs:
           if [ -n "$WP_ENV_CONFIG_FILE" ]; then
             args+=(--config "$WP_ENV_CONFIG_FILE")
           fi
-          npx --yes @wordpress/env@11.9.0 "${args[@]}" stop
+          npx --yes @wordpress/env@"$WP_ENV_VERSION" "${args[@]}" stop

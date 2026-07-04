@@ -56,7 +56,6 @@
   },
 
   "scripts": {
-    "generate-autoloader": "@composer dump-autoload --ignore-platform-reqs -o",
     "packages-install": "@composer install --ignore-platform-reqs --no-interaction",
     "packages-update": [
       "@composer clear-cache",
@@ -83,10 +82,6 @@
       "@test:mutation"
     ],
 
-    "quality-check": [
-      "@lint:php",
-      "@test"
-    ],
     "quality-check:all": [
       "@lint:php",
       "@test:all"

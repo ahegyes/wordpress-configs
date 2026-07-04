@@ -28,6 +28,10 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # Single-sourced here because npx-inline versions are invisible to dependabot.
+  WP_ENV_VERSION: '11.9.0'
+
 jobs:
   build:
     name: Build artifact
@@ -52,7 +56,7 @@ jobs:
           fi
           echo "VERSION=${REF_NAME#v}" >> "$GITHUB_ENV"
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
@@ -65,7 +69,7 @@ jobs:
           fi
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: ${{ inputs.php-version }}
           coverage: none
@@ -79,7 +83,7 @@ jobs:
       # Dev install on purpose: the scoping pipeline (php-scoper, the framework packages, the composer
       # script handlers) lives in require-dev and populates dependencies/ via post-autoload-dump.
       - name: Install Composer dependencies (dev — runs the scoping pipeline)
-        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
         with:
           working-directory: ${{ inputs.project-path }}
           composer-options: '--prefer-dist --ignore-platform-reqs'
@@ -169,7 +173,7 @@ jobs:
           exit "$status"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.plugin-slug }}-zip
           path: ${{ inputs.project-path }}/${{ inputs.plugin-slug }}.zip
@@ -190,12 +194,12 @@ jobs:
     # (wp-env merges mappings per-key, so co-mounted plugins, port, and lifecycle scripts survive).
     # Deploy reuses the same extracted tree (./built/<slug>/) — what gets tested is what gets pushed to SVN.
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
       - name: Download built artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ${{ inputs.plugin-slug }}-zip
           path: ./dist
@@ -206,7 +210,7 @@ jobs:
         run: unzip -q "./dist/$PLUGIN_SLUG.zip" -d ./built
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: ${{ inputs.php-version }}
           coverage: none
@@ -255,7 +259,7 @@ jobs:
 
       - name: Start wp-env
         working-directory: ${{ inputs.project-path }}
-        run: npx --yes @wordpress/env@11.9.0 start
+        run: npx --yes @wordpress/env@"$WP_ENV_VERSION" start
 
       - name: Assert the mounted plugin is the built artifact
         working-directory: ${{ inputs.project-path }}
@@ -265,7 +269,7 @@ jobs:
         run: |
           VERSION="${REF_NAME#v}"
           target="wp-content/plugins/$PLUGIN_SLUG"
-          run_cli() { npx --yes @wordpress/env@11.9.0 run cli "$@"; }
+          run_cli() { npx --yes @wordpress/env@"$WP_ENV_VERSION" run cli "$@"; }
           run_cli test -f "$target/dependencies/scoper-autoload.php"
           if run_cli test -f "$target/composer.json"; then
             echo "::error::Mounted plugin has composer.json — wp-env is serving the source tree, not the built zip."
@@ -310,7 +314,7 @@ jobs:
           fi
 
       - name: Deploy to wp.org
-        uses: 10up/action-wordpress-plugin-deploy@54bd289b8525fd23a5c365ec369185f2966529c2
+        uses: 10up/action-wordpress-plugin-deploy@54bd289b8525fd23a5c365ec369185f2966529c2 # 2.3.0
         with:
           generate-zip: false
           dry-run: false

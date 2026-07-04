@@ -6,7 +6,7 @@ A collection of shared configuration files for WordPress projects. Provides base
 
 - PHP 8.5+
 - Composer 2.x
-- Node 26+ / npm 11+ — for the Node baselines (`node/`) only; PHP-only consumers don't need them
+- Node 26+ / npm 11+ — for the Node Playwright baseline (`node/`) only; PHP-only consumers don't need it
 
 ## Installation
 
@@ -23,7 +23,7 @@ Add the VCS repository and require the package as a dev dependency:
 }
 ```
 
-Reusable CI workflows are referenced via `@trunk` directly from GitHub (see [Reusable CI Workflows](#reusable-ci-workflows) below).
+Reusable CI workflows are referenced directly from GitHub (see [Reusable CI Workflows](#reusable-ci-workflows) below). The DWS repos pin them to a commit SHA (dependabot proposes bumps); the examples in this README show `@trunk` for copy-paste brevity.
 
 ## What's Included
 
@@ -320,61 +320,20 @@ return $build_config( array(
 | `*.md`                      | Tabs         | — (trailing whitespace preserved)   |
 | `*.txt`                     | Tabs         | — (CRLF line endings)               |
 
-### Node Baselines
+### Node Baseline
 
-Shared baseline configurations for Node-ecosystem tooling. Live in `node/` (parallel to `php/`). Plugins extend each via `extends`-style composition.
+Shared baseline configuration for Node-ecosystem tooling. Lives in `node/` (parallel to `php/`). Plugins extend it via `extends`-style composition.
 
-The baselines assume the consuming plugin has installed `@wordpress/scripts` (which transitively brings `@wordpress/eslint-plugin`, `@wordpress/stylelint-config`, `@playwright/test`, etc.) — the standard modern WP plugin stack.
+The baseline assumes the consuming plugin has installed `@wordpress/scripts` (which transitively brings `@playwright/test`, etc.) — the standard modern WP plugin stack.
 
-#### TypeScript
-
-`node/tsconfig.base.json` — modern TS base targeting ES2022 with `bundler` module resolution (matches `@wordpress/scripts`). Strict mode on, `react-jsx` for blocks.
-
-Create a `tsconfig.json` in your project:
+The bare `@ahegyes/wordpress-configs/node/...` require resolves through `node_modules`, not `vendor/`, so the package must also be installed on the npm side — a git devDependency pinned to a commit SHA:
 
 ```json
 {
-    "extends": "./vendor/ahegyes/wordpress-configs/node/tsconfig.base.json",
-    "include": ["client/**/*"],
-    "exclude": ["assets/**", "node_modules/**", "vendor/**"]
+    "devDependencies": {
+        "@ahegyes/wordpress-configs": "git+https://github.com/ahegyes/wordpress-configs.git#<commit-sha>"
+    }
 }
-```
-
-#### ESLint
-
-`node/eslint.config.base.mjs` — flat-config wrapping `@wordpress/eslint-plugin`'s recommended preset plus DWS defaults. Requires `@wordpress/eslint-plugin` v25+ and ESLint v9+.
-
-Create an `eslint.config.mjs` in your project:
-
-```js
-import dwsBase from '@ahegyes/wordpress-configs/node/eslint.config.base.mjs';
-
-export default [
-    ...dwsBase,
-    {
-        rules: {
-            // Plugin-specific overrides go here.
-        },
-    },
-];
-```
-
-#### Stylelint
-
-`node/stylelint.config.base.js` — extends `@wordpress/stylelint-config/scss` with DWS defaults.
-
-Create a `stylelint.config.js` in your project:
-
-```js
-const dwsBase = require('@ahegyes/wordpress-configs/node/stylelint.config.base.js');
-
-module.exports = {
-    ...dwsBase,
-    rules: {
-        ...dwsBase.rules,
-        // Plugin-specific overrides go here.
-    },
-};
 ```
 
 #### Playwright
@@ -410,7 +369,7 @@ Net result: your bundled deps are scoped under your prefix, while declared-catal
 
 ## Reusable CI Workflows
 
-Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Plugins call them via `workflow_call` and compose them into their own pipelines. They only trigger on `workflow_call` — they don't run on pushes to this repo.
+Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Plugins call them via `workflow_call` and compose them into their own pipelines. They only trigger on `workflow_call` — this repo's own CI exercises `reusable-workflow-checks` and `reusable-codeql` through its `workflow-checks` / `codeql` thin callers. The DWS repos pin the reusables to a commit SHA (dependabot proposes bumps); the `@trunk` refs in the examples below are for copy-paste brevity.
 
 | Workflow                              | Purpose                                          | Key Inputs                                                   |
 |---------------------------------------|--------------------------------------------------|--------------------------------------------------------------|
@@ -422,6 +381,8 @@ Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Pl
 | `reusable-block-json-check.yml`       | Validates block.json against wp.org schema       | `project-path`, `node-version`                              |
 | `reusable-supply-chain-audit.yml`     | `composer audit` + `npm audit` (parallel jobs)   | `project-path`, `composer-audit`, `npm-audit`, plus `*-flags` |
 | `reusable-release.yml`                | Build → test built artifact → deploy to wp.org   | `plugin-slug`, `project-path`, `php-version` (no secrets)   |
+| `reusable-workflow-checks.yml`        | actionlint + zizmor with a blocking SARIF gate   | — (no inputs)                                                |
+| `reusable-codeql.yml`                 | CodeQL analysis across a language matrix         | `languages[]`                                                |
 
 Each workflow's `inputs:` block (every input carries a `description:`) is the authoritative reference for its full input set and defaults — the table lists only the commonly-set ones.
 
@@ -500,7 +461,7 @@ The workflow enforces two release contracts on the consumer:
 
 ## Typical Composer Scripts
 
-Add these to your project's `composer.json` for a consistent dev workflow:
+Add these to your project's `composer.json` for a consistent dev workflow. Composer and npm have no script-`extends`, so these blocks are deliberate copy-paste — keep the PHP/Node floors aligned with this repo when forking them:
 
 ```json
 {

@@ -1,0 +1,50 @@
+name: Workflow Checks
+
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  actionlint:
+    name: Actionlint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Run actionlint
+        uses: raven-actions/actionlint@205b530c5d9fa8f44ae9ed59f341a0db994aa6f8 # v2.1.2
+
+  zizmor:
+    name: Zizmor
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      # Advanced Security mode uploads the SARIF but never fails the job, so the next step gates CI on the result count.
+      - name: Run zizmor
+        id: zizmor
+        uses: zizmorcore/zizmor-action@192e21d79ab29983730a13d1382995c2307fbcaa # v0.5.7
+
+      - name: Fail on zizmor findings
+        env:
+          SARIF: ${{ steps.zizmor.outputs.output-file }}
+        run: |
+          count=$(jq '[.runs[]?.results[]?] | length' "$SARIF")
+          echo "zizmor reported $count finding(s)."
+          if [ "$count" -ne 0 ]; then
+            echo "::error::zizmor reported $count finding(s) — see the Security tab."
+            exit 1
+          fi

@@ -2,7 +2,7 @@
 
 Shared dev tooling — base configs, scoping helpers, reusable CI workflows — for the DWS WordPress framework + plugins. MIT license. Composer name `ahegyes/wordpress-configs`. NPM name `@ahegyes/wordpress-configs`. PHP namespace `DeepWebSolutions\Config\` (kept for continuity).
 
-Consumed via `"dev-trunk"` from all other DWS repos. **No version tags / no releases.** Latest fixes propagate immediately. Justification: low-risk dev tooling, single owner, breakage gets fixed on trunk. Reusable workflows referenced as `@trunk`.
+Composer consumption is `"dev-trunk"` from all other DWS repos. **No version tags / no releases.** Latest Composer-side fixes propagate immediately. Justification: low-risk dev tooling, single owner, breakage gets fixed on trunk. Reusable CI workflows are consumed at immutable SHA pins by the DWS repos (dependabot proposes bumps); `reusable-release.yml` alone is consumed `@trunk` (see SECURITY.md).
 
 Intentionally standalone — also consumable by non-plugin repos (themes, site builds, client work).
 
@@ -26,25 +26,22 @@ wordpress-configs/
 │       ├── ScopePhpDependencies.php # full pipeline: dispatches the consumer's scope-php-dependencies:raw with --output-dir derived from extra.scoped-dependencies-dir (single source; a stray --output-dir/-o flag throws), then regenerates the scoped autoload; every scope-php-dependencies listener must reference ScopePhpDependencies::run (a missing binding or a non-matching listener throws)
 │       └── GenerateScopedAutoload.php # emits dependencies/scoper-autoload.php from the scoped tree (nested <vendor>/<pkg>/ and flattened <pkg>/ layouts); throws when the scan finds no packages
 ├── node/
-│   ├── tsconfig.base.json
-│   ├── eslint.config.base.mjs
-│   ├── stylelint.config.base.js
 │   └── playwright.config.base.js
 ├── tests/                           # PHPUnit unit tests (tests/Unit/); fixtures in tests/fixtures/
 ├── phpcs.dist.xml                   # SELF-lint — extends shared with WP-runtime exclusions (this repo's PHP is Composer-time tooling)
 ├── phpstan.dist.neon                # SELF-lint — includes shared, declares `paths: [php, tests]`
 ├── composer-require-checker.json    # whitelists Composer\* + Symfony\Finder (provided by composer/composer in require-dev)
-└── .github/workflows/               # 8 reusable + 5 self-CI (codeql, tests, tests-mutation, quality, workflow-checks)
+└── .github/workflows/               # 10 reusable + 5 self-CI (codeql, tests, tests-mutation, quality, workflow-checks)
 ```
 
 ## Reusable CI workflows
 
-8 reusable workflows in `.github/workflows/reusable-*.yml` (`workflow_call` only):
-`reusable-block-json-check`, `reusable-scripts-styles-lint`, `reusable-php-lint`, `reusable-php-syntax-check`, `reusable-phpunit`, `reusable-playwright-e2e`, `reusable-supply-chain-audit`, `reusable-release`.
+10 reusable workflows in `.github/workflows/reusable-*.yml` (`workflow_call` only):
+`reusable-block-json-check`, `reusable-scripts-styles-lint`, `reusable-php-lint`, `reusable-php-syntax-check`, `reusable-phpunit`, `reusable-playwright-e2e`, `reusable-supply-chain-audit`, `reusable-release`, `reusable-workflow-checks`, `reusable-codeql`.
 
-Plus 5 self-running for this repo's own CI: `codeql`, `tests`, `tests-mutation`, `quality`, `workflow-checks`. `quality` dogfoods this repo's own reusables — `reusable-php-lint` (phpcs, phpstan, composer-require-checker as parallel jobs), `reusable-php-syntax-check` (scoped to `php/`, since `tests/fixtures/` carries intentional `php -l` redeclaration failures), `reusable-supply-chain-audit`, and `reusable-scripts-styles-lint` (lint:scripts; styles disabled). `workflow-checks` runs actionlint (workflow YAML correctness) + zizmor (workflow security; uploads SARIF → Security tab and fails the job on findings) on workflow changes.
+Plus 5 self-running for this repo's own CI: `codeql`, `tests`, `tests-mutation`, `quality`, `workflow-checks`. `quality` dogfoods this repo's own reusables — `reusable-php-lint` (phpcs, phpstan, composer-require-checker as parallel jobs), `reusable-php-syntax-check` (scoped to `php/`, since `tests/fixtures/` carries intentional `php -l` redeclaration failures), `reusable-supply-chain-audit`, and `reusable-scripts-styles-lint` (lint:scripts; styles disabled). `workflow-checks` and `codeql` are thin callers of `reusable-workflow-checks` (actionlint for workflow YAML correctness + zizmor for workflow security; uploads SARIF → Security tab and fails the job on findings) and `reusable-codeql` (this repo passes `languages: '["actions", "javascript-typescript"]'`).
 
-Dogfooding scope: `reusable-php-lint`, `reusable-scripts-styles-lint`, `reusable-supply-chain-audit`, and `reusable-php-syntax-check` are run against this repo in self-CI. The other four — `reusable-block-json-check`, `reusable-phpunit`, `reusable-playwright-e2e`, and `reusable-release` — are plugin-shaped with no meaningful target here, so they are validated by actionlint + zizmor static checks only, not behaviorally exercised.
+Dogfooding scope: `reusable-php-lint`, `reusable-scripts-styles-lint`, `reusable-supply-chain-audit`, `reusable-php-syntax-check`, `reusable-workflow-checks`, and `reusable-codeql` are run against this repo in self-CI. The other four — `reusable-block-json-check`, `reusable-phpunit`, `reusable-playwright-e2e`, and `reusable-release` — are plugin-shaped with no meaningful target here, so they are validated by actionlint + zizmor static checks only, not behaviorally exercised.
 
 ## Conventions
 
