@@ -37,7 +37,7 @@ jobs:
           composer-options: '--prefer-dist --ignore-platform-reqs'
 
       - name: Run Infection
-        run: composer test:mutation
+        run: composer test:unit:mutation
 
       - name: Upload Infection logs
         if: always()
