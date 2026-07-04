@@ -142,8 +142,8 @@ final class CollectScopingStubs {
 	 * Installed packages are third-party metadata the consumer cannot fix, so their malformed
 	 * declarations are skipped with a console warning. Composer's package list carries
 	 * path-repository packages (symlinked into vendor in monorepo dev) the same as
-	 * normally-installed ones, so a symlinked package that declares stubs is no longer
-	 * silently missed. The result is deduplicated and sorted so the downstream symbol union
+	 * normally-installed ones, so a symlinked package that declares stubs is included.
+	 * The result is deduplicated and sorted so the downstream symbol union
 	 * is order-independent.
 	 *
 	 * @param \Composer\Composer       $composer   Composer instance for the current run.
@@ -351,9 +351,6 @@ final class CollectScopingStubs {
 	 * an attacker who can set environment variables during a composer run cannot redirect
 	 * the write outside the project tree.
 	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
 	 * @param   string $project_dir Absolute path to the project root.
 	 * @param   string $vendor_dir  Absolute path to the composer vendor directory.
 	 *
@@ -385,9 +382,6 @@ final class CollectScopingStubs {
 	 *
 	 * `SCOPING_EXCLUSIONS_OUTPUT_FILE` is a filename, not a path — rejecting separators
 	 * prevents the env var from being used to escape the output directory via `../`.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
 	 *
 	 * @throws  \RuntimeException If the env-var-supplied value contains a path separator.
 	 *

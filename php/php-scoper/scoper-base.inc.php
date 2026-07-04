@@ -134,7 +134,7 @@ return static function ( array $overrides = array() ): array {
 			// `use \Foo;` and `use Prefix\Foo as Alias;` into `use \Foo as Alias;` — restoring
 			// the global import rather than deleting it, so unqualified body references resolve.
 			// (Grouped imports `use Prefix\{A, B};` tokenise the prefix separately and are left
-			// as-is, matching the prior patcher.)
+			// as-is.)
 			if ( ( T_NAME_FULLY_QUALIFIED === $id || T_NAME_QUALIFIED === $id ) && ! $in_namespace_decl ) {
 				$out .= $restore( $text ) ?? $text;
 				continue;

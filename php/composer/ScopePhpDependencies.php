@@ -113,9 +113,6 @@ final class ScopePhpDependencies {
 	 * directory match, while keeping the `dir/` boundary so `dependencies-foo/` is not mistaken for
 	 * `dependencies/`.
 	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
 	 * @param   string $path                  Autoload entry from `composer.json`.
 	 * @param   string $scoped_dir_normalised Scoped-dependencies-dir, forward-slashed, no trailing slash.
 	 *
@@ -131,9 +128,6 @@ final class ScopePhpDependencies {
 	 * Forward-slashes a path and strips a single leading `./`, so the scoped dir and the autoload
 	 * entries are compared on the same footing whichever spelling composer.json uses.
 	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
 	 * @param   string $path Path to normalise.
 	 *
 	 * @return  string
@@ -146,9 +140,6 @@ final class ScopePhpDependencies {
 
 	/**
 	 * Rejects autoload entries that escape the project root via absolute paths or parent-directory traversal.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
 	 *
 	 * @param   string $path Autoload entry from `composer.json`.
 	 *
@@ -214,9 +205,6 @@ final class ScopePhpDependencies {
 	 * scoping run never leaves the generated autoload stale. Unlike the post-autoload-dump
 	 * hook, an explicit invocation fails loudly when scoping cannot run at all.
 	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
 	 * @param   Event $event  Composer event object.
 	 *
 	 * @throws  \RuntimeException  If php-scoper is not installed, the scoping configuration is inconsistent, the raw scoper script fails, or scoped-autoload generation fails.
@@ -236,9 +224,6 @@ final class ScopePhpDependencies {
 	/**
 	 * Executes the scoping pipeline: validates the single-source contract, dispatches the raw
 	 * scoper script with the derived `--output-dir`, then regenerates the scoped autoload.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
 	 *
 	 * @param   Event                       $event      Composer event object.
 	 * @param   array<string, list<string>> $scripts    Root-package scripts, listeners normalised to lists.
@@ -332,9 +317,6 @@ final class ScopePhpDependencies {
 	 * name. There it would run WITHOUT the autoload regeneration on a manual invocation —
 	 * exactly the stale-scoper-autoload trap the split into a raw script exists to close.
 	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
 	 * @param   array<string, list<string>> $scripts Root-package scripts, listeners normalised to lists.
 	 *
 	 * @throws  \RuntimeException If a `scope-php-dependencies` listener is a php-scoper invocation.
@@ -361,9 +343,6 @@ final class ScopePhpDependencies {
 	 * positive half of the public-script contract. A missing binding, an alias onto the raw
 	 * script, or any other wrapper would let a manual `composer scope-php-dependencies` scope
 	 * without regenerating the scoped autoload.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
 	 *
 	 * @param   array<string, list<string>> $scripts Root-package scripts, listeners normalised to lists.
 	 *
@@ -397,9 +376,6 @@ final class ScopePhpDependencies {
 	/**
 	 * Returns the root package's scripts with each script's listeners normalised to a list.
 	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
 	 * @param   Event $event Composer event object.
 	 *
 	 * @return  array<string, list<string>>
@@ -416,9 +392,6 @@ final class ScopePhpDependencies {
 	/**
 	 * Returns the root package's `extra` metadata.
 	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
 	 * @param   Event $event Composer event object.
 	 *
 	 * @return  array<array-key, mixed>
@@ -431,9 +404,6 @@ final class ScopePhpDependencies {
 	 * Resolves `extra.scoped-dependencies-dir` to a validated project-relative path, or null
 	 * when absent/empty. Confinement mirrors every other path in this class — the scoped
 	 * output must not escape the project via an absolute path or `..`.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
 	 *
 	 * @param   Event $event Composer event object.
 	 *

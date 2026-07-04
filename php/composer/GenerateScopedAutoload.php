@@ -24,9 +24,6 @@ final class GenerateScopedAutoload {
 	 * for their (already-prefixed) class declarations and emitted via `addClassMap`;
 	 * a class-free classmap (a functions-only package) contributes nothing.
 	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
 	 * @param   string $dependencies_dir Absolute path to the php-scoper output dir (typically `<project>/dependencies`).
 	 * @param   string $prefix           Scoping prefix passed to php-scoper (e.g. `DeepWebSolutions\\InternalComments\\Scoped`).
 	 *
@@ -218,9 +215,6 @@ final class GenerateScopedAutoload {
 	 * and break byte-identical regeneration. `autoload.exclude-from-classmap` is rejected upstream
 	 * in generate() — the generator does not apply exclusion globs, so it fails loud rather than
 	 * register an excluded class.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
 	 *
 	 * @param   list<string> $scan_roots       Absolute classmap directories or files inside scoped packages.
 	 * @param   string       $dependencies_dir Absolute path to the scoped output directory the paths are relative to.

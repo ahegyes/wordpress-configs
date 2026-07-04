@@ -53,6 +53,6 @@ Dogfooding scope: `reusable-php-lint`, `reusable-scripts-styles-lint`, `reusable
 - `lint:php` chains 3 tools: `phpcs` + `phpstan` + `composer-require-checker`. Symbols used from transitive deps are whitelisted in `composer-require-checker.json`, not added to `require`.
 - `--ignore-platform-reqs` is applied to every Composer install/update — the composer scripts, this repo's CI, and the reusable workflows. Platform compatibility is a runtime concern the consuming plugin/theme gates via its version headers (graceful degradation), not a Composer hard-exit at install time.
 - Self-lint is `phpcs.dist.xml` at root (extends shared with WP-runtime sniff exclusions for this repo's tooling code) — NOT the consumer-facing `php/quality-assurance/phpcs.dist.xml`.
-- The php-scoper patcher in `scoper-base.inc.php` is token-aware — comments containing the prefix pattern are preserved verbatim. Boundary-safe (uses `preg_replace` with negative lookahead) so `Foo` excluded ≠ `FooBar` over-caught.
+- The php-scoper patcher in `scoper-base.inc.php` is token-aware — comments containing the prefix pattern are preserved verbatim. Boundary-safe: the token-based restorer (`token_get_all` walk) accepts a name only when the post-prefix remainder exactly matches an excluded symbol, so `Foo` excluded ≠ `FooBar` over-caught.
 - `CollectScopingStubs` writes the exclusion JSON via temp-file + `rename` (atomic on same filesystem) so a concurrent reader can't observe a partial write.
 - Tests use real `Composer\Composer` instances (not mocks).
