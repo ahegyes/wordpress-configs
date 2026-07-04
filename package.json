@@ -1,7 +1,7 @@
 {
     "name": "@ahegyes/wordpress-configs",
     "private": true,
-    "description": "Shared baseline configuration for Node-ecosystem tooling used by DWS WordPress plugins.",
+    "description": "Shared baseline configurations for Node-ecosystem tooling used by DWS WordPress plugins.",
     "license": "MIT",
     "repository": {
         "type": "git",
@@ -14,7 +14,9 @@
     },
     "devDependencies": {
         "@wordpress/e2e-test-utils-playwright": "^1.49.0",
-        "@wordpress/scripts": "^32.5.0"
+        "@wordpress/eslint-plugin": "^25.5.0",
+        "@wordpress/scripts": "^32.5.0",
+        "@wordpress/stylelint-config": "^23.41.0"
     },
     "scripts": {
         "packages-install:all": "composer packages-install && npm run packages-install",
@@ -28,7 +30,7 @@
         "format:all": "composer format:php && npm run format:scripts",
 
         "lint:scripts": "wp-scripts lint-js ./node --no-error-on-unmatched-pattern",
-        "lint:config": "node -e \"require('./node/playwright.config.base.js')\"",
+        "lint:config": "node -e \"import('./node/eslint.config.base.mjs').then((m) => { if (!Array.isArray(m.default) || 0 === m.default.length) { throw new Error('eslint base did not export a flat-config array'); } }).catch((e) => { console.error(e); process.exit(1); })\" && stylelint --print-config tests/fixtures/node-config/probe.css --config node/stylelint.config.base.js > /dev/null && tsc --noEmit -p tests/fixtures/node-config/tsconfig.json && node -e \"require('./node/playwright.config.base.js')\"",
         "lint:all": "composer lint:php && npm run lint:scripts && npm run lint:config",
 
         "audit": "composer audit && npm audit",

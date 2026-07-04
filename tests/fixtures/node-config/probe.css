@@ -1,0 +1,4 @@
+/* Smoke fixture: a target path for `stylelint --print-config` to resolve the base config against. */
+.dws-config-smoke {
+	display: block;
+}

@@ -6,7 +6,7 @@ A collection of shared configuration files for WordPress projects. Provides base
 
 - PHP 8.5+
 - Composer 2.x
-- Node 26+ / npm 11+ — for the Node Playwright baseline (`node/`) only; PHP-only consumers don't need it
+- Node 26+ / npm 11+ — for the Node baselines (`node/`) only; PHP-only consumers don't need them
 
 ## Installation
 
@@ -320,11 +320,11 @@ return $build_config( array(
 | `*.md`                      | Tabs         | — (trailing whitespace preserved)   |
 | `*.txt`                     | Tabs         | — (CRLF line endings)               |
 
-### Node Baseline
+### Node Baselines
 
-Shared baseline configuration for Node-ecosystem tooling. Lives in `node/` (parallel to `php/`). Plugins extend it via `extends`-style composition.
+Shared baseline configurations for Node-ecosystem tooling — one central config per tool, extended and tweaked per project (the same central-defaults-plus-overrides pattern `@wordpress/scripts` itself uses). Live in `node/` (parallel to `php/`). Plugins extend each via `extends`-style composition.
 
-The baseline assumes the consuming plugin has installed `@wordpress/scripts` (which transitively brings `@playwright/test`, etc.) — the standard modern WP plugin stack.
+The baselines assume the consuming plugin has installed `@wordpress/scripts` (which transitively brings `@wordpress/eslint-plugin`, `@wordpress/stylelint-config`, `@playwright/test`, etc.) — the standard modern WP plugin stack.
 
 The bare `@ahegyes/wordpress-configs/node/...` require resolves through `node_modules`, not `vendor/`, so the package must also be installed on the npm side — a git devDependency pinned to a commit SHA:
 
@@ -334,6 +334,57 @@ The bare `@ahegyes/wordpress-configs/node/...` require resolves through `node_mo
         "@ahegyes/wordpress-configs": "git+https://github.com/ahegyes/wordpress-configs.git#<commit-sha>"
     }
 }
+```
+
+#### TypeScript
+
+`node/tsconfig.base.json` — modern TS base targeting ES2022 with `bundler` module resolution (matches `@wordpress/scripts`). Strict mode on, `react-jsx` for blocks.
+
+Create a `tsconfig.json` in your project:
+
+```json
+{
+    "extends": "@ahegyes/wordpress-configs/node/tsconfig.base.json",
+    "include": ["client/**/*"],
+    "exclude": ["assets/**", "node_modules/**", "vendor/**"]
+}
+```
+
+#### ESLint
+
+`node/eslint.config.base.mjs` — flat-config wrapping `@wordpress/eslint-plugin`'s recommended preset plus DWS defaults. Requires `@wordpress/eslint-plugin` v25+ and ESLint v9+.
+
+Create an `eslint.config.mjs` in your project:
+
+```js
+import dwsBase from '@ahegyes/wordpress-configs/node/eslint.config.base.mjs';
+
+export default [
+    ...dwsBase,
+    {
+        rules: {
+            // Plugin-specific overrides go here.
+        },
+    },
+];
+```
+
+#### Stylelint
+
+`node/stylelint.config.base.js` — extends `@wordpress/stylelint-config/scss` with DWS defaults.
+
+Create a `stylelint.config.js` in your project:
+
+```js
+const dwsBase = require('@ahegyes/wordpress-configs/node/stylelint.config.base.js');
+
+module.exports = {
+    ...dwsBase,
+    rules: {
+        ...dwsBase.rules,
+        // Plugin-specific overrides go here.
+    },
+};
 ```
 
 #### Playwright

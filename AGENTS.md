@@ -26,6 +26,9 @@ wordpress-configs/
 │       ├── ScopePhpDependencies.php # full pipeline: dispatches the consumer's scope-php-dependencies:raw with --output-dir derived from extra.scoped-dependencies-dir (single source; a stray --output-dir/-o flag throws), then regenerates the scoped autoload; every scope-php-dependencies listener must reference ScopePhpDependencies::run (a missing binding or a non-matching listener throws)
 │       └── GenerateScopedAutoload.php # emits dependencies/scoper-autoload.php from the scoped tree (nested <vendor>/<pkg>/ and flattened <pkg>/ layouts); throws when the scan finds no packages
 ├── node/
+│   ├── tsconfig.base.json
+│   ├── eslint.config.base.mjs
+│   ├── stylelint.config.base.js
 │   └── playwright.config.base.js
 ├── tests/                           # PHPUnit unit tests (tests/Unit/); fixtures in tests/fixtures/
 ├── phpcs.dist.xml                   # SELF-lint — extends shared with WP-runtime exclusions (this repo's PHP is Composer-time tooling)

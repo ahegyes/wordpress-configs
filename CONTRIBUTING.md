@@ -26,7 +26,7 @@ CI (`quality.yml`) runs more than `composer test`. Mirror it locally:
 composer lint:php        # phpcs + phpstan + composer-require-checker
 composer test            # unit suite
 npm run lint:scripts     # ESLint over node/
-npm run lint:config      # load-check the playwright baseline
+npm run lint:config      # load-check the eslint / stylelint / tsconfig / playwright baselines
 ```
 
 The scoping pipeline (`CollectScopingStubs` → `ScopePhpDependencies` → `scoper-base.inc.php` → autoload generator) only runs in a *consumer's* dev install; this repo tests each piece in isolation, so there's no build step to run here.

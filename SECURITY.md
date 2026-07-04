@@ -20,7 +20,7 @@ In scope:
 - Vulnerabilities in the Composer scripts (`CollectScopingStubs`, `ScopePhpDependencies`) — particularly path-traversal or arbitrary-file-read in stub catalog resolution.
 - Vulnerabilities in the php-scoper base config (`scoper-base.inc.php`, `contrib/*.inc.php`) — e.g., unsafe finder / exclude-file handling, or prefix-stripping that leaves symbols incorrectly scoped.
 - Vulnerabilities in the reusable GitHub Actions workflows (`reusable-*.yml`) — particularly script injection via PR-controlled inputs or unpinned third-party action references that could compromise consuming repositories.
-- Vulnerabilities in the Node config (the Playwright base).
+- Vulnerabilities in the Node configs (eslint/stylelint/playwright/tsconfig bases).
 
 Out of scope:
 - Vulnerabilities in WordPress core, third-party Composer dependencies, or third-party GitHub Actions — report those to their respective maintainers.
