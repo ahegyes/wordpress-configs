@@ -371,7 +371,7 @@ export default [
 
 #### Stylelint
 
-`node/stylelint.config.base.js` — extends `@wordpress/stylelint-config/scss` with DWS defaults. Declare `ignoreFiles` in your own config (or `.stylelintignore`) — Stylelint resolves those globs against the declaring config file's directory, so a shared base cannot carry them.
+`node/stylelint.config.base.js` — extends `@wordpress/stylelint-config/scss` with DWS defaults, including `ignoreFiles` for generated/vendored trees. The ignores take effect through the spread pattern shown below (the globs land in your config and resolve against your project); if you load the base via `extends` instead, they are inert — declare your own or use `.stylelintignore`.
 
 Create a `stylelint.config.js` in your project:
 

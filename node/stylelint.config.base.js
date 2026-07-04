@@ -12,12 +12,21 @@
  * Composes the @wordpress/stylelint-config preset (which itself extends
  * stylelint-config-recommended-scss) with sensible defaults for DWS plugins.
  *
- * No `ignoreFiles` here: Stylelint resolves those globs against the directory
- * of the config file that declares them — from a shared base that means inside
- * node_modules, never the consumer's tree. Declare ignores in the consuming
- * plugin's own config (or `.stylelintignore`).
+ * The `ignoreFiles` defaults take effect through the spread pattern above: the
+ * globs land in the consumer's own config and resolve against the consumer's
+ * project. Loading this file via `extends` instead leaves them inert —
+ * Stylelint resolves an extended config's `ignoreFiles` against the directory
+ * of the file that declares them, which under `extends` is inside
+ * node_modules. Spread, or declare your own.
  */
 
 module.exports = {
 	extends: ['@wordpress/stylelint-config/scss'],
+	ignoreFiles: [
+		'assets/**',
+		'build/**',
+		'vendor/**',
+		'node_modules/**',
+		'**/*.min.css',
+	],
 };
