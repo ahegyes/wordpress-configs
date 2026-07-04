@@ -4,11 +4,11 @@ on:
   workflow_call:
     inputs:
       plugin-slug:
-        description: 'Plugin slug on wp.org (matches the plugin directory name)'
+        description: 'Plugin slug on wp.org (matches the plugin directory name and the <slug>.php main file)'
         type: string
         required: true
-      plugin-path:
-        description: 'Path to the plugin (relative to repo root)'
+      project-path:
+        description: 'Path to the project (relative to repo root)'
         type: string
         required: false
         default: '.'
@@ -17,13 +17,6 @@ on:
         type: string
         required: false
         default: '8.5'
-    secrets:
-      SVN_USERNAME:
-        description: 'wp.org SVN username'
-        required: true
-      SVN_PASSWORD:
-        description: 'wp.org SVN password'
-        required: true
 
 # Serialize per plugin slug so concurrent runs don't race the same SVN tag/trunk; different slugs still release in parallel.
 # Don't cancel mid-deploy: a half-pushed SVN tag is worse than queueing.
@@ -40,12 +33,31 @@ jobs:
     name: Build artifact
     runs-on: ubuntu-latest
     steps:
+      # Everything downstream trusts VERSION and PLUGIN_SLUG, so reject malformed values before any work happens.
+      # No leading zeros: '01.2.3' is version_compare()-equal to '1.2.3', which breaks wp.org update detection.
+      - name: Enforce version tag and slug shape
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          PLUGIN_SLUG: ${{ inputs.plugin-slug }}
+        run: |
+          if [ "$REF_TYPE" != "tag" ] || ! printf '%s' "$REF_NAME" | grep -Eq '^v(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}$'; then
+            echo "::error::Releases run from version tags only (vMAJOR.MINOR.PATCH, no leading zeros) — got $REF_TYPE '$REF_NAME'."
+            exit 1
+          fi
+          # The slug feeds shell commands, jq keys, and grep patterns downstream; a strict charset keeps every use literal.
+          if ! printf '%s' "$PLUGIN_SLUG" | grep -Eq '^[a-z0-9-]+$'; then
+            echo "::error::plugin-slug must match ^[a-z0-9-]+$ — got '$PLUGIN_SLUG'."
+            exit 1
+          fi
+          echo "VERSION=${REF_NAME#v}" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           persist-credentials: false
 
       - name: Verify .distignore exists
-        working-directory: ${{ inputs.plugin-path }}
+        working-directory: ${{ inputs.project-path }}
         run: |
           if [ ! -f .distignore ]; then
             echo "::error::Missing .distignore — refusing to build a wp.org archive without explicit file exclusions. Without it, wp dist-archive ships everything including tests/, node_modules/, and dev-only vendor files."
@@ -64,31 +76,103 @@ jobs:
         with:
           node-version: '26'
 
-      - name: Install Composer dependencies
+      # Dev install on purpose: the scoping pipeline (php-scoper, the framework packages, the composer
+      # script handlers) lives in require-dev and populates dependencies/ via post-autoload-dump.
+      - name: Install Composer dependencies (dev — runs the scoping pipeline)
         uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
         with:
-          working-directory: ${{ inputs.plugin-path }}
-          composer-options: '--prefer-dist --no-dev --ignore-platform-reqs'
-
-      - name: Install npm dependencies
-        working-directory: ${{ inputs.plugin-path }}
-        run: npm ci
+          working-directory: ${{ inputs.project-path }}
+          composer-options: '--prefer-dist --ignore-platform-reqs'
 
       - name: Build assets
-        working-directory: ${{ inputs.plugin-path }}
-        run: npm run build
+        working-directory: ${{ inputs.project-path }}
+        run: |
+          if [ -f package.json ]; then
+            npm ci
+            npm run build --if-present
+          else
+            echo "No package.json — skipping asset build."
+          fi
 
-      - name: Create plugin archive
-        working-directory: ${{ inputs.plugin-path }}
+      # The tag is the single version source — the shipped metadata must already agree with it.
+      - name: Verify version consistency
+        working-directory: ${{ inputs.project-path }}
         env:
           PLUGIN_SLUG: ${{ inputs.plugin-slug }}
-        run: wp dist-archive . "$PLUGIN_SLUG.zip" --plugin-dirname="$PLUGIN_SLUG"
+        run: |
+          HEADER_VERSION=$(sed -nE 's|^[[:space:]/*#@]*[Vv]ersion:[[:space:]]*([^[:space:]]+).*$|\1|p' "$PLUGIN_SLUG.php" | head -n 1)
+          STABLE_TAG=$(sed -nE 's|^[[:space:]]*[Ss]table [Tt]ag:[[:space:]]*([^[:space:]]+).*$|\1|p' readme.txt | head -n 1)
+          if [ "$VERSION" != "$HEADER_VERSION" ] || [ "$VERSION" != "$STABLE_TAG" ]; then
+            echo "::error::Version mismatch — tag: '$VERSION', $PLUGIN_SLUG.php Version header: '$HEADER_VERSION', readme.txt Stable tag: '$STABLE_TAG'."
+            exit 1
+          fi
+
+      # --no-scripts: the require-dev script handlers are pruned by this very install; dependencies/ lives outside vendor/ and survives.
+      - name: Prune to production dependencies
+        working-directory: ${{ inputs.project-path }}
+        run: composer install --no-dev --prefer-dist --ignore-platform-reqs --optimize-autoloader --no-scripts
+
+      - name: Create plugin archive
+        working-directory: ${{ inputs.project-path }}
+        env:
+          PLUGIN_SLUG: ${{ inputs.plugin-slug }}
+        run: |
+          wp package install wp-cli/dist-archive-command:3.2.2
+          # The ./ prefix is load-bearing: a bare filename target makes dist-archive write the zip to the PARENT of the source dir.
+          wp dist-archive . "./$PLUGIN_SLUG.zip" --plugin-dirname="$PLUGIN_SLUG"
+
+      # A zip that misses the scoped deps activates into a blank notice; one that leaks dev files fails wp.org review.
+      - name: Assert archive contents
+        working-directory: ${{ inputs.project-path }}
+        env:
+          PLUGIN_SLUG: ${{ inputs.plugin-slug }}
+        run: |
+          entries=$(unzip -Z1 "$PLUGIN_SLUG.zip")
+          status=0
+          for required in \
+            "$PLUGIN_SLUG/dependencies/scoper-autoload.php" \
+            "$PLUGIN_SLUG/vendor/autoload.php" \
+            "$PLUGIN_SLUG/$PLUGIN_SLUG.php" \
+            "$PLUGIN_SLUG/readme.txt"; do
+            if ! printf '%s\n' "$entries" | grep -qxF "$required"; then
+              echo "::error::Archive is missing $required."
+              status=1
+            fi
+          done
+          # Every scoped package the pipeline produced must ship at least one file — a dropped package activates into
+          # runtime fatals. Package-level, not per-file: .distignore's gitignore semantics strip nested metadata
+          # (e.g. composer.json) at any depth, so file-exact comparison would false-fail.
+          if [ ! -d dependencies ]; then
+            echo "::error::No dependencies/ directory — the scoping pipeline did not run."
+            status=1
+          else
+            while IFS= read -r pkg; do
+              if ! printf '%s\n' "$entries" | grep -qE "^$PLUGIN_SLUG/$pkg/.*[^/]$"; then
+                echo "::error::Archive is missing scoped package $pkg/."
+                status=1
+              fi
+            done < <(find dependencies -mindepth 2 -maxdepth 2 -type d | LC_ALL=C sort)
+          fi
+          # Anchored to the archive root — an unanchored substring would false-fail on a nested path repeating the slug.
+          for forbidden in \
+            "vendor/bin/" \
+            "node_modules/" \
+            "tests/" \
+            "composer\.json$" \
+            "scoper\.inc\.php$" \
+            "\.wp-env"; do
+            if printf '%s\n' "$entries" | grep -qE "^$PLUGIN_SLUG/$forbidden"; then
+              echo "::error::Archive must not contain $PLUGIN_SLUG/${forbidden//\\/}."
+              status=1
+            fi
+          done
+          exit "$status"
 
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ${{ inputs.plugin-slug }}-zip
-          path: ${{ inputs.plugin-path }}/${{ inputs.plugin-slug }}.zip
+          path: ${{ inputs.project-path }}/${{ inputs.plugin-slug }}.zip
           retention-days: 30
 
   test-and-deploy:
@@ -98,11 +182,12 @@ jobs:
     if: github.ref_type == 'tag'
     environment: wp-org-release
     # softprops/action-gh-release creates a GitHub Release with the built zip attached → needs contents: write.
-    # SVN deploy uses repo secrets, not GITHUB_TOKEN, so no extra scope.
+    # SVN deploy uses environment secrets, not GITHUB_TOKEN, so no extra scope.
     permissions:
       contents: write
     # Source provides the E2E runner (tests/, playwright.config, .wp-env.json, package.json) and wp.org assets (.wordpress-org/).
-    # The built zip is the system under test — wp-env is redirected via .wp-env.override.json to mount it instead of source.
+    # The built zip is the system under test — .wp-env.override.json remaps the plugin's mappings key at it
+    # (wp-env merges mappings per-key, so co-mounted plugins, port, and lifecycle scripts survive).
     # Deploy reuses the same extracted tree (./built/<slug>/) — what gets tested is what gets pushed to SVN.
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -132,39 +217,96 @@ jobs:
         with:
           node-version: '26'
 
-      - name: Install npm dependencies (E2E runner)
-        working-directory: ${{ inputs.plugin-path }}
-        run: npm ci
+      # Dev install: the source tree is the E2E harness and materializes the co-mounted dev plugins
+      # (e.g. vendor/wp-plugin/woocommerce) that .wp-env.json maps into the container.
+      - name: Install Composer dependencies (E2E harness)
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # zizmor: ignore[cache-poisoning] cache feeds only the E2E harness — the published artifact is the zip from the build job
+        with:
+          working-directory: ${{ inputs.project-path }}
+          composer-options: '--prefer-dist --ignore-platform-reqs'
 
-      - name: Redirect wp-env at built artifact (preserves co-mounted plugins)
-        working-directory: ${{ inputs.plugin-path }}
+      - name: Install npm dependencies (E2E runner)
+        working-directory: ${{ inputs.project-path }}
+        run: |
+          if [ -f package.json ]; then
+            npm ci
+          else
+            echo "No package.json — skipping npm install."
+          fi
+
+      - name: Redirect wp-env at built artifact
+        working-directory: ${{ inputs.project-path }}
         env:
+          PLUGIN_SLUG: ${{ inputs.plugin-slug }}
           BUILT_PATH: ${{ github.workspace }}/built/${{ inputs.plugin-slug }}
         run: |
-          # Override replaces plugins[] wholesale, so we rebuild it:
-          # drop source's self-mount entries (./ or .), append the built path.
-          if [ -f .wp-env.json ]; then
-            jq --arg built "$BUILT_PATH" \
-              '{plugins: ((.plugins // []) | map(select(. != "./" and . != ".")) + [$built])}' \
-              .wp-env.json > .wp-env.override.json
-          else
-            jq -n --arg built "$BUILT_PATH" '{plugins: [$built]}' > .wp-env.override.json
+          key="wp-content/plugins/$PLUGIN_SLUG"
+          # Release contract: .wp-env.json must mount the plugin via mappings under its slug, so the
+          # override swaps exactly that key at the built zip and nothing else.
+          if [ ! -f .wp-env.json ] || ! jq -e --arg key "$key" '.mappings | has($key)' .wp-env.json > /dev/null; then
+            echo "::error::Release contract violation — .wp-env.json must exist and map \"$key\" to the plugin source; found mappings: $(jq -c '.mappings // {}' .wp-env.json 2> /dev/null || echo 'none')."
+            exit 1
           fi
+          # core: null pins the release gate to the latest stable WordPress — the source config may target
+          # nightly for dev, but a ship/no-ship signal must not move underneath the release.
+          jq -n --arg key "$key" --arg built "$BUILT_PATH" '{core: null, mappings: {($key): $built}}' > .wp-env.override.json
           echo "Generated .wp-env.override.json:"
           cat .wp-env.override.json
 
       - name: Start wp-env
-        working-directory: ${{ inputs.plugin-path }}
+        working-directory: ${{ inputs.project-path }}
         run: npx --yes @wordpress/env@11.9.0 start
 
+      - name: Assert the mounted plugin is the built artifact
+        working-directory: ${{ inputs.project-path }}
+        env:
+          PLUGIN_SLUG: ${{ inputs.plugin-slug }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION="${REF_NAME#v}"
+          target="wp-content/plugins/$PLUGIN_SLUG"
+          run_cli() { npx --yes @wordpress/env@11.9.0 run cli "$@"; }
+          run_cli test -f "$target/dependencies/scoper-autoload.php"
+          if run_cli test -f "$target/composer.json"; then
+            echo "::error::Mounted plugin has composer.json — wp-env is serving the source tree, not the built zip."
+            exit 1
+          fi
+          if run_cli test -d "$target/tests"; then
+            echo "::error::Mounted plugin has tests/ — wp-env is serving the source tree, not the built zip."
+            exit 1
+          fi
+          run_cli wp plugin is-active "$PLUGIN_SLUG"
+          # Positional args keep slug/version out of the inner shell's parse; the comparison runs in-container because run_cli output is not capture-clean.
+          # shellcheck disable=SC2016
+          run_cli bash -c 'got=$(wp plugin get "$1" --field=version); echo "Active plugin version: $got (expected $2)"; test "$got" = "$2"' -- "$PLUGIN_SLUG" "$VERSION"
+
       - name: Run E2E tests against built artifact
-        working-directory: ${{ inputs.plugin-path }}
+        working-directory: ${{ inputs.project-path }}
         run: |
           if [ -f playwright.config.js ] || [ -f playwright.config.ts ]; then
             npx --no-install playwright install --with-deps chromium
             npx --no-install playwright test
           else
-            echo "Source has no E2E config — wp-env smoke test (above) is the only artifact test."
+            echo "Source has no E2E config — the artifact assertions above are the only artifact test."
+          fi
+
+      # Defense-in-depth: deploy must be unreachable from a non-version ref even if the job-level gate changes.
+      - name: Re-verify version tag before deploy
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          printf '%s' "$REF_NAME" | grep -Eq '^v(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}$' || { echo "::error::Refusing to deploy from non-version ref '$REF_NAME'."; exit 1; }
+          echo "VERSION=${REF_NAME#v}" >> "$GITHUB_ENV"
+
+      # Secrets resolve from the CALLER repo's wp-org-release environment — environment secrets cannot travel through workflow_call.
+      - name: Verify SVN credentials
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+        run: |
+          if [ -z "$SVN_USERNAME" ] || [ -z "$SVN_PASSWORD" ]; then
+            echo "::error::Missing SVN credentials — create environment wp-org-release in the calling repository with secrets SVN_USERNAME and SVN_PASSWORD."
+            exit 1
           fi
 
       - name: Deploy to wp.org
@@ -176,9 +318,10 @@ jobs:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
           SLUG: ${{ inputs.plugin-slug }}
+          VERSION: ${{ env.VERSION }}
           BUILD_DIR: ./built/${{ inputs.plugin-slug }}
           # Banner/icon assets from source's .wordpress-org/ — 10up's deploy.sh skips silently if the directory is missing.
-          ASSETS_DIR: ${{ inputs.plugin-path }}/.wordpress-org
+          ASSETS_DIR: ${{ inputs.project-path }}/.wordpress-org
 
       - name: Attach artifact to GitHub release
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # zizmor: ignore[superfluous-actions] deliberate: handles release creation + asset upload as one reviewed step

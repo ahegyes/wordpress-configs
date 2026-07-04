@@ -421,7 +421,7 @@ Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Pl
 | `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `project-path`, `plugin-slug`, `php-version`                 |
 | `reusable-block-json-check.yml`       | Validates block.json against wp.org schema       | `project-path`, `node-version`                              |
 | `reusable-supply-chain-audit.yml`     | `composer audit` + `npm audit` (parallel jobs)   | `project-path`, `composer-audit`, `npm-audit`, plus `*-flags` |
-| `reusable-release.yml`                | Build → test built artifact → deploy to wp.org   | `plugin-slug`, `plugin-path`, `php-version` + secrets       |
+| `reusable-release.yml`                | Build → test built artifact → deploy to wp.org   | `plugin-slug`, `project-path`, `php-version` (no secrets)   |
 
 Each workflow's `inputs:` block (every input carries a `description:`) is the authoritative reference for its full input set and defaults — the table lists only the commonly-set ones.
 
@@ -477,6 +477,10 @@ on:
   push:
     tags: ['v*']
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   release:
     # A reusable workflow can't elevate above the caller's token; grant the GitHub Release scope here.
@@ -485,12 +489,14 @@ jobs:
     uses: ahegyes/wordpress-configs/.github/workflows/reusable-release.yml@trunk
     with:
       plugin-slug: your-plugin-slug
-    secrets:
-      SVN_USERNAME: ${{ secrets.WP_ORG_SVN_USERNAME }}
-      SVN_PASSWORD: ${{ secrets.WP_ORG_SVN_PASSWORD }}
 ```
 
-Store `SVN_USERNAME` / `SVN_PASSWORD` as `wp-org-release` **environment** secrets in your plugin repo so they are scoped to the gated deploy job rather than exposed repo-wide.
+No `secrets:` block: the reusable's deploy job runs in the `wp-org-release` environment and reads `SVN_USERNAME` / `SVN_PASSWORD` from the **calling repository's** environment secrets directly (environment secrets cannot be passed through `workflow_call`). Create a `wp-org-release` environment in your plugin repo, store the two secrets there — and only there — and attach whatever deployment-protection rules you want (required reviewers, wait timers, allowed branches); a preflight step fails the deploy with instructions when they are missing.
+
+The workflow enforces two release contracts on the consumer:
+
+- **Main file named after the slug** — `<plugin-slug>.php` at the project root, with a `Version:` header equal to the tag's version; `readme.txt`'s `Stable tag:` must match too. Tags must be `v<major>.<minor>.<patch>` (no leading zeros); the version is taken from the tag exclusively and verified against both files, never stamped in.
+- **`.wp-env.json` maps `wp-content/plugins/<plugin-slug>`** — the artifact test remaps exactly that `mappings` key at the built zip (co-mounted plugins, port, and lifecycle scripts survive the per-key merge) and pins the environment to the latest stable WordPress core, so the E2E suite runs against what actually ships on what users actually run.
 
 ## Typical Composer Scripts
 
