@@ -30,7 +30,7 @@
         "format:all": "composer format:php && npm run format:scripts",
 
         "lint:scripts": "wp-scripts lint-js ./node --no-error-on-unmatched-pattern",
-        "lint:config": "node -e \"import('./node/eslint.config.base.mjs').then((m) => { if (!Array.isArray(m.default) || 0 === m.default.length) { throw new Error('eslint base did not export a flat-config array'); } }).catch((e) => { console.error(e); process.exit(1); })\" && stylelint --print-config tests/fixtures/node-config/probe.css --config node/stylelint.config.base.js > /dev/null && tsc --noEmit -p tests/fixtures/node-config/tsconfig.json && node -e \"require('./node/playwright.config.base.js')\"",
+        "lint:config": "node tests/fixtures/node-config/smoke.mjs",
         "lint:all": "composer lint:php && npm run lint:scripts && npm run lint:config",
 
         "audit": "composer audit && npm audit",
