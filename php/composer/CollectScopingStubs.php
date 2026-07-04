@@ -52,7 +52,7 @@ final class CollectScopingStubs {
 	 *
 	 * @throws \JsonException    If encoding the output JSON fails.
 	 * @throws \PhpParser\Error  If the PHP parser fails to initialise.
-	 * @throws \RuntimeException If a declared stubs file cannot be read, or the output file cannot be written.
+	 * @throws \RuntimeException If the root `extra.scoping-stubs` is malformed, a declared stubs file cannot be read, or the output file cannot be written.
 	 */
 	public static function postAutoloadDump( \Composer\Script\Event $event ): void {
 		$composer    = $event->getComposer();
@@ -65,7 +65,7 @@ final class CollectScopingStubs {
 			return;
 		}
 
-		$declared             = self::collect_declarations( $composer );
+		$declared             = self::collect_declarations( $composer, $console_io );
 		$packages_by_name     = self::index_packages_by_name( $composer );
 		$installation_manager = $composer->getInstallationManager();
 
@@ -137,20 +137,27 @@ final class CollectScopingStubs {
 	 * Collects every `extra.scoping-stubs` declaration across the root package and all
 	 * installed packages, reading Composer's in-memory metadata rather than walking vendor.
 	 *
-	 * Composer's package list carries path-repository packages (symlinked into vendor in
-	 * monorepo dev) the same as normally-installed ones, so a symlinked package that declares
-	 * stubs is no longer silently missed. The result is deduplicated and sorted so the
-	 * downstream symbol union is order-independent.
+	 * The root package's declaration is validated strictly — it is the consumer's own file,
+	 * so a malformed shape or entry throws instead of silently shrinking the exclusion set.
+	 * Installed packages are third-party metadata the consumer cannot fix, so their malformed
+	 * declarations are skipped with a console warning. Composer's package list carries
+	 * path-repository packages (symlinked into vendor in monorepo dev) the same as
+	 * normally-installed ones, so a symlinked package that declares stubs is no longer
+	 * silently missed. The result is deduplicated and sorted so the downstream symbol union
+	 * is order-independent.
 	 *
-	 * @param \Composer\Composer $composer Composer instance for the current run.
+	 * @param \Composer\Composer       $composer   Composer instance for the current run.
+	 * @param \Composer\IO\IOInterface $console_io Composer console for malformed-declaration warnings.
+	 *
+	 * @throws \RuntimeException If the root package's `extra.scoping-stubs` is malformed.
 	 *
 	 * @return list<string>
 	 */
-	private static function collect_declarations( \Composer\Composer $composer ): array {
-		$declared = self::extract_declarations( $composer->getPackage()->getExtra() );
+	private static function collect_declarations( \Composer\Composer $composer, \Composer\IO\IOInterface $console_io ): array {
+		$declared = self::extract_root_declarations( $composer->getPackage()->getExtra() );
 
 		foreach ( $composer->getRepositoryManager()->getLocalRepository()->getPackages() as $package ) {
-			$declared = \array_merge( $declared, self::extract_declarations( $package->getExtra() ) );
+			$declared = \array_merge( $declared, self::extract_package_declarations( $package, $console_io ) );
 		}
 
 		$declared = \array_values( \array_unique( $declared ) );
@@ -160,28 +167,87 @@ final class CollectScopingStubs {
 	}
 
 	/**
-	 * Filters one package's `extra` array down to its valid `extra.scoping-stubs` entries.
+	 * Validates and returns the root package's `extra.scoping-stubs` entries.
 	 *
-	 * Tolerates every malformed shape: an absent `extra.scoping-stubs`, or a value that is
-	 * not an array (a scalar or object), yields an empty list. Surviving entries are the
-	 * strings passing `is_valid_declaration`, re-indexed to a list.
+	 * The root declaration is load-bearing input the consumer owns, so every malformed shape
+	 * fails loudly: a non-array value (scalar or object) and any entry that is not a valid
+	 * `vendor/package` or `vendor/package:relative/file.php` string throw instead of being
+	 * filtered into an empty exclusion set that only fails at runtime. An absent key is the
+	 * one legitimate quiet case — a consumer whose exclusions all come from its dependencies.
 	 *
-	 * @param array<array-key, mixed> $extra A package's `extra` metadata.
+	 * @param array<array-key, mixed> $extra The root package's `extra` metadata.
+	 *
+	 * @throws \RuntimeException If `scoping-stubs` is not a list of valid declaration strings.
 	 *
 	 * @return list<string>
 	 */
-	private static function extract_declarations( array $extra ): array {
-		$declared = $extra['scoping-stubs'] ?? array();
-		if ( ! \is_array( $declared ) ) {
+	private static function extract_root_declarations( array $extra ): array {
+		if ( ! \array_key_exists( 'scoping-stubs', $extra ) ) {
 			return array();
 		}
 
-		return \array_values(
-			\array_filter(
-				$declared,
-				static fn ( mixed $entry ): bool => \is_string( $entry ) && self::is_valid_declaration( $entry )
-			)
-		);
+		$declared = $extra['scoping-stubs'];
+		if ( ! \is_array( $declared ) ) {
+			throw new \RuntimeException(
+				\sprintf( 'The root extra.scoping-stubs must be an array of "vendor/package" or "vendor/package:relative/file.php" strings; got %s.', \get_debug_type( $declared ) )
+			);
+		}
+
+		$valid = array();
+		foreach ( $declared as $entry ) {
+			if ( ! \is_string( $entry ) || ! self::is_valid_declaration( $entry ) ) {
+				throw new \RuntimeException(
+					\sprintf(
+						'Invalid root extra.scoping-stubs entry %s — expected "vendor/package" or "vendor/package:relative/file.php" (relative, no "..", ".php"-suffixed).',
+						\var_export( $entry, true )
+					)
+				);
+			}
+			$valid[] = $entry;
+		}
+
+		return $valid;
+	}
+
+	/**
+	 * Filters one installed package's `extra` array down to its valid `extra.scoping-stubs`
+	 * entries, warning about every malformed shape it drops.
+	 *
+	 * Third-party metadata stays tolerated — the consumer cannot edit an installed package's
+	 * composer.json, so a hard failure here would brick installs on someone else's typo — but
+	 * each dropped shape is surfaced as a console warning instead of vanishing silently.
+	 *
+	 * @param \Composer\Package\PackageInterface $package    An installed package.
+	 * @param \Composer\IO\IOInterface           $console_io Composer console for the warnings.
+	 *
+	 * @return list<string>
+	 */
+	private static function extract_package_declarations( \Composer\Package\PackageInterface $package, \Composer\IO\IOInterface $console_io ): array {
+		$extra = $package->getExtra();
+		if ( ! \array_key_exists( 'scoping-stubs', $extra ) ) {
+			return array();
+		}
+
+		$declared = $extra['scoping-stubs'];
+		if ( ! \is_array( $declared ) ) {
+			$console_io->warning(
+				\sprintf( 'Ignoring malformed extra.scoping-stubs in package %s — expected an array, got %s.', $package->getName(), \get_debug_type( $declared ) )
+			);
+			return array();
+		}
+
+		$valid = array();
+		foreach ( $declared as $entry ) {
+			if ( \is_string( $entry ) && self::is_valid_declaration( $entry ) ) {
+				$valid[] = $entry;
+				continue;
+			}
+			$console_io->warning(
+				\sprintf( 'Ignoring invalid extra.scoping-stubs entry %s in package %s.', \var_export( $entry, true ), $package->getName() )
+			);
+		}
+
+		return $valid;
 	}
 
 	/**

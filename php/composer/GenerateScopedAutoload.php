@@ -31,12 +31,23 @@ final class GenerateScopedAutoload {
 	 * @param   string $prefix           Scoping prefix passed to php-scoper (e.g. `DeepWebSolutions\\InternalComments\\Scoped`).
 	 *
 	 * @throws  \JsonException     If a scoped composer.json exists but cannot be parsed.
-	 * @throws  \RuntimeException  If a scoped composer.json or the output file cannot be read or written, if a psr-4 key doesn't start with the declared prefix, if a package declares autoload.exclude-from-classmap or autoload.psr-0 (both unsupported), if no class-map scanner is available, or if a classmap class maps to more than one file.
+	 * @throws  \RuntimeException  If no scoped package is found (an empty generated autoload must never be silent), if a scoped composer.json or the output file cannot be read or written, if a psr-4 key doesn't start with the declared prefix, if a package declares autoload.exclude-from-classmap or autoload.psr-0 (both unsupported), if no class-map scanner is available, or if a classmap class maps to more than one file.
 	 *
 	 * @return  string Absolute path to the generated scoper-autoload.php.
 	 */
 	public static function generate( string $dependencies_dir, string $prefix ): string {
 		$packages = self::find_scoped_packages( $dependencies_dir );
+
+		// An empty scan means every scoped class would 404 at runtime while composer exits 0 —
+		// the exact silent-broken-build this generator exists to prevent. Fail here, loudly.
+		if ( array() === $packages ) {
+			throw new \RuntimeException(
+				\sprintf(
+					'No scoped packages found under %s — php-scoper produced no package output there, so the generated scoper-autoload.php would be empty. Check the scoper config\'s finders and the scoped output layout.',
+					$dependencies_dir
+				)
+			);
+		}
 
 		$prefix_normalised = self::rtrim_backslash( $prefix );
 
@@ -125,7 +136,16 @@ final class GenerateScopedAutoload {
 	}
 
 	/**
-	 * Finds every `composer.json` at `dependencies/<vendor>/<pkg>/composer.json`.
+	 * Finds every scoped package directory (one containing a `composer.json`) under the
+	 * scoped output directory, in both layouts php-scoper produces.
+	 *
+	 * Because php-scoper mirrors input paths relative to their COMMON ancestor, the layout
+	 * depends on the finder shape: finders spanning several vendor namespaces yield
+	 * `dependencies/<vendor>/<pkg>/`, while finders covering a single vendor namespace (a
+	 * framework-only consumer) collapse the shared `vendor/<vendor>/` segment and yield a
+	 * flattened `dependencies/<pkg>/`. A first-level directory holding a `composer.json` IS a
+	 * package root (a vendor directory never carries one directly); anything else is treated
+	 * as a vendor directory and scanned one level deeper.
 	 *
 	 * @param   string $dependencies_dir Absolute path to the scoped output directory.
 	 *
@@ -137,19 +157,23 @@ final class GenerateScopedAutoload {
 		}
 
 		$packages = array();
-		foreach ( \scandir( $dependencies_dir ) as $vendor_entry ) {
-			if ( '.' === $vendor_entry || '..' === $vendor_entry ) {
+		foreach ( \scandir( $dependencies_dir ) as $entry ) {
+			if ( '.' === $entry || '..' === $entry ) {
 				continue;
 			}
-			$vendor_dir = $dependencies_dir . '/' . $vendor_entry;
-			if ( ! \is_dir( $vendor_dir ) ) {
+			$entry_dir = $dependencies_dir . '/' . $entry;
+			if ( ! \is_dir( $entry_dir ) ) {
 				continue;
 			}
-			foreach ( \scandir( $vendor_dir ) as $pkg_entry ) {
+			if ( \is_file( $entry_dir . '/composer.json' ) ) {
+				$packages[] = $entry_dir;
+				continue;
+			}
+			foreach ( \scandir( $entry_dir ) as $pkg_entry ) {
 				if ( '.' === $pkg_entry || '..' === $pkg_entry ) {
 					continue;
 				}
-				$pkg_dir = $vendor_dir . '/' . $pkg_entry;
+				$pkg_dir = $entry_dir . '/' . $pkg_entry;
 				if ( \is_dir( $pkg_dir ) && \is_file( $pkg_dir . '/composer.json' ) ) {
 					$packages[] = $pkg_dir;
 				}

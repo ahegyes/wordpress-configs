@@ -164,7 +164,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		\mkdir( $this->project_dir . '/dependencies', 0755, true );
 		$this->writeComposerJson(
 			array(
-				'scripts' => array( 'scope-php-dependencies' => self::class . '::succeedingScopeScript' ),
+				'scripts' => $this->pipelineScripts( self::class . '::succeedingScopeScript' ),
 				'extra'   => array(
 					'scoped-dependencies-dir' => 'dependencies',
 					'scoping-prefix'          => 'MyPlugin\\Scoped',
@@ -188,7 +188,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		\mkdir( $this->project_dir . '/dependencies', 0755, true );
 		$this->writeComposerJson(
 			array(
-				'scripts' => array( 'scope-php-dependencies' => self::class . '::succeedingScopeScript' ),
+				'scripts' => $this->pipelineScripts( self::class . '::succeedingScopeScript' ),
 				'extra'   => array(
 					'scoped-dependencies-dir' => 'dependencies',
 					'scoping-prefix'          => 'MyPlugin\\Scoped',
@@ -246,16 +246,16 @@ final class ScopePhpDependenciesTest extends TestCase {
 	}
 
 	#[Test]
-	public function post_autoload_dump_runs_scope_script_then_generates_autoload_in_dev_mode(): void {
-		// Dev mode + php-scoper present: the scope-php-dependencies script is dispatched (it writes
-		// a marker here, standing in for php-scoper populating dependencies/), THEN the scoped
-		// autoload is generated. Asserting the marker proves the dispatch actually ran — without a
-		// dispatched script the generation alone would still pass, so this guards both steps.
+	public function post_autoload_dump_runs_raw_script_then_generates_autoload_in_dev_mode(): void {
+		// Dev mode + php-scoper present: the scope-php-dependencies:raw script is dispatched (it
+		// writes a marker here, standing in for php-scoper populating dependencies/), THEN the
+		// scoped autoload is generated. Asserting the marker proves the dispatch actually ran —
+		// without a dispatched script the generation alone would still pass, so this guards both steps.
 		$this->installFakePhpScoper();
 		\mkdir( $this->project_dir . '/dependencies', 0755, true );
 		$this->writeComposerJson(
 			array(
-				'scripts' => array( 'scope-php-dependencies' => self::class . '::succeedingScopeScript' ),
+				'scripts' => $this->pipelineScripts( self::class . '::succeedingScopeScript' ),
 				'extra'   => array(
 					'scoped-dependencies-dir' => 'dependencies',
 					'scoping-prefix'          => 'MyPlugin\\Scoped',
@@ -269,6 +269,319 @@ final class ScopePhpDependenciesTest extends TestCase {
 		// generation ran AFTER the scope script populated dependencies/, not before.
 		$generated = (string) \file_get_contents( $this->project_dir . '/dependencies/scoper-autoload.php' );
 		self::assertStringContainsString( 'MyPlugin\\\\Scoped\\\\Acme\\\\Lib', $generated );
+	}
+
+	#[Test]
+	public function post_autoload_dump_passes_derived_output_dir_to_the_raw_script(): void {
+		// Single-source contract: the raw script receives --output-dir derived from
+		// extra.scoped-dependencies-dir as a dispatched argument — the flag lives nowhere else.
+		$this->installFakePhpScoper();
+		\mkdir( $this->project_dir . '/dependencies', 0755, true );
+		$this->writeComposerJson(
+			array(
+				'scripts' => $this->pipelineScripts( self::class . '::argumentRecordingScopeScript' ),
+				'extra'   => array( 'scoped-dependencies-dir' => 'dependencies' ),
+			)
+		);
+
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+
+		$recorded = (string) \file_get_contents( $this->project_dir . '/recorded-args.txt' );
+		self::assertStringContainsString(
+			'--output-dir=' . $this->project_dir . DIRECTORY_SEPARATOR . 'dependencies',
+			$recorded
+		);
+	}
+
+	#[Test]
+	public function post_autoload_dump_skips_autoload_generation_without_scoping_prefix(): void {
+		// The autoload generator stays opt-in via extra.scoping-prefix; scoping alone completes.
+		$this->installFakePhpScoper();
+		$this->writeComposerJson(
+			array(
+				'scripts' => $this->pipelineScripts( self::class . '::succeedingScopeScript' ),
+				'extra'   => array( 'scoped-dependencies-dir' => 'dependencies' ),
+			)
+		);
+
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+
+		self::assertDirectoryExists( $this->project_dir . '/dependencies/acme/lib' );
+		self::assertFileDoesNotExist( $this->project_dir . '/dependencies/scoper-autoload.php' );
+	}
+
+	#[Test]
+	public function post_autoload_dump_throws_when_raw_script_missing_but_scoping_configured(): void {
+		// A declared scoped-dependencies-dir with no raw scoper script is the un-migrated (or
+		// half-wired) state; it fails loudly with the wiring instructions instead of silently
+		// skipping the scoping the consumer expects.
+		$this->installFakePhpScoper();
+		$this->writeComposerJson(
+			array(
+				'extra' => array(
+					'scoped-dependencies-dir' => 'dependencies',
+					'scoping-prefix'          => 'MyPlugin\\Scoped',
+				),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Missing the "scope-php-dependencies:raw" script/' );
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+	}
+
+	#[Test]
+	public function post_autoload_dump_throws_when_scoped_dir_is_not_declared(): void {
+		$this->installFakePhpScoper();
+		$this->writeComposerJson(
+			array(
+				'scripts' => $this->pipelineScripts( self::class . '::succeedingScopeScript' ),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Missing extra\.scoped-dependencies-dir/' );
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+	}
+
+	#[Test]
+	public function post_autoload_dump_throws_when_raw_script_carries_output_dir_flag(): void {
+		// The output dir is single-sourced from extra.scoped-dependencies-dir; a stale flag in
+		// the raw script would silently lose to the appended derived flag, so it is rejected.
+		$this->installFakePhpScoper();
+		$this->writeComposerJson(
+			array(
+				'scripts' => $this->pipelineScripts( 'echo add-prefix --output-dir=./elsewhere' ),
+				'extra'   => array( 'scoped-dependencies-dir' => 'dependencies' ),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/must not carry --output-dir/' );
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+	}
+
+	#[Test]
+	public function post_autoload_dump_throws_when_public_script_is_a_raw_scoper_invocation(): void {
+		// The pre-split shape: the raw `add-prefix` invocation parked under the public name. A
+		// manual run of it would scope without regenerating the autoload, so it is rejected
+		// loudly — even when the consumer has not opted into the extras yet.
+		$this->installFakePhpScoper();
+		$this->writeComposerJson(
+			array(
+				'scripts' => array( 'scope-php-dependencies' => '@php vendor/bin/php-scoper add-prefix --output-dir=./dependencies --force' ),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/must run the full pipeline/' );
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+	}
+
+	#[Test]
+	public function post_autoload_dump_notes_and_skips_when_not_opted_in(): void {
+		// Neither the raw script nor the extras: a consumer wiring the hook without scoping.
+		$this->installFakePhpScoper();
+		$this->writeComposerJson( array( 'name' => 'acme/plain' ) );
+
+		$io = new BufferIO();
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( $io ) );
+
+		self::assertFileDoesNotExist( $this->project_dir . '/dependencies/scoper-autoload.php' );
+		self::assertNotSame( '', $io->getOutput() );
+	}
+
+	#[Test]
+	public function post_autoload_dump_throws_when_raw_script_produces_no_output_dir(): void {
+		// The raw script reports success but the derived output dir does not exist afterwards —
+		// pipeline breakage that must not degrade into an empty scoped autoload.
+		$this->installFakePhpScoper();
+		$this->writeComposerJson(
+			array(
+				'scripts' => $this->pipelineScripts( self::class . '::noopScopeScript' ),
+				'extra'   => array(
+					'scoped-dependencies-dir' => 'dependencies',
+					'scoping-prefix'          => 'MyPlugin\\Scoped',
+				),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/produced no output/' );
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+	}
+
+	#[Test]
+	public function post_autoload_dump_throws_when_public_script_is_not_bound_to_run(): void {
+		// The positive half of the public-script contract: the binding must exist, or a manual
+		// `composer scope-php-dependencies` is undefined while the hooks silently work.
+		$this->installFakePhpScoper();
+		$this->writeComposerJson(
+			array(
+				'scripts' => array( ScopePhpDependencies::RAW_SCOPER_SCRIPT => self::class . '::succeedingScopeScript' ),
+				'extra'   => array( 'scoped-dependencies-dir' => 'dependencies' ),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/must be bound to/' );
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+	}
+
+	#[Test]
+	public function post_autoload_dump_throws_when_public_script_aliases_the_raw_script(): void {
+		// An alias onto the raw script scopes WITHOUT regenerating the autoload on a manual
+		// run — exactly the stale-autoload trap; only the ::run binding is accepted.
+		$this->installFakePhpScoper();
+		$this->writeComposerJson(
+			array(
+				'scripts' => array(
+					ScopePhpDependencies::PIPELINE_SCRIPT => '@' . ScopePhpDependencies::RAW_SCOPER_SCRIPT,
+					ScopePhpDependencies::RAW_SCOPER_SCRIPT => self::class . '::succeedingScopeScript',
+				),
+				'extra'   => array( 'scoped-dependencies-dir' => 'dependencies' ),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/must be bound to/' );
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+	}
+
+	#[Test]
+	public function post_autoload_dump_rejects_short_output_flag_in_raw_script(): void {
+		// php-scoper's short alias for --output-dir must not slip past the single-source check.
+		$this->installFakePhpScoper();
+		$this->writeComposerJson(
+			array(
+				'scripts' => $this->pipelineScripts( 'echo add-prefix -o ./elsewhere' ),
+				'extra'   => array( 'scoped-dependencies-dir' => 'dependencies' ),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/must not carry --output-dir/' );
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+	}
+
+	#[Test]
+	public function post_autoload_dump_rejects_short_output_flag_equals_form_in_raw_script(): void {
+		$this->installFakePhpScoper();
+		$this->writeComposerJson(
+			array(
+				'scripts' => $this->pipelineScripts( 'echo add-prefix -o=./elsewhere' ),
+				'extra'   => array( 'scoped-dependencies-dir' => 'dependencies' ),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/must not carry --output-dir/' );
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+	}
+
+	#[Test]
+	public function post_autoload_dump_rejects_short_output_flag_glued_form_in_raw_script(): void {
+		// Symfony console accepts a value glued directly onto a short flag (-o./dir).
+		$this->installFakePhpScoper();
+		$this->writeComposerJson(
+			array(
+				'scripts' => $this->pipelineScripts( 'echo add-prefix -o./elsewhere' ),
+				'extra'   => array( 'scoped-dependencies-dir' => 'dependencies' ),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/must not carry --output-dir/' );
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+	}
+
+	#[Test]
+	public function post_autoload_dump_rejects_short_output_flag_glued_quoted_form_in_raw_script(): void {
+		$this->installFakePhpScoper();
+		$this->writeComposerJson(
+			array(
+				'scripts' => $this->pipelineScripts( "echo add-prefix -o'./elsewhere'" ),
+				'extra'   => array( 'scoped-dependencies-dir' => 'dependencies' ),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/must not carry --output-dir/' );
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+	}
+
+	#[Test]
+	public function post_autoload_dump_rejects_short_output_flag_quote_wrapped_form_in_raw_script(): void {
+		// The shell strips the quotes, so a quote-wrapped '-o./dir' reaches php-scoper as a
+		// live flag; the quote before -o must not hide it from the rejection.
+		$this->installFakePhpScoper();
+		$this->writeComposerJson(
+			array(
+				'scripts' => $this->pipelineScripts( "echo add-prefix '-o./elsewhere'" ),
+				'extra'   => array( 'scoped-dependencies-dir' => 'dependencies' ),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/must not carry --output-dir/' );
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+	}
+
+	#[Test]
+	public function post_autoload_dump_throws_when_no_output_produced_even_without_scoping_prefix(): void {
+		// The missing-output throw is unconditional — a consumer that has not opted into the
+		// autoload generator (no scoping-prefix declared) still gets pipeline breakage loudly.
+		$this->installFakePhpScoper();
+		$this->writeComposerJson(
+			array(
+				'scripts' => $this->pipelineScripts( self::class . '::noopScopeScript' ),
+				'extra'   => array( 'scoped-dependencies-dir' => 'dependencies' ),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/produced no output/' );
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+	}
+
+	#[Test]
+	public function run_executes_the_full_pipeline(): void {
+		// The public scope-php-dependencies entry point scopes AND regenerates the autoload, so
+		// a manual scoping run can never leave scoper-autoload.php stale.
+		$this->installFakePhpScoper();
+		$this->writeComposerJson(
+			array(
+				'scripts' => $this->pipelineScripts( self::class . '::succeedingScopeScript' ),
+				'extra'   => array(
+					'scoped-dependencies-dir' => 'dependencies',
+					'scoping-prefix'          => 'MyPlugin\\Scoped',
+				),
+			)
+		);
+
+		ScopePhpDependencies::run( $this->factoryEvent( new BufferIO() ) );
+
+		$generated = (string) \file_get_contents( $this->project_dir . '/dependencies/scoper-autoload.php' );
+		self::assertStringContainsString( 'MyPlugin\\\\Scoped\\\\Acme\\\\Lib', $generated );
+	}
+
+	#[Test]
+	public function run_throws_when_php_scoper_is_not_installed(): void {
+		// Unlike the post-autoload-dump hook (which must stay quiet on prod installs), an
+		// explicit manual invocation that cannot scope is an error.
+		$this->writeComposerJson(
+			array(
+				'scripts' => $this->pipelineScripts( self::class . '::succeedingScopeScript' ),
+				'extra'   => array(
+					'scoped-dependencies-dir' => 'dependencies',
+					'scoping-prefix'          => 'MyPlugin\\Scoped',
+				),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/php-scoper is not installed/' );
+		ScopePhpDependencies::run( $this->factoryEvent( new BufferIO() ) );
 	}
 
 	#[Test]
@@ -300,18 +613,19 @@ final class ScopePhpDependenciesTest extends TestCase {
 	}
 
 	#[Test]
-	public function post_autoload_dump_throws_when_the_scope_script_fails(): void {
-		// A scope-php-dependencies callback returning false yields a non-zero dispatch code, which
-		// must stop the run before generating the autoload over partial output.
+	public function post_autoload_dump_throws_when_the_raw_script_fails(): void {
+		// A raw-scoper callback returning false yields a non-zero dispatch code, which must stop
+		// the run before generating the autoload over partial output.
 		$this->installFakePhpScoper();
 		$this->writeComposerJson(
 			array(
-				'scripts' => array( 'scope-php-dependencies' => self::class . '::failingScopeScript' ),
+				'scripts' => $this->pipelineScripts( self::class . '::failingScopeScript' ),
+				'extra'   => array( 'scoped-dependencies-dir' => 'dependencies' ),
 			)
 		);
 
 		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/scope-php-dependencies script failed/' );
+		$this->expectExceptionMessageMatches( '/scope-php-dependencies:raw script failed/' );
 		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
 	}
 
@@ -378,6 +692,21 @@ final class ScopePhpDependenciesTest extends TestCase {
 		);
 	}
 
+	/**
+	 * The canonical consumer script wiring: the public pipeline script bound to `run` and the
+	 * raw scoper script bound to the given listener.
+	 *
+	 * @param  string $raw_listener Listener for the raw scoper script.
+	 *
+	 * @return array<string, string>
+	 */
+	private function pipelineScripts( string $raw_listener ): array {
+		return array(
+			ScopePhpDependencies::PIPELINE_SCRIPT   => ScopePhpDependencies::class . '::run',
+			ScopePhpDependencies::RAW_SCOPER_SCRIPT => $raw_listener,
+		);
+	}
+
 	private function event( bool $devMode = true, ?BufferIO $io = null ): Event {
 		$composer = new Composer();
 		$config   = new Config();
@@ -408,6 +737,16 @@ final class ScopePhpDependenciesTest extends TestCase {
 	/** Scope-script stub that signals failure (Composer maps a `false` return to a non-zero code). */
 	public static function failingScopeScript(): bool {
 		return false;
+	}
+
+	/** Scope-script stub that succeeds without producing any output directory. */
+	public static function noopScopeScript(): void {
+	}
+
+	/** Scope-script stub that records the dispatched script arguments for assertion. */
+	public static function argumentRecordingScopeScript( Event $event ): void {
+		$project = \dirname( \Composer\Factory::getComposerFile() );
+		\file_put_contents( $project . '/recorded-args.txt', \implode( "\n", $event->getArguments() ) );
 	}
 
 	/** Scope-script stub: stands in for php-scoper by writing one scoped package into dependencies/. */

@@ -23,6 +23,11 @@ final class GenerateScopedAutoloadTest extends TestCase {
 
 	#[Test]
 	public function writes_file_at_dependencies_root(): void {
+		$this->installScopedPackage(
+			'acme/minimal',
+			array( 'autoload' => array( 'psr-4' => array( 'MyPlugin\\Scoped\\Acme\\Minimal\\' => 'src/' ) ) )
+		);
+
 		$output = GenerateScopedAutoload::generate( $this->dependencies_dir, 'MyPlugin\\Scoped' );
 
 		self::assertSame( $this->dependencies_dir . '/scoper-autoload.php', $output );
@@ -31,6 +36,11 @@ final class GenerateScopedAutoloadTest extends TestCase {
 
 	#[Test]
 	public function generated_file_is_valid_php(): void {
+		$this->installScopedPackage(
+			'acme/minimal',
+			array( 'autoload' => array( 'psr-4' => array( 'MyPlugin\\Scoped\\Acme\\Minimal\\' => 'src/' ) ) )
+		);
+
 		GenerateScopedAutoload::generate( $this->dependencies_dir, 'MyPlugin\\Scoped' );
 
 		$lint = \shell_exec( 'php -l ' . \escapeshellarg( $this->dependencies_dir . '/scoper-autoload.php' ) . ' 2>&1' );
@@ -129,15 +139,56 @@ final class GenerateScopedAutoloadTest extends TestCase {
 	}
 
 	#[Test]
-	public function emits_empty_body_when_no_scoped_packages_exist(): void {
+	public function throws_when_no_scoped_packages_exist(): void {
+		// An empty scan means every scoped class would 404 at runtime while composer exits 0;
+		// the generator refuses to write an empty autoload instead of failing silently.
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/No scoped packages found/' );
+
 		GenerateScopedAutoload::generate( $this->dependencies_dir, 'X' );
+	}
+
+	#[Test]
+	public function finds_packages_in_flattened_single_vendor_layout(): void {
+		// php-scoper mirrors input paths relative to their common ancestor: finders covering a
+		// single vendor namespace (a framework-only consumer) collapse the `vendor/<vendor>/`
+		// segment and write packages directly at dependencies/<pkg>/.
+		$this->installScopedPackage(
+			'wp-framework-core',
+			array(
+				'autoload' => array(
+					'psr-4' => array( 'MyPlugin\\Scoped\\DeepWebSolutions\\Framework\\Core\\' => 'src/' ),
+				),
+			)
+		);
+
+		GenerateScopedAutoload::generate( $this->dependencies_dir, 'MyPlugin\\Scoped' );
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
-		self::assertStringNotContainsString( 'addPsr4', $generated );
-		self::assertStringNotContainsString( 'addClassMap', $generated );
-		self::assertStringNotContainsString( 'require_once __DIR__', $generated );
-		// No mappings and no files ⇒ no loader is created at all.
-		self::assertStringNotContainsString( 'ClassLoader', $generated );
+		self::assertStringContainsString(
+			"\$loader->addPsr4( 'MyPlugin\\\\Scoped\\\\DeepWebSolutions\\\\Framework\\\\Core\\\\', __DIR__ . '/wp-framework-core/src' );",
+			$generated
+		);
+	}
+
+	#[Test]
+	public function finds_packages_across_flattened_and_nested_layouts(): void {
+		// Residue from a previous run with a different finder shape can leave both layouts on
+		// disk at once; the scan reads packages from either depth.
+		$this->installScopedPackage(
+			'wp-framework-shared',
+			array( 'autoload' => array( 'psr-4' => array( 'P\\Shared\\' => 'src/' ) ) )
+		);
+		$this->installScopedPackage(
+			'php-di/php-di',
+			array( 'autoload' => array( 'psr-4' => array( 'P\\DI\\' => 'src/' ) ) )
+		);
+
+		GenerateScopedAutoload::generate( $this->dependencies_dir, 'P' );
+
+		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
+		self::assertStringContainsString( "__DIR__ . '/wp-framework-shared/src'", $generated );
+		self::assertStringContainsString( "__DIR__ . '/php-di/php-di/src'", $generated );
 	}
 
 	#[Test]

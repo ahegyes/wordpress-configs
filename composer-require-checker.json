@@ -5,6 +5,7 @@
         "Composer\\Factory",
         "Composer\\IO\\IOInterface",
         "Composer\\Installer\\InstallationManager",
+        "Composer\\Package\\PackageInterface",
         "Composer\\Script\\Event",
         "Symfony\\Component\\Finder\\Finder"
     ],

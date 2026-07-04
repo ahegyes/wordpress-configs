@@ -167,51 +167,37 @@ final class CollectScopingStubsTest extends TestCase {
 	}
 
 	#[Test]
-	public function filters_non_string_entries_from_scoping_stubs_declaration(): void {
+	public function throws_on_non_string_entry_in_root_scoping_stubs(): void {
+		// The root declaration is the consumer's own file: a malformed entry there fails
+		// loudly instead of being filtered into a silently smaller exclusion set.
 		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
-		// Mixed types in scoping-stubs — only the string survives.
-		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs', 123, null, array( 'nested' => true ) ) );
+		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs', 123 ) );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Invalid root extra\.scoping-stubs entry/' );
 
 		CollectScopingStubs::postAutoloadDump( $this->event() );
-
-		$result = $this->loadOutput( 'scoping-exclusions.json' );
-		self::assertContains( 'add_action', $result['functions'] );
 	}
 
 	#[Test]
-	public function filters_path_traversal_segments_from_scoping_stubs_declaration(): void {
-		$io = new BufferIO();
-		$this->writeProjectComposer( array( '../etc/passwd', '/etc/shadow' ) );
+	public function throws_on_traversal_entry_in_root_scoping_stubs(): void {
+		$this->writeProjectComposer( array( '../etc/passwd' ) );
 
-		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Invalid root extra\.scoping-stubs entry/' );
 
-		// Filtered at read_declaration before reaching resolve_stubs_paths —
-		// no skip messages for these entries.
-		self::assertStringNotContainsString( '../etc/passwd', $io->getOutput() );
-		self::assertStringNotContainsString( '/etc/shadow', $io->getOutput() );
-		self::assertSame(
-			array(
-				'classes'   => array(),
-				'functions' => array(),
-				'constants' => array(),
-			),
-			$this->loadOutput( 'scoping-exclusions.json' )
-		);
+		CollectScopingStubs::postAutoloadDump( $this->event() );
 	}
 
 	#[Test]
-	public function filters_malformed_package_names_from_scoping_stubs_declaration(): void {
-		$io = new BufferIO();
-		// Each value fails Composer's package-name regex for a different reason:
-		// uppercase / missing slash / too many slashes / trailing dash.
-		$this->writeProjectComposer( array( 'Foo/Bar', 'no-slash', 'too/many/slashes', 'foo-/bar' ) );
+	public function throws_on_malformed_package_name_in_root_scoping_stubs(): void {
+		// Fails Composer's package-name regex (uppercase vendor).
+		$this->writeProjectComposer( array( 'Foo/Bar' ) );
 
-		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Invalid root extra\.scoping-stubs entry/' );
 
-		self::assertStringNotContainsString( 'Foo/Bar', $io->getOutput() );
-		self::assertStringNotContainsString( 'no-slash', $io->getOutput() );
-		self::assertStringNotContainsString( 'too/many/slashes', $io->getOutput() );
-		self::assertStringNotContainsString( 'foo-/bar', $io->getOutput() );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
 	}
 
 
@@ -525,16 +511,22 @@ final class CollectScopingStubsTest extends TestCase {
 	}
 
 	#[Test]
-	public function read_declaration_skips_non_string_entries_at_non_zero_index(): void {
-		// Catches UnwrapArrayValues on read_declaration's return — without array_values(),
-		// a non-string at index 0 would leave the survivor at index 1 (associative array, not list).
+	public function package_declaration_skips_non_string_entries_and_keeps_survivors(): void {
+		// Third-party tolerance: a non-string entry in an INSTALLED package's declaration is
+		// dropped (with a warning) while the valid sibling entry still contributes symbols.
+		$io = new BufferIO();
 		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
-		$this->writeProjectComposer( array( 123, 'php-stubs/wordpress-stubs' ) );
+		$this->writeProjectComposer( array() );
+		$this->registerPackage(
+			'some/mixed-declaration',
+			extra: array( 'scoping-stubs' => array( 123, 'php-stubs/wordpress-stubs' ) )
+		);
 
-		CollectScopingStubs::postAutoloadDump( $this->event() );
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
 
 		$result = $this->loadOutput( 'scoping-exclusions.json' );
 		self::assertContains( 'add_action', $result['functions'] );
+		self::assertStringContainsString( 'some/mixed-declaration', $io->getOutput() );
 	}
 
 	#[Test]
@@ -643,99 +635,62 @@ final class CollectScopingStubsTest extends TestCase {
 	}
 
 	#[Test]
-	public function rejects_explicit_file_entry_with_a_traversal_segment(): void {
-		$io = new BufferIO();
+	public function throws_on_root_explicit_file_entry_with_a_traversal_segment(): void {
 		// A secret file is planted as a sibling of the package dir, reachable only by escaping it.
 		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
 		\copy( self::FIXTURES_DIR . '/stubs-secondary.php', $this->vendor_dir . '/php-stubs/escape.php' );
 		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:../escape.php' ) );
 
-		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Invalid root extra\.scoping-stubs entry/' );
 
-		$result = $this->loadOutput( 'scoping-exclusions.json' );
-		// The traversal target's symbols never appear — rejected at the validation filter,
-		// so the entry is dropped before resolution and emits no skip note for it.
-		self::assertNotContains( 'as_schedule_single_action', $result['functions'] );
-		self::assertNotContains( 'ActionScheduler_Store', $result['classes'] );
-		self::assertStringNotContainsString( '../escape.php', $io->getOutput() );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
 	}
 
 	#[Test]
-	public function rejects_explicit_file_entry_with_an_absolute_path(): void {
-		$io = new BufferIO();
+	public function throws_on_root_explicit_file_entry_with_an_absolute_path(): void {
 		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
 		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:/etc/passwd' ) );
 
-		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Invalid root extra\.scoping-stubs entry/' );
 
-		self::assertSame(
-			array(
-				'classes'   => array(),
-				'functions' => array(),
-				'constants' => array(),
-			),
-			$this->loadOutput( 'scoping-exclusions.json' )
-		);
-		self::assertStringNotContainsString( '/etc/passwd', $io->getOutput() );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
 	}
 
 	#[Test]
-	public function rejects_explicit_file_entry_whose_file_part_is_not_php(): void {
-		$io = new BufferIO();
+	public function throws_on_root_explicit_file_entry_whose_file_part_is_not_php(): void {
 		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
 		// A non-.php file part is rejected at the validation filter.
 		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:README.md' ) );
 
-		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Invalid root extra\.scoping-stubs entry/' );
 
-		self::assertStringNotContainsString( 'README.md', $io->getOutput() );
-		self::assertSame(
-			array(
-				'classes'   => array(),
-				'functions' => array(),
-				'constants' => array(),
-			),
-			$this->loadOutput( 'scoping-exclusions.json' )
-		);
+		CollectScopingStubs::postAutoloadDump( $this->event() );
 	}
 
 	#[Test]
-	public function rejects_explicit_file_entry_with_an_empty_file_part(): void {
-		$io = new BufferIO();
+	public function throws_on_root_explicit_file_entry_with_an_empty_file_part(): void {
 		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
 		// Trailing-colon entry: valid package, empty file part — rejected at the filter.
 		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:' ) );
 
-		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Invalid root extra\.scoping-stubs entry/' );
 
-		self::assertStringNotContainsString( 'woocommerce-stubs:', $io->getOutput() );
-		self::assertSame(
-			array(
-				'classes'   => array(),
-				'functions' => array(),
-				'constants' => array(),
-			),
-			$this->loadOutput( 'scoping-exclusions.json' )
-		);
+		CollectScopingStubs::postAutoloadDump( $this->event() );
 	}
 
 	#[Test]
-	public function rejects_explicit_file_entry_with_a_malformed_package_part(): void {
-		$io = new BufferIO();
+	public function throws_on_root_explicit_file_entry_with_a_malformed_package_part(): void {
 		// Uppercase package part fails Composer's package-name regex; the whole entry is dropped.
 		$this->writeProjectComposer( array( 'Foo/Bar:stubs.php' ) );
 
-		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Invalid root extra\.scoping-stubs entry/' );
 
-		self::assertStringNotContainsString( 'Foo/Bar', $io->getOutput() );
-		self::assertSame(
-			array(
-				'classes'   => array(),
-				'functions' => array(),
-				'constants' => array(),
-			),
-			$this->loadOutput( 'scoping-exclusions.json' )
-		);
+		CollectScopingStubs::postAutoloadDump( $this->event() );
 	}
 
 	#[Test]
@@ -825,86 +780,55 @@ final class CollectScopingStubsTest extends TestCase {
 	}
 
 	#[Test]
-	public function explicit_file_entry_with_a_nul_byte_is_skipped_without_crashing(): void {
-		$io = new BufferIO();
+	public function throws_on_root_explicit_file_entry_with_a_nul_byte(): void {
 		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
-		// A NUL byte in the file part makes realpath throw a ValueError if it reaches it;
-		// the validation filter rejects it first, so the entry is dropped silently.
+		// A NUL byte in the file part makes realpath throw a ValueError if it reaches it; the
+		// validation rejects it first, and the root strictness turns that into a clean throw.
 		$this->writeProjectComposer( array( "php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php\0.php" ) );
 
-		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Invalid root extra\.scoping-stubs entry/' );
 
-		self::assertSame(
-			array(
-				'classes'   => array(),
-				'functions' => array(),
-				'constants' => array(),
-			),
-			$this->loadOutput( 'scoping-exclusions.json' )
-		);
+		CollectScopingStubs::postAutoloadDump( $this->event() );
 	}
 
 	#[Test]
-	public function rejects_explicit_file_entry_with_a_windows_drive_shaped_file_part(): void {
-		$io = new BufferIO();
+	public function throws_on_root_explicit_file_entry_with_a_windows_drive_shaped_file_part(): void {
 		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
 		// A Windows drive-letter shape (C:/...) carries a colon; rejected at the validation
 		// filter before realpath could interpret the drive semantics.
 		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:C:/secret.php' ) );
 
-		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Invalid root extra\.scoping-stubs entry/' );
 
-		self::assertSame(
-			array(
-				'classes'   => array(),
-				'functions' => array(),
-				'constants' => array(),
-			),
-			$this->loadOutput( 'scoping-exclusions.json' )
-		);
-		self::assertStringNotContainsString( 'C:/secret.php', $io->getOutput() );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
 	}
 
 	#[Test]
-	public function rejects_explicit_file_entry_with_an_ntfs_ads_shaped_file_part(): void {
-		$io = new BufferIO();
+	public function throws_on_root_explicit_file_entry_with_an_ntfs_ads_shaped_file_part(): void {
 		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
 		// An NTFS alternate-data-stream shape (foo:bar.php) carries a colon; rejected at the
 		// validation filter before realpath could interpret the stream semantics.
 		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs:foo:bar.php' ) );
 
-		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Invalid root extra\.scoping-stubs entry/' );
 
-		self::assertSame(
-			array(
-				'classes'   => array(),
-				'functions' => array(),
-				'constants' => array(),
-			),
-			$this->loadOutput( 'scoping-exclusions.json' )
-		);
-		self::assertStringNotContainsString( 'foo:bar.php', $io->getOutput() );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
 	}
 
 	#[Test]
-	public function rejects_explicit_file_entry_whose_file_part_still_contains_a_colon_after_split(): void {
-		$io = new BufferIO();
+	public function throws_on_root_explicit_file_entry_whose_file_part_still_contains_a_colon_after_split(): void {
 		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
 		// The first colon splits package from file; a second colon left in the file part
 		// (here a leading-colon ADS shape) is rejected at the validation filter.
 		$this->writeProjectComposer( array( 'php-stubs/woocommerce-stubs::stream.php' ) );
 
-		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Invalid root extra\.scoping-stubs entry/' );
 
-		self::assertSame(
-			array(
-				'classes'   => array(),
-				'functions' => array(),
-				'constants' => array(),
-			),
-			$this->loadOutput( 'scoping-exclusions.json' )
-		);
-		self::assertStringNotContainsString( ':stream.php', $io->getOutput() );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
 	}
 
 	#[Test]
@@ -1033,44 +957,93 @@ final class CollectScopingStubsTest extends TestCase {
 
 	#[Test]
 	public function tolerates_installed_packages_with_absent_or_malformed_scoping_stubs(): void {
+		$io = new BufferIO();
 		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
 		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs' ) );
 
 		// No extra at all; extra present but no scoping-stubs key; a scalar (non-array) value;
 		// and an object/associative-array value whose entries are not valid declarations — every
-		// malformed shape must be skipped without disturbing the valid project declaration.
+		// malformed shape in an INSTALLED package is skipped (the consumer cannot fix third-party
+		// metadata) but surfaced as a warning, without disturbing the valid project declaration.
 		$this->registerPackage( 'some/plain-package' );
 		$this->registerPackage( 'some/other-extra', extra: array( 'branch-alias' => array( 'dev-main' => '1.x-dev' ) ) );
 		$this->registerPackage( 'some/scalar-stubs', extra: array( 'scoping-stubs' => 'php-stubs/wordpress-stubs' ) );
 		$this->registerPackage( 'some/object-stubs', extra: array( 'scoping-stubs' => array( 'key' => 'value' ) ) );
 
-		CollectScopingStubs::postAutoloadDump( $this->event() );
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
 
 		$result = $this->loadOutput( 'scoping-exclusions.json' );
 		self::assertContains( 'add_action', $result['functions'] );
 		// The scalar shape names a real package but is not a list, so it contributes nothing —
 		// add_action appears exactly once (from the project declaration), not duplicated.
 		self::assertSame( 1, \count( \array_keys( $result['functions'], 'add_action', true ) ) );
+		// Each malformed shape is named in a warning; absent declarations warn nothing.
+		self::assertStringContainsString( 'some/scalar-stubs', $io->getOutput() );
+		self::assertStringContainsString( 'some/object-stubs', $io->getOutput() );
+		self::assertStringNotContainsString( 'some/plain-package', $io->getOutput() );
+		self::assertStringNotContainsString( 'some/other-extra', $io->getOutput() );
 	}
 
 	#[Test]
-	public function tolerates_project_scoping_stubs_that_is_not_an_array(): void {
-		// A malformed root declaration (scoping-stubs as a string, not a list) must be tolerated.
+	public function throws_when_root_scoping_stubs_is_not_an_array(): void {
+		// A malformed root declaration (scoping-stubs as a string, not a list) fails loudly —
+		// silently writing empty exclusions would surface only as prefixed host symbols at runtime.
 		\file_put_contents(
 			$this->project_dir . '/composer.json',
 			\json_encode( array( 'extra' => array( 'scoping-stubs' => 'php-stubs/wordpress-stubs' ) ), JSON_THROW_ON_ERROR )
 		);
 
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/root extra\.scoping-stubs must be an array/' );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+	}
+
+	#[Test]
+	public function ships_and_declares_the_action_scheduler_stub_catalog(): void {
+		// #86: the as_* exclusion must survive a consumer dropping php-stubs/woocommerce-stubs.
+		// This repo ships its own Action Scheduler catalog and declares it via its own
+		// extra.scoping-stubs, so every consumer installing ahegyes/wordpress-configs collects
+		// the as_* family with no WooCommerce dev-stub involved. The test wires the REAL
+		// declaration from this repo's composer.json against the REAL stub file, so a drift in
+		// either (entry renamed, file moved, catalog emptied) fails here.
+		$repo_root       = \dirname( __DIR__, 2 );
+		$composer_config = \json_decode( (string) \file_get_contents( $repo_root . '/composer.json' ), true, 512, JSON_THROW_ON_ERROR );
+		$declarations    = $composer_config['extra']['scoping-stubs'] ?? array();
+
+		$self_entry = null;
+		foreach ( $declarations as $entry ) {
+			if ( \is_string( $entry ) && \str_starts_with( $entry, 'ahegyes/wordpress-configs:' ) ) {
+				$self_entry = $entry;
+			}
+		}
+		self::assertNotNull( $self_entry, 'composer.json must declare the self-shipped Action Scheduler stub catalog.' );
+
+		$stub_relative = \explode( ':', $self_entry, 2 )[1];
+		$package_dir   = $this->vendor_dir . '/ahegyes/wordpress-configs';
+		\mkdir( \dirname( $package_dir . '/' . $stub_relative ), 0755, true );
+		\copy( $repo_root . '/' . $stub_relative, $package_dir . '/' . $stub_relative );
+		$this->registerPackage( 'ahegyes/wordpress-configs', extra: array( 'scoping-stubs' => array( $self_entry ) ) );
+
+		$this->writeProjectComposer( array() );
 		CollectScopingStubs::postAutoloadDump( $this->event() );
 
-		self::assertSame(
-			array(
-				'classes'   => array(),
-				'functions' => array(),
-				'constants' => array(),
-			),
-			$this->loadOutput( 'scoping-exclusions.json' )
-		);
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		foreach ( array(
+			'as_enqueue_async_action',
+			'as_schedule_single_action',
+			'as_schedule_recurring_action',
+			'as_schedule_cron_action',
+			'as_unschedule_action',
+			'as_unschedule_all_actions',
+			'as_next_scheduled_action',
+			'as_has_scheduled_action',
+			'as_get_scheduled_actions',
+			'as_get_datetime_object',
+			'as_supports',
+		) as $as_function ) {
+			self::assertContains( $as_function, $result['functions'] );
+		}
 	}
 
 	#[Test]

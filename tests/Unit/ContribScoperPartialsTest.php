@@ -72,6 +72,7 @@ final class ContribScoperPartialsTest extends TestCase {
 
 	#[Test]
 	public function wp_framework_partial_picks_up_installed_framework_packages(): void {
+		$this->writeOptedOutComposerJson();
 		\mkdir( $this->vendor_dir . '/ahegyes/wp-framework-core/src', 0755, true );
 		\file_put_contents( $this->vendor_dir . '/ahegyes/wp-framework-core/src/Kernel.php', '<?php class Kernel {}' );
 		\mkdir( $this->vendor_dir . '/ahegyes/wp-framework-shared/src', 0755, true );
@@ -88,6 +89,7 @@ final class ContribScoperPartialsTest extends TestCase {
 
 	#[Test]
 	public function wp_framework_partial_excludes_tests_directory(): void {
+		$this->writeOptedOutComposerJson();
 		\mkdir( $this->vendor_dir . '/ahegyes/wp-framework-core/src', 0755, true );
 		\file_put_contents( $this->vendor_dir . '/ahegyes/wp-framework-core/src/Kernel.php', '<?php class Kernel {}' );
 		\mkdir( $this->vendor_dir . '/ahegyes/wp-framework-core/tests', 0755, true );
@@ -104,6 +106,7 @@ final class ContribScoperPartialsTest extends TestCase {
 
 	#[Test]
 	public function wp_framework_partial_only_globs_wp_framework_prefix(): void {
+		$this->writeOptedOutComposerJson();
 		\mkdir( $this->vendor_dir . '/ahegyes/wp-framework-core', 0755, true );
 		\file_put_contents( $this->vendor_dir . '/ahegyes/wp-framework-core/Kernel.php', '<?php class Kernel {}' );
 		// Sibling under ahegyes/ that is NOT a framework package — must not be scoped.
@@ -123,6 +126,7 @@ final class ContribScoperPartialsTest extends TestCase {
 	public function wp_framework_partial_finders_propagate_through_scoper_base(): void {
 		// Seam test: pipes the partial's finders through scoper-base and verifies they
 		// land in the final config. Catches drift where the input key for finders renames.
+		$this->writeOptedOutComposerJson();
 		\mkdir( $this->vendor_dir . '/ahegyes/wp-framework-core/src', 0755, true );
 		\file_put_contents( $this->vendor_dir . '/ahegyes/wp-framework-core/src/Kernel.php', '<?php class Kernel {}' );
 
@@ -138,6 +142,144 @@ final class ContribScoperPartialsTest extends TestCase {
 	}
 
 	// endregion
+
+	// region wp-framework.inc.php — Action Scheduler guard
+
+	#[Test]
+	public function as_guard_throws_on_a_prefixed_action_scheduler_call(): void {
+		// A prefixed as_* call in scoped output is an undefined-function fatal at runtime —
+		// the guard fails the scope run instead.
+		$guard = $this->getAsGuardPatcher();
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Prefixed Action Scheduler reference/' );
+
+		$guard( '/file.php', 'Prefix', "<?php \\Prefix\\as_schedule_single_action( 1, 'hook' );" );
+	}
+
+	#[Test]
+	public function as_guard_throws_on_a_prefixed_action_scheduler_string_reference(): void {
+		// php-scoper also rewrites function-name string literals; the guard decodes the doubled
+		// backslashes and catches those too.
+		$guard = $this->getAsGuardPatcher();
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Prefixed Action Scheduler reference/' );
+
+		$guard( '/file.php', 'Prefix', "<?php \\function_exists( 'Prefix\\\\as_has_scheduled_action' );" );
+	}
+
+	#[Test]
+	public function as_guard_passes_unprefixed_action_scheduler_calls_verbatim(): void {
+		$guard = $this->getAsGuardPatcher();
+
+		$content = "<?php \\as_schedule_recurring_action( 1, 60, 'hook' ); \\function_exists( 'as_has_scheduled_action' );";
+
+		self::assertSame( $content, $guard( '/file.php', 'Prefix', $content ) );
+	}
+
+	#[Test]
+	public function as_guard_ignores_prefixed_pattern_inside_comments(): void {
+		$guard = $this->getAsGuardPatcher();
+
+		$content = "<?php\n// mentions Prefix\\as_schedule_single_action in prose\n/** @see Prefix\\as_supports */\n\\as_supports( 'x' );";
+
+		self::assertSame( $content, $guard( '/file.php', 'Prefix', $content ) );
+	}
+
+	#[Test]
+	public function as_guard_leaves_other_prefixed_symbols_alone(): void {
+		// Only the as_* family is host-pinned by the guard; other prefixed names are the
+		// scoper's normal output.
+		$guard = $this->getAsGuardPatcher();
+
+		$content = '<?php \\Prefix\\assert_something(); new \\Prefix\\Astronomy();';
+
+		self::assertSame( $content, $guard( '/file.php', 'Prefix', $content ) );
+	}
+
+	#[Test]
+	public function as_guard_throws_on_a_prefixed_reference_inside_a_heredoc(): void {
+		$guard = $this->getAsGuardPatcher();
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Prefixed Action Scheduler reference/' );
+
+		$guard( '/file.php', 'Prefix', "<?php \$x = <<<EOT\ncalls Prefix\\as_supports at runtime\nEOT;\n" );
+	}
+
+	#[Test]
+	public function as_guard_throws_on_a_prefixed_reference_inside_an_interpolated_string(): void {
+		$guard = $this->getAsGuardPatcher();
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Prefixed Action Scheduler reference/' );
+
+		$guard( '/file.php', 'Prefix', '<?php $s = "call Prefix\\\\as_has_scheduled_action for {$hook}";' );
+	}
+
+	#[Test]
+	public function as_guard_catches_case_variant_prefixed_call(): void {
+		// PHP resolves function and namespace names case-insensitively, so \Prefix\AS_… is
+		// the same runtime fatal as \Prefix\as_….
+		$guard = $this->getAsGuardPatcher();
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Prefixed Action Scheduler reference/' );
+
+		$guard( '/file.php', 'Prefix', "<?php \\Prefix\\AS_enqueue_async_action( 'hook' );" );
+	}
+
+	#[Test]
+	public function as_guard_throws_on_escape_obfuscated_reference_in_heredoc(): void {
+		// Heredoc fragments decode at runtime; \x5C is a backslash, so the decoded body
+		// carries a live prefixed reference.
+		$guard = $this->getAsGuardPatcher();
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Prefixed Action Scheduler reference/' );
+
+		$guard( '/file.php', 'Prefix', "<?php \$x = <<<EOT\ncalls Prefix\\x5Cas_supports\nEOT;\n" );
+	}
+
+	#[Test]
+	public function as_guard_ignores_double_backslash_reference_in_nowdoc(): void {
+		// A nowdoc body never decodes: a doubled backslash stays two literal backslashes at
+		// runtime, which is not a live \Prefix\as_* reference — the raw check must not
+		// collapse it into one.
+		$guard = $this->getAsGuardPatcher();
+
+		$content = "<?php \$x = <<<'EOT'\ncalls Prefix\\\\as_supports here\nEOT;\n";
+
+		self::assertSame( $content, $guard( '/file.php', 'Prefix', $content ) );
+	}
+
+	// endregion
+
+	/**
+	 * Writes a consumer composer.json with the explicit `"text-domain": false` opt-out, so
+	 * finder-focused tests satisfy the partial's mandatory-metadata contract without a domain.
+	 */
+	private function writeOptedOutComposerJson(): void {
+		\file_put_contents(
+			$this->project_dir . '/composer.json',
+			\json_encode( array( 'extra' => array( 'text-domain' => false ) ), JSON_THROW_ON_ERROR )
+		);
+	}
+
+	/**
+	 * Returns the always-on Action Scheduler guard patcher — the sole patcher under the
+	 * text-domain opt-out.
+	 */
+	private function getAsGuardPatcher(): callable {
+		$this->writeOptedOutComposerJson();
+		\mkdir( $this->vendor_dir . '/ahegyes/wp-framework-utilities', 0755, true );
+
+		$config = ( require self::WP_FRAMEWORK_PARTIAL )( $this->vendor_dir, $this->project_dir );
+
+		self::assertCount( 1, $config['patchers'], 'expected only the Action Scheduler guard patcher' );
+		return $config['patchers'][0];
+	}
 
 	/**
 	 * @param  iterable<\Symfony\Component\Finder\SplFileInfo> $finder

@@ -18,11 +18,13 @@ wordpress-configs/
 │   │   ├── scoper-base.inc.php      # catalog-agnostic; reads scoping-exclusions.json; token-aware patcher
 │   │   └── contrib/
 │   │       ├── php-di.inc.php       # PHP-DI 7 + transitive deps
-│   │       └── wp-framework.inc.php # auto-detect ahegyes/wp-framework-* packages
+│   │       └── wp-framework.inc.php # auto-detect ahegyes/wp-framework-* packages; requires extra.text-domain (false = explicit opt-out); plain-argument rule: rewrites a wp-framework-* literal only when it is the single plain constant string at a gettext call's DOMAIN argument position (per-function index map); throws on any other reserved literal (decoded — b-prefix/escape obfuscation caught): out-of-position, compound domain expressions with a reserved participant, named-argument gettext calls, and any wp-framework- occurrence in heredoc/nowdoc/interpolated strings; always-on guard throws on a prefixed as_* residue (name tokens, string refs, encapsed fragments)
+│   ├── stubs/
+│   │   └── action-scheduler.php     # parse-only as_* catalog, self-declared via this repo's extra.scoping-stubs — the exclusion survives a consumer dropping php-stubs/woocommerce-stubs
 │   └── composer/
-│       ├── CollectScopingStubs.php  # post-autoload-dump: aggregates extra.scoping-stubs → scoping-exclusions.json (classes, functions, constants)
-│       ├── ScopePhpDependencies.php # composer event handler invoking php-scoper
-│       └── GenerateScopedAutoload.php # emits dependencies/scoper-autoload.php from the scoped tree
+│       ├── CollectScopingStubs.php  # post-autoload-dump: aggregates extra.scoping-stubs → scoping-exclusions.json (classes, functions, constants); malformed ROOT declaration throws, malformed installed-package declaration warns
+│       ├── ScopePhpDependencies.php # full pipeline: dispatches the consumer's scope-php-dependencies:raw with --output-dir derived from extra.scoped-dependencies-dir (single source; a stray --output-dir/-o flag throws), then regenerates the scoped autoload; every scope-php-dependencies listener must reference ScopePhpDependencies::run (a missing binding or a non-matching listener throws)
+│       └── GenerateScopedAutoload.php # emits dependencies/scoper-autoload.php from the scoped tree (nested <vendor>/<pkg>/ and flattened <pkg>/ layouts); throws when the scan finds no packages
 ├── node/
 │   ├── tsconfig.base.json
 │   ├── eslint.config.base.mjs

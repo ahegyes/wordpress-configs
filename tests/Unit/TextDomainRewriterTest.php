@@ -12,6 +12,9 @@ use PHPUnit\Framework\TestCase;
  * The patcher rewrites the framework's per-package `wp-framework-*` text domains (the SOURCE domains
  * framework gettext calls use) to the consumer plugin's `extra.text-domain` at scope time, so framework
  * strings ship under the consumer's domain. The framework never uses a bare `wp-framework` domain.
+ * The rewrite is position-aware: only the domain argument of a gettext call is rewritten, and a
+ * reserved `wp-framework-*` literal anywhere else fails the scope run. Consumer text-domain metadata
+ * is mandatory when framework packages are installed; `"text-domain": false` is the explicit opt-out.
  */
 final class TextDomainRewriterTest extends TestCase {
 
@@ -86,17 +89,387 @@ final class TextDomainRewriterTest extends TestCase {
 	}
 
 	#[Test]
-	public function rewrites_reserved_prefix_even_outside_gettext_calls(): void {
+	public function throws_on_reserved_literal_in_an_assignment(): void {
 		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
 
-		// Policy (locked): the entire `wp-framework-*` literal space is reserved for framework
-		// textdomains and is rewritten wherever it appears as a string literal — not only inside
-		// gettext calls. Framework source keeps non-i18n strings (hooks, options) off this prefix.
-		$input  = "<?php \$domain = 'wp-framework-utilities'; register_thing( 'wp-framework-core' );";
+		// The `wp-framework-*` literal space is reserved for text domains, and only a gettext
+		// call's domain argument is a rewrite site. Anywhere else the literal would have been
+		// silently corrupted by a blanket rewrite (a hook name, option key, cache group), so
+		// the patcher fails the scope run instead.
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/outside a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \$domain = 'wp-framework-utilities';" );
+	}
+
+	#[Test]
+	public function throws_on_reserved_literal_in_a_non_gettext_call(): void {
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/outside a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php register_thing( 'wp-framework-core' );" );
+	}
+
+	#[Test]
+	public function throws_on_reserved_literal_in_a_nested_call_inside_a_gettext_call(): void {
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		// The callee stack attributes the literal to its DIRECT enclosing call — a sprintf
+		// nested inside __() is not a domain position.
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/outside a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \\__( \\sprintf( 'wp-framework-core' ), 'my-domain' );" );
+	}
+
+	#[Test]
+	public function throws_on_reserved_literal_in_an_array_literal(): void {
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/outside a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \$map = array( 'domain' => 'wp-framework-core' );" );
+	}
+
+	#[Test]
+	public function rewrites_domain_in_a_multiline_gettext_call(): void {
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$input  = "<?php \\__(\n\t'Text',\n\t'wp-framework-bootstrap'\n);";
 		$output = $patcher( '/file.php', 'Prefix', $input );
 
+		self::assertStringContainsString( "'my-plugin'", $output );
 		self::assertStringNotContainsString( 'wp-framework', $output );
-		self::assertSame( 2, \substr_count( $output, "'my-plugin'" ) );
+	}
+
+	#[Test]
+	public function rewrites_domain_while_a_nested_call_sits_in_an_earlier_argument(): void {
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		// The nested sprintf pushes and pops its own callee; by the domain argument the stack
+		// top is the gettext call again.
+		$input  = "<?php \\__( \\sprintf( '%s!', \$name ), 'wp-framework-utilities' );";
+		$output = $patcher( '/file.php', 'Prefix', $input );
+
+		self::assertStringContainsString( "'my-plugin'", $output );
+		self::assertStringNotContainsString( 'wp-framework', $output );
+	}
+
+	#[Test]
+	public function rewrites_unqualified_gettext_call(): void {
+		// Scoped framework files may call gettext functions unqualified (T_STRING callee).
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$input  = "<?php __( 'Text', 'wp-framework-bootstrap' );";
+		$output = $patcher( '/file.php', 'Prefix', $input );
+
+		self::assertStringContainsString( "'my-plugin'", $output );
+		self::assertStringNotContainsString( 'wp-framework', $output );
+	}
+
+	#[Test]
+	public function throws_on_reserved_literal_in_gettext_message_argument(): void {
+		// Position-aware, not merely callee-aware: a reserved literal in the MESSAGE argument of
+		// a gettext call is not a domain and must not be rewritten into the consumer domain.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/outside a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \\__( 'wp-framework-core failed', 'wp-framework-bootstrap' );" );
+	}
+
+	#[Test]
+	public function throws_on_reserved_literal_in_gettext_context_argument(): void {
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/outside a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \\_x( 'T', 'wp-framework-ctx', 'wp-framework-settings' );" );
+	}
+
+	#[Test]
+	public function throws_on_concatenated_domain_expression(): void {
+		// A fragment of a concatenated domain must not be rewritten in isolation.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/compound expression at a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \\__( 'T', 'wp-framework-' . 'x' );" );
+	}
+
+	#[Test]
+	public function throws_on_concatenated_domain_with_clean_first_fragment(): void {
+		// The left fragment is not reserved, but the domain is still runtime-built — throw.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/compound expression at a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \\__( 'T', 'x-' . 'wp-framework-y' );" );
+	}
+
+	#[Test]
+	public function throws_on_ternary_at_domain_position(): void {
+		// The plain-argument rule: a ternary at the domain position carrying reserved literals
+		// cannot be rewritten branch-by-branch.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/compound expression at a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \\__( 'T', \$flag ? 'wp-framework-a' : 'wp-framework-b' );" );
+	}
+
+	#[Test]
+	public function throws_on_arrow_function_at_domain_position(): void {
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/compound expression at a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \\__( 'T', fn() => 'wp-framework-a' );" );
+	}
+
+	#[Test]
+	public function does_not_throw_on_non_reserved_compound_domain(): void {
+		// A scoped third-party library may define its own __()/translate(); a compound domain
+		// with NO reserved participant must pass through untouched, not fail the consumer's run.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$input  = "<?php \\__( 'T', 'foo' . '-bar' );";
+		$output = $patcher( '/third-party.php', 'Prefix', $input );
+
+		self::assertSame( $input, $output );
+	}
+
+	#[Test]
+	public function throws_on_named_arguments_in_gettext_call(): void {
+		// Named-argument labels defeat positional domain detection; reordered labels would let
+		// a positional scan silently rewrite the MESSAGE — fail loud on any reserved literal.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/named arguments/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \\__( domain: 'my-domain', text: 'wp-framework-core failed' );" );
+	}
+
+	#[Test]
+	public function throws_on_named_arguments_even_in_canonical_order(): void {
+		// Simple and fail-loud beats label tracking: canonical-order named arguments throw too.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/named arguments/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \\__( text: 'T', domain: 'wp-framework-bootstrap' );" );
+	}
+
+	#[Test]
+	public function rewrites_binary_prefixed_domain_literal(): void {
+		// A b/B string prefix participates in the rewrite like any plain literal.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$output = $patcher( '/file.php', 'Prefix', "<?php \\__( 'T', b'wp-framework-bootstrap' );" );
+
+		self::assertStringContainsString( "'my-plugin'", $output );
+		self::assertStringNotContainsString( 'wp-framework', $output );
+	}
+
+	#[Test]
+	public function throws_on_binary_prefixed_reserved_literal_outside_domain_position(): void {
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/outside a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \$x = B'wp-framework-x';" );
+	}
+
+	#[Test]
+	public function throws_on_hex_escape_obfuscated_reserved_literal(): void {
+		// The throw checks match on the DECODED value, so escape obfuscation cannot slip a
+		// reserved literal past the fail-loud contract.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/outside a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', '<?php $x = "\x77p-framework-core";' );
+	}
+
+	#[Test]
+	public function throws_on_unicode_escape_obfuscated_domain_literal(): void {
+		// Decoded-reserved but raw-obfuscated at a plain domain position: flagged for a human
+		// rather than silently normalised.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Escape-obfuscated reserved literal/' );
+
+		$patcher( '/file.php', 'Prefix', '<?php \\__( \'T\', "\u{77}p-framework-bootstrap" );' );
+	}
+
+	#[Test]
+	public function throws_on_uppercase_hex_escape_obfuscated_domain_literal(): void {
+		// PHP decodes \X77 identically to \x77; the decoder must not be case-blind to it.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Escape-obfuscated reserved literal/' );
+
+		$patcher( '/file.php', 'Prefix', '<?php \\__( \'T\', "\X77p-framework-core" );' );
+	}
+
+	#[Test]
+	public function throws_on_escape_obfuscated_reserved_occurrence_in_heredoc(): void {
+		// Heredoc bodies decode escapes at runtime, so the reserved-substring check runs on
+		// the decoded fragment — obfuscation cannot hide the occurrence.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/heredoc\/nowdoc\/interpolated/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \$x = <<<EOT\n\\x77p-framework-core here\nEOT;\n" );
+	}
+
+	#[Test]
+	public function throws_on_escape_obfuscated_reserved_occurrence_in_interpolated_string(): void {
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/heredoc\/nowdoc\/interpolated/' );
+
+		$patcher( '/file.php', 'Prefix', '<?php $y = "\x77p-framework-x for {$name}";' );
+	}
+
+	#[Test]
+	public function does_not_throw_on_escape_shaped_text_in_nowdoc(): void {
+		// A nowdoc body never decodes, so \x77p-framework-… stays literal backslash text at
+		// runtime — not a reserved occurrence; the raw check must not decode it into one.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$input  = "<?php \$x = <<<'EOT'\n\\x77p-framework-core here\nEOT;\n";
+		$output = $patcher( '/file.php', 'Prefix', $input );
+
+		self::assertSame( $input, $output );
+	}
+
+	#[Test]
+	public function throws_on_reserved_default_in_gettext_named_function_declaration(): void {
+		// `function __( … )` declares, it does not call: the parameter default falls under the
+		// ordinary out-of-position rule instead of being silently rewritten.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/outside a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php function __( \$text, \$domain = 'wp-framework-x' ) {}" );
+	}
+
+	#[Test]
+	public function throws_on_reserved_literal_in_method_call(): void {
+		// A method named like a gettext function is not WP gettext — the literal follows the
+		// ordinary out-of-position rule instead of being rewritten.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/outside a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \$mapper->translate( 'wp-framework-core' );" );
+	}
+
+	#[Test]
+	public function throws_on_reserved_literal_in_nullsafe_method_call(): void {
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/outside a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \$mapper?->translate( 'wp-framework-core' );" );
+	}
+
+	#[Test]
+	public function throws_on_reserved_literal_in_static_call(): void {
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/outside a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php Mapper::translate( 'wp-framework-core' );" );
+	}
+
+	#[Test]
+	public function throws_on_reserved_literal_in_constructor_call(): void {
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/outside a gettext domain position/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php new translate( 'wp-framework-core' );" );
+	}
+
+	#[Test]
+	public function throws_on_reserved_occurrence_in_interpolated_string(): void {
+		// Encapsed fragments cannot be rewritten safely; the fail-loud contract covers them too.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/heredoc\/nowdoc\/interpolated/' );
+
+		$patcher( '/file.php', 'Prefix', '<?php $y = "domain wp-framework-x for {$name}";' );
+	}
+
+	#[Test]
+	public function throws_on_reserved_occurrence_in_heredoc(): void {
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/heredoc\/nowdoc\/interpolated/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \$x = <<<EOT\nuses wp-framework-core here\nEOT;\n" );
+	}
+
+	#[Test]
+	public function throws_on_reserved_occurrence_in_nowdoc(): void {
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/heredoc\/nowdoc\/interpolated/' );
+
+		$patcher( '/file.php', 'Prefix', "<?php \$x = <<<'EOT'\nuses wp-framework-core here\nEOT;\n" );
+	}
+
+	#[Test]
+	public function rewrites_domain_after_long_array_argument_with_commas(): void {
+		// Commas inside an array() argument belong to the array's own call frame, so the domain
+		// position count is not thrown off.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$input  = "<?php \\translate_nooped_plural( array( 'One', 'Many' ), \$count, 'wp-framework-utilities' );";
+		$output = $patcher( '/file.php', 'Prefix', $input );
+
+		self::assertStringContainsString( "'my-plugin'", $output );
+		self::assertStringNotContainsString( 'wp-framework', $output );
+	}
+
+	#[Test]
+	public function rewrites_domain_after_short_array_argument_with_commas(): void {
+		// Commas inside a short-array argument sit at square-bracket depth and do not advance
+		// the gettext call's argument index.
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$input  = "<?php \\translate_nooped_plural( [ 'One', 'Many' ], \$count, 'wp-framework-utilities' );";
+		$output = $patcher( '/file.php', 'Prefix', $input );
+
+		self::assertStringContainsString( "'my-plugin'", $output );
+		self::assertStringNotContainsString( 'wp-framework', $output );
 	}
 
 	#[Test]
@@ -187,22 +560,52 @@ final class TextDomainRewriterTest extends TestCase {
 	}
 
 	#[Test]
-	public function no_patcher_when_text_domain_absent(): void {
+	public function throws_when_text_domain_absent(): void {
+		// Framework packages carry translatable strings, so shipping them without a consumer
+		// domain silently breaks i18n — missing metadata fails the scope run.
 		$this->installFrameworkPackage();
 		$this->writeComposerJson( array( 'other-key' => 'value' ) );
 
-		$config = ( require self::WP_FRAMEWORK_PARTIAL )( $this->vendor_dir, $this->project_dir );
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/"extra\.text-domain" is missing or empty/' );
 
-		self::assertSame( array(), $config['patchers'] );
+		( require self::WP_FRAMEWORK_PARTIAL )( $this->vendor_dir, $this->project_dir );
 	}
 
 	#[Test]
-	public function no_patcher_when_composer_json_missing(): void {
+	public function throws_when_text_domain_is_empty(): void {
 		$this->installFrameworkPackage();
+		$this->writeComposerJson( array( 'text-domain' => '' ) );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/"extra\.text-domain" is missing or empty/' );
+
+		( require self::WP_FRAMEWORK_PARTIAL )( $this->vendor_dir, $this->project_dir );
+	}
+
+	#[Test]
+	public function throws_when_composer_json_missing(): void {
+		$this->installFrameworkPackage();
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/no composer\.json exists/' );
+
+		( require self::WP_FRAMEWORK_PARTIAL )( $this->vendor_dir, $this->project_dir );
+	}
+
+	#[Test]
+	public function explicit_false_opts_out_of_the_textdomain_rewrite(): void {
+		// Non-plugin consumers (test fixtures with no translation catalog) opt out with
+		// `"text-domain": false`; only the always-on Action Scheduler guard remains, which
+		// leaves gettext content untouched.
+		$this->installFrameworkPackage();
+		$this->writeComposerJson( array( 'text-domain' => false ) );
 
 		$config = ( require self::WP_FRAMEWORK_PARTIAL )( $this->vendor_dir, $this->project_dir );
 
-		self::assertSame( array(), $config['patchers'] );
+		self::assertCount( 1, $config['patchers'] );
+		$input = "<?php \\__( 'Hello', 'wp-framework-bootstrap' );";
+		self::assertSame( $input, $config['patchers'][0]( '/file.php', 'Prefix', $input ) );
 	}
 
 	#[Test]
