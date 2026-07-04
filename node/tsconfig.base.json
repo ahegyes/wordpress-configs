@@ -1,8 +1,6 @@
 {
 	"$schema": "https://json.schemastore.org/tsconfig",
-	// Assumes TypeScript 6+, whose defaults already provide strict mode, module "esnext",
-	// moduleResolution "bundler", esModuleInterop, and a latest-ES target/lib that floats
-	// with the compiler. Only deltas from those defaults live here.
+	// Assumes TypeScript 6+ defaults (strict, esnext/bundler, floating latest target); only deltas live here.
 	"compilerOptions": {
 		"jsx": "react-jsx",
 

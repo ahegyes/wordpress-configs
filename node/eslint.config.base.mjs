@@ -1,29 +1,13 @@
 /**
- * Shared ESLint base config for DWS WordPress plugins.
- *
- * Flat-config format (eslint.config.mjs). Consumes `@wordpress/eslint-plugin`'s
- * recommended preset and adds DWS defaults.
- *
- * Plugins extend this in their own `eslint.config.mjs`:
- *
- *     import dwsBase from '@ahegyes/wordpress-configs/node/eslint.config.base.mjs';
- *
- *     export default [
- *         ...dwsBase,
- *         {
- *             rules: {
- *                 // Plugin-specific overrides.
- *             },
- *         },
- *     ];
+ * Shared ESLint base config (flat) for DWS WordPress plugins: the recommended
+ * `@wordpress/eslint-plugin` preset plus DWS defaults, with the plugin's test
+ * presets scoped to the DWS test layout.
  */
 
 import wordpress from '@wordpress/eslint-plugin';
 
 export default [
 	...wordpress.configs.recommended,
-	// The plugin ships its test rules as separate presets; scope them to the DWS test layout
-	// so Jest globals and Playwright-specific rules apply where those files actually live.
 	...wordpress.configs['test-unit'].map((config) => ({
 		...config,
 		files: ['**/test/**', '**/*.test.*'],
