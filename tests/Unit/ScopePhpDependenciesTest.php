@@ -304,6 +304,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 		$recorded = $this->readRecordedCommand();
 		self::assertSame( \realpath( $this->project_dir ), $recorded['cwd'] );
+		// -vvv in extra.scoping-flags suppresses the otherwise-default --quiet.
 		self::assertSame(
 			array(
 				$this->vendor_dir . '/bin/php-scoper',
@@ -312,7 +313,6 @@ final class ScopePhpDependenciesTest extends TestCase {
 				'--config=' . $this->project_dir . '/scoper.inc.php',
 				'--output-dir=' . $this->project_dir . '/custom dependencies',
 				'--force',
-				'--quiet',
 				'--ansi',
 				'-vvv',
 			),
@@ -321,6 +321,19 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 		$generated = (string) \file_get_contents( $this->project_dir . '/custom dependencies/scoper-autoload.php' );
 		self::assertStringContainsString( 'MyPlugin\\\\Scoped\\\\Acme\\\\Lib', $generated );
+	}
+
+	#[Test]
+	public function post_autoload_dump_keeps_quiet_when_no_verbosity_flag_is_supplied(): void {
+		$this->installFakePhpScoper();
+		$this->writeScoperConfig();
+		$this->writeComposerJson( $this->scopingComposerJson( scopedDir: 'dependencies', flags: array( '--ansi' ) ) );
+
+		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+
+		$recorded = $this->readRecordedCommand();
+		self::assertContains( '--quiet', $recorded['argv'] );
+		self::assertContains( '--ansi', $recorded['argv'] );
 	}
 
 	#[Test]

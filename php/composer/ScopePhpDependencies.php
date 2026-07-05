@@ -280,19 +280,24 @@ final class ScopePhpDependencies {
 	 * @return  non-empty-list<string>
 	 */
 	private static function build_scoper_command( string $scoper_bin, string $prefix, string $config_file, string $dependencies_dir, array $flags ): array {
-		return \array_merge(
-			array(
-				PHP_BINARY,
-				$scoper_bin,
-				'add-prefix',
-				'--prefix=' . $prefix,
-				'--config=' . $config_file,
-				'--output-dir=' . $dependencies_dir,
-				'--force',
-				'--quiet',
-			),
-			$flags
+		$command = array(
+			PHP_BINARY,
+			$scoper_bin,
+			'add-prefix',
+			'--prefix=' . $prefix,
+			'--config=' . $config_file,
+			'--output-dir=' . $dependencies_dir,
+			'--force',
 		);
+
+		// Only silence php-scoper when the consumer has not asked for verbosity: a hardcoded
+		// --quiet otherwise overrides -v/-vv/-vvv from extra.scoping-flags, leaving an operator
+		// debugging a scoping problem with no output.
+		if ( array() === \array_intersect( $flags, array( '-v', '-vv', '-vvv', '--verbose' ) ) ) {
+			$command[] = '--quiet';
+		}
+
+		return \array_merge( $command, $flags );
 	}
 
 	/**
