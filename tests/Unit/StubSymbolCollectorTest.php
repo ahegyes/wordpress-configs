@@ -100,6 +100,70 @@ final class StubSymbolCollectorTest extends TestCase {
 		self::assertContains( 'Global_Alias', $collector->classes );
 	}
 
+	#[Test]
+	public function harvests_function_declared_inside_a_function_exists_guard(): void {
+		// Stubs routinely wrap a declaration in `if ( ! function_exists('x') ) { function x() {} }`.
+		// The visitor never short-circuits control-flow nodes, so the guarded declaration is still
+		// reached and collected; the `function_exists()` probe call itself contributes nothing.
+		$collector = $this->collect(
+			<<<'PHP'
+			<?php
+			if ( ! function_exists( 'guarded_helper' ) ) {
+				function guarded_helper() {}
+			}
+			PHP
+		);
+
+		self::assertSame( array( 'guarded_helper' ), $collector->functions );
+		self::assertSame( array(), $collector->classes );
+		self::assertSame( array(), $collector->constants );
+	}
+
+	#[Test]
+	public function collects_leading_backslash_and_namespaced_define_calls(): void {
+		// `\define(...)` resolves to a fully-qualified name whose toString() drops the leading
+		// backslash, and an unqualified `define(...)` inside a namespace is left unresolved (PHP
+		// falls back to the global function at runtime); both are recognised as `define`, and the
+		// literal constant name is taken verbatim regardless of the enclosing namespace.
+		$collector = $this->collect(
+			<<<'PHP'
+			<?php
+			namespace {
+				\define( 'BACKSLASH_DEFINE', 1 );
+			}
+			namespace Vendor\Pkg {
+				define( 'NAMESPACED_DEFINE', 2 );
+			}
+			PHP
+		);
+
+		self::assertSame( array( 'BACKSLASH_DEFINE', 'NAMESPACED_DEFINE' ), $collector->constants );
+		self::assertSame( array(), $collector->classes );
+		self::assertSame( array(), $collector->functions );
+	}
+
+	#[Test]
+	public function skips_anonymous_class_without_collecting_anything(): void {
+		// An anonymous class is a class-like node with no resolved name, so the class branch
+		// harvests nothing and still short-circuits its body: the collectible define() buried in a
+		// method is never reached, so its constant stays absent from every bag. No error either.
+		$collector = $this->collect(
+			<<<'PHP'
+			<?php
+			$instance = new class {
+				const INNER = 1;
+				public function method() {
+					\define( 'LEAKED_FROM_ANON_BODY', 1 );
+				}
+			};
+			PHP
+		);
+
+		self::assertSame( array(), $collector->classes );
+		self::assertSame( array(), $collector->functions );
+		self::assertSame( array(), $collector->constants );
+	}
+
 	private function collect( string $code ): StubSymbolCollector {
 		$parsed = new ParserFactory()->createForNewestSupportedVersion()->parse( $code )
 			?? self::fail( 'Fixture source failed to parse.' );
