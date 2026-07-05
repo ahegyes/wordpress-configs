@@ -8,7 +8,7 @@ on:
         type: string
         required: true
       project-path:
-        description: 'Path to the project (relative to repo root)'
+        description: 'Path to the project (relative to repo root). When package.json is present, npm ci runs here and a package-lock.json is required.'
         type: string
         required: false
         default: '.'
@@ -51,6 +51,7 @@ permissions:
   contents: read
 
 env:
+  # WP_ENV_VERSION is pinned identically in reusable-release.yml, reusable-phpunit.yml, and reusable-playwright-e2e.yml and must stay in sync — npx-inline @wordpress/env versions are invisible to dependabot, so nothing bumps them together automatically.
   WP_ENV_VERSION: '11.9.0'
 
 jobs:
@@ -134,7 +135,7 @@ jobs:
           tools: composer:v2, wp-cli
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] setup-node auto-cache accepted because the artifact is tested before publish (v6.4.0)
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] no cache is configured on this step, so there is nothing to poison (v6.4.0)
         with:
           node-version: '26'
 
@@ -200,24 +201,13 @@ jobs:
           wp package install wp-cli/dist-archive-command:3.2.2
           wp dist-archive . "./$PLUGIN_SLUG.zip" --plugin-dirname="$PLUGIN_SLUG"
 
-      - name: Assert archive contents
+      - name: Assert required files present
         working-directory: ${{ inputs.project-path }}
         env:
           PLUGIN_SLUG: ${{ inputs.plugin-slug }}
-          REQUIRES_SCOPED: ${{ inputs.requires-scoped-dependencies }}
-          SCOPED_DEPENDENCIES_DIR: ${{ inputs.scoped-dependencies-dir }}
         run: |
           entries=$(unzip -Z1 "$PLUGIN_SLUG.zip")
           status=0
-
-          if [ "$REQUIRES_SCOPED" = "true" ]; then
-            required_scoped="$PLUGIN_SLUG/$SCOPED_DEPENDENCIES_DIR/scoper-autoload.php"
-            if ! printf '%s\n' "$entries" | grep -qxF "$required_scoped"; then
-              echo "::error::Archive is missing $required_scoped."
-              status=1
-            fi
-          fi
-
           for required in \
             "$PLUGIN_SLUG/vendor/autoload.php" \
             "$PLUGIN_SLUG/$PLUGIN_SLUG.php" \
@@ -227,43 +217,68 @@ jobs:
               status=1
             fi
           done
+          exit "$status"
 
-          if [ "$REQUIRES_SCOPED" = "true" ]; then
-            if [ ! -d "$SCOPED_DEPENDENCIES_DIR" ]; then
-              echo "::error::No $SCOPED_DEPENDENCIES_DIR/ directory — the scoping pipeline did not run."
-              status=1
-            else
-              scoped_package_roots=$(
-                if [ -f "$SCOPED_DEPENDENCIES_DIR/composer.json" ]; then
-                  printf '%s\n' "$SCOPED_DEPENDENCIES_DIR"
-                else
-                  find "$SCOPED_DEPENDENCIES_DIR" -mindepth 2 -maxdepth 2 -type f -name composer.json -exec dirname {} \;
-                  find "$SCOPED_DEPENDENCIES_DIR" -mindepth 3 -maxdepth 3 -type f -name composer.json -exec dirname {} \;
-                fi | LC_ALL=C sort -u
-              )
-              if [ -z "$scoped_package_roots" ]; then
-                echo "::error::No scoped package roots found under $SCOPED_DEPENDENCIES_DIR/."
-                status=1
-              else
-                while IFS= read -r pkg; do
-                  [ -n "$pkg" ] || continue
-                  pkg_entries=$(
-                    printf '%s\n' "$entries" \
-                      | grep -F -- "$PLUGIN_SLUG/$pkg/" \
-                      | grep '[^/]$' || true
-                  )
-                  if [ "$pkg" = "$SCOPED_DEPENDENCIES_DIR" ]; then
-                    pkg_entries=$(printf '%s\n' "$pkg_entries" | grep -vxF "$PLUGIN_SLUG/$SCOPED_DEPENDENCIES_DIR/scoper-autoload.php" || true)
-                  fi
-                  if [ -z "$pkg_entries" ]; then
-                    echo "::error::Archive is missing scoped package $pkg/."
-                    status=1
-                  fi
-                done <<< "$scoped_package_roots"
-              fi
-            fi
+      - name: Assert scoped packages bundled
+        working-directory: ${{ inputs.project-path }}
+        env:
+          PLUGIN_SLUG: ${{ inputs.plugin-slug }}
+          REQUIRES_SCOPED: ${{ inputs.requires-scoped-dependencies }}
+          SCOPED_DEPENDENCIES_DIR: ${{ inputs.scoped-dependencies-dir }}
+        run: |
+          [ "$REQUIRES_SCOPED" = "true" ] || exit 0
+          entries=$(unzip -Z1 "$PLUGIN_SLUG.zip")
+          status=0
+
+          required_scoped="$PLUGIN_SLUG/$SCOPED_DEPENDENCIES_DIR/scoper-autoload.php"
+          if ! printf '%s\n' "$entries" | grep -qxF "$required_scoped"; then
+            echo "::error::Archive is missing $required_scoped."
+            status=1
           fi
 
+          if [ ! -d "$SCOPED_DEPENDENCIES_DIR" ]; then
+            echo "::error::No $SCOPED_DEPENDENCIES_DIR/ directory — the scoping pipeline did not run."
+            status=1
+          else
+            scoped_package_roots=$(
+              if [ -f "$SCOPED_DEPENDENCIES_DIR/composer.json" ]; then
+                printf '%s\n' "$SCOPED_DEPENDENCIES_DIR"
+              else
+                find "$SCOPED_DEPENDENCIES_DIR" -mindepth 2 -maxdepth 2 -type f -name composer.json -exec dirname {} \;
+                find "$SCOPED_DEPENDENCIES_DIR" -mindepth 3 -maxdepth 3 -type f -name composer.json -exec dirname {} \;
+              fi | LC_ALL=C sort -u
+            )
+            if [ -z "$scoped_package_roots" ]; then
+              echo "::error::No scoped package roots found under $SCOPED_DEPENDENCIES_DIR/."
+              status=1
+            else
+              while IFS= read -r pkg; do
+                [ -n "$pkg" ] || continue
+                pkg_entries=$(
+                  printf '%s\n' "$entries" \
+                    | grep -F -- "$PLUGIN_SLUG/$pkg/" \
+                    | grep '[^/]$' || true
+                )
+                if [ "$pkg" = "$SCOPED_DEPENDENCIES_DIR" ]; then
+                  pkg_entries=$(printf '%s\n' "$pkg_entries" | grep -vxF "$PLUGIN_SLUG/$SCOPED_DEPENDENCIES_DIR/scoper-autoload.php" || true)
+                fi
+                if [ -z "$pkg_entries" ]; then
+                  echo "::error::Archive is missing scoped package $pkg/."
+                  status=1
+                fi
+              done <<< "$scoped_package_roots"
+            fi
+          fi
+          exit "$status"
+
+      - name: Assert forbidden entries absent
+        working-directory: ${{ inputs.project-path }}
+        env:
+          PLUGIN_SLUG: ${{ inputs.plugin-slug }}
+          SCOPED_DEPENDENCIES_DIR: ${{ inputs.scoped-dependencies-dir }}
+        run: |
+          entries=$(unzip -Z1 "$PLUGIN_SLUG.zip")
+          status=0
           while IFS= read -r entry; do
             case "$entry" in
               "$PLUGIN_SLUG/node_modules/"*|"$PLUGIN_SLUG/"*/node_modules/*|"$PLUGIN_SLUG/tests/"*|"$PLUGIN_SLUG/"*/tests/*|"$PLUGIN_SLUG/vendor/bin/"*|"$PLUGIN_SLUG/"*/vendor/bin/*)
@@ -298,9 +313,20 @@ jobs:
                 echo "::error::Archive must not contain $entry."
                 status=1
                 ;;
+              # Bundled CA/cert files under vendor/ or the scoped-dependencies dir are legitimate runtime resources, not secrets.
+              "$PLUGIN_SLUG/vendor/"*.pem|"$PLUGIN_SLUG/"*"/vendor/"*.pem|"$PLUGIN_SLUG/vendor/"*.key|"$PLUGIN_SLUG/"*"/vendor/"*.key \
+                |"$PLUGIN_SLUG/$SCOPED_DEPENDENCIES_DIR/"*.pem|"$PLUGIN_SLUG/$SCOPED_DEPENDENCIES_DIR/"*.key)
+                ;;
+              "$PLUGIN_SLUG/.env"*|"$PLUGIN_SLUG/"*"/.env"* \
+                |"$PLUGIN_SLUG/.npmrc"|"$PLUGIN_SLUG/"*"/.npmrc" \
+                |"$PLUGIN_SLUG/auth.json"|"$PLUGIN_SLUG/"*"/auth.json" \
+                |"$PLUGIN_SLUG/id_rsa"*|"$PLUGIN_SLUG/"*"/id_rsa"* \
+                |"$PLUGIN_SLUG/"*.pem|"$PLUGIN_SLUG/"*.key)
+                echo "::error::Archive must not contain secret file $entry."
+                status=1
+                ;;
             esac
           done <<< "$entries"
-
           exit "$status"
 
       - name: Record archive digest
@@ -392,7 +418,7 @@ jobs:
           tools: composer:v2
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] setup-node auto-cache accepted because the published artifact is the verified zip from build (v6.4.0)
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] no cache is configured on this step, so there is nothing to poison (v6.4.0)
         with:
           node-version: '26'
 
@@ -422,7 +448,8 @@ jobs:
             echo "::error::Release contract violation — .wp-env.json must exist and map \"$key\" to the plugin source; found mappings: $(jq -c '.mappings // {}' .wp-env.json 2> /dev/null || echo 'none')."
             exit 1
           fi
-          jq -n --arg key "$key" --arg built "$BUILT_PATH" '{core: null, mappings: {($key): $built}}' > .wp-env.override.json
+          # wp-env layers env-scoped mappings over root, so cover root plus development and tests — otherwise a consumer's env.tests mapping shadows the built artifact and the E2E runs against source.
+          jq -n --arg key "$key" --arg built "$BUILT_PATH" '{core: null, mappings: {($key): $built}, env: {development: {mappings: {($key): $built}}, tests: {mappings: {($key): $built}}}}' > .wp-env.override.json
           echo "Generated .wp-env.override.json:"
           cat .wp-env.override.json
 

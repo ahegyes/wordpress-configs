@@ -19,12 +19,12 @@ on:
         required: false
         default: '26'
       composer-audit:
-        description: 'Run `composer audit`. Set false for repos without composer.json.'
+        description: 'Run `composer audit`. Set false for repos without composer.json. At least one of composer-audit / npm-audit must stay enabled.'
         type: boolean
         required: false
         default: true
       npm-audit:
-        description: 'Run `npm audit`. Set false for repos without package.json. Audits the full dependency graph (dev/build deps included) by default.'
+        description: 'Run `npm audit` (installs with npm ci first, so a package-lock.json is required). Set false for repos without package.json. Audits the full dependency graph (dev/build deps included) by default. At least one of composer-audit / npm-audit must stay enabled.'
         type: boolean
         required: false
         default: true
@@ -53,6 +53,17 @@ permissions:
   contents: read
 
 jobs:
+  validate-inputs:
+    name: Validate inputs
+    runs-on: ubuntu-latest
+    steps:
+      # Both audits off leaves no job to run, so the workflow succeeds having audited nothing.
+      - name: Require at least one audit enabled
+        if: ${{ !inputs.composer-audit && !inputs.npm-audit }}
+        run: |
+          echo "::error::Enable composer-audit and/or npm-audit — with both false this audit reports success without auditing anything."
+          exit 1
+
   composer-audit:
     if: ${{ inputs.composer-audit }}
     name: composer audit

@@ -5,7 +5,7 @@ on:
     inputs:
       languages:
         # CodeQL ships no PHP analyzer; PHP is statically analysed by PHPStan in the Quality workflow.
-        description: 'JSON array of CodeQL languages'
+        description: 'Non-empty JSON array of CodeQL languages'
         type: string
         required: false
         default: '["actions"]'
@@ -13,8 +13,23 @@ on:
 permissions: {}
 
 jobs:
+  validate-inputs:
+    name: Validate inputs
+    runs-on: ubuntu-latest
+    steps:
+      # An empty JSON array expands to zero matrix jobs and reports success — a silent skip of the security scan.
+      - name: Reject an empty languages array
+        env:
+          LANGUAGES: ${{ inputs.languages }}
+        run: |
+          if ! jq -e 'type == "array" and length > 0' <<< "$LANGUAGES" > /dev/null; then
+            echo "::error::languages must be a non-empty JSON array — got '$LANGUAGES'."
+            exit 1
+          fi
+
   analyze:
     name: Analyze (${{ matrix.language }})
+    needs: validate-inputs
     runs-on: ubuntu-latest
     permissions:
       actions: read

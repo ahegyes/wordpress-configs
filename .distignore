@@ -30,3 +30,12 @@ scoper.inc.php
 scoping-exclusions.json
 .wp-env*
 .wordpress-org
+
+# Secret material — never ship, even when a consumer forgets to list it.
+# .pem/.key are root-anchored (leading /) so certs bundled under vendor/ (e.g. CA bundles) still ship.
+.env*
+/*.pem
+/*.key
+id_rsa*
+.npmrc
+auth.json

@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       scripts:
-        description: 'JSON array of composer scripts; each runs as its own parallel job.'
+        description: 'Non-empty JSON array of composer scripts; each runs as its own parallel job.'
         type: string
         required: true
       php-version:
@@ -27,8 +27,23 @@ permissions:
   contents: read
 
 jobs:
+  validate-inputs:
+    name: Validate inputs
+    runs-on: ubuntu-latest
+    steps:
+      # An empty JSON array expands to zero matrix jobs and reports success — a silent skip of the lint.
+      - name: Reject an empty scripts array
+        env:
+          SCRIPTS: ${{ inputs.scripts }}
+        run: |
+          if ! jq -e 'type == "array" and length > 0' <<< "$SCRIPTS" > /dev/null; then
+            echo "::error::scripts must be a non-empty JSON array — got '$SCRIPTS'."
+            exit 1
+          fi
+
   lint:
     name: ${{ matrix.script }}
+    needs: validate-inputs
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

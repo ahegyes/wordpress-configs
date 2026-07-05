@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       project-path:
-        description: 'Path to the project (relative to repo root)'
+        description: 'Path to the project (relative to repo root). npm ci runs here, so package.json and a package-lock.json must be present.'
         type: string
         required: false
         default: '.'
