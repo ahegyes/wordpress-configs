@@ -21,8 +21,10 @@ wordpress-configs/
 │   │       └── wp-framework.inc.php # auto-detect ahegyes/wp-framework-* packages; requires extra.text-domain (false = explicit opt-out); position-agnostic rewrite: every constant string whose raw value starts with wp-framework- becomes the consumer domain (framework WPCS I18n text_domain enforcement guarantees plain reserved literals ARE domains); tripwire throws on any reserved occurrence outside that guarantee (mid-string, escape-obfuscated via stripcslashes, heredoc/nowdoc/interpolated); always-on guard throws on a prefixed as_* residue (name tokens, string refs, encapsed fragments)
 │   └── composer/
 │       ├── CollectScopingStubs.php  # post-autoload-dump: aggregates extra.scoping-stubs → scoping-exclusions.json (classes, functions, constants); malformed ROOT declaration throws, malformed installed-package declaration warns
-│       ├── ScopePhpDependencies.php # full pipeline: dispatches the consumer's scope-php-dependencies:raw with --output-dir derived from extra.scoped-dependencies-dir (single source; a stray --output-dir/-o flag throws), then regenerates the scoped autoload; every scope-php-dependencies listener must reference ScopePhpDependencies::run (a missing binding or a non-matching listener throws)
-│       └── GenerateScopedAutoload.php # emits dependencies/scoper-autoload.php from the scoped tree (nested <vendor>/<pkg>/ and flattened <pkg>/ layouts); throws when the scan finds no packages
+│       ├── ScopePhpDependencies.php # full pipeline: builds and runs php-scoper from extra.scoped-dependencies-dir + extra.scoping-prefix + optional extra.scoping-flags; owns --output-dir/-o, --prefix, and --config; requires project-root scoper.inc.php; regenerates scoped autoload after every successful scope
+│       └── Internal/
+│           ├── GenerateScopedAutoload.php # emits dependencies/scoper-autoload.php from the scoped tree (nested <vendor>/<pkg>/ and flattened <pkg>/ layouts); throws when the scan finds no packages
+│           └── StubSymbolCollector.php    # AST visitor for scoping-stubs symbol harvesting
 ├── node/
 │   ├── tsconfig.base.json
 │   ├── eslint.config.base.mjs

@@ -2,7 +2,7 @@
 
 namespace DeepWebSolutions\Config\Tests\Unit;
 
-use DeepWebSolutions\Config\Composer\GenerateScopedAutoload;
+use DeepWebSolutions\Config\Composer\Internal\GenerateScopedAutoload;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -28,7 +28,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 			array( 'autoload' => array( 'psr-4' => array( 'MyPlugin\\Scoped\\Acme\\Minimal\\' => 'src/' ) ) )
 		);
 
-		$output = GenerateScopedAutoload::generate( $this->dependencies_dir, 'MyPlugin\\Scoped' );
+		$output = GenerateScopedAutoload::generate( $this->dependencies_dir );
 
 		self::assertSame( $this->dependencies_dir . '/scoper-autoload.php', $output );
 		self::assertFileExists( $output );
@@ -41,7 +41,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 			array( 'autoload' => array( 'psr-4' => array( 'MyPlugin\\Scoped\\Acme\\Minimal\\' => 'src/' ) ) )
 		);
 
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'MyPlugin\\Scoped' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 
 		$lint = \shell_exec( 'php -l ' . \escapeshellarg( $this->dependencies_dir . '/scoper-autoload.php' ) . ' 2>&1' );
 		self::assertStringContainsString( 'No syntax errors', (string) $lint );
@@ -60,7 +60,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 			)
 		);
 
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'MyPlugin\\Scoped' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
 		self::assertStringContainsString(
@@ -80,7 +80,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 			)
 		);
 
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'MyPlugin\\Scoped' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
 		self::assertStringContainsString(
@@ -109,7 +109,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 			)
 		);
 
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'MyPlugin\\Scoped' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
 		self::assertStringContainsString( 'MyPlugin\\\\Scoped\\\\DeepWebSolutions\\\\Framework\\\\Core\\\\', $generated );
@@ -128,7 +128,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 			array( 'autoload' => array( 'psr-4' => array( 'P\\A\\' => 'src/' ) ) )
 		);
 
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'P' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
 		$pos_a     = \strpos( $generated, 'P\\\\A\\\\' );
@@ -145,7 +145,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 		$this->expectException( \RuntimeException::class );
 		$this->expectExceptionMessageMatches( '/No scoped packages found/' );
 
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'X' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 	}
 
 	#[Test]
@@ -162,7 +162,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 			)
 		);
 
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'MyPlugin\\Scoped' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
 		self::assertStringContainsString(
@@ -184,7 +184,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 			array( 'autoload' => array( 'psr-4' => array( 'P\\DI\\' => 'src/' ) ) )
 		);
 
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'P' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
 		self::assertStringContainsString( "__DIR__ . '/wp-framework-shared/src'", $generated );
@@ -202,7 +202,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 			)
 		);
 
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'P' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
 		self::assertStringContainsString( "__DIR__ . '/multi/dirs/src'", $generated );
@@ -225,7 +225,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 			)
 		);
 
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'MyPlugin\\Scoped' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
 		self::assertStringContainsString( '$loader->addClassMap( array(', $generated );
@@ -257,7 +257,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 			)
 		);
 
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'MyPlugin\\Scoped' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
 		self::assertStringNotContainsString( 'addClassMap', $generated );
@@ -282,7 +282,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 			)
 		);
 
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'P' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
 		$pos_alpha = \strpos( $generated, 'P\\\\Legacy\\\\Alpha' );
@@ -312,7 +312,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 		$this->expectException( \RuntimeException::class );
 		$this->expectExceptionMessageMatches( '/[Aa]mbiguous/' );
 
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'P' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 	}
 
 	#[Test]
@@ -335,25 +335,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 		$this->expectException( \RuntimeException::class );
 		$this->expectExceptionMessageMatches( '/exclude-from-classmap/' );
 
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'P' );
-	}
-
-	#[Test]
-	public function throws_when_a_psr4_key_does_not_start_with_the_declared_prefix(): void {
-		// Pipeline-drift sanity check: scoper ran with prefix "Wrong" but we passed "Right".
-		$this->installScopedPackage(
-			'mismatch/pkg',
-			array(
-				'autoload' => array(
-					'psr-4' => array( 'Wrong\\Prefix\\' => 'src/' ),
-				),
-			)
-		);
-
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/does not start with the declared prefix/' );
-
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'Right' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 	}
 
 	#[Test]
@@ -361,7 +343,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 		$this->installScopedPackage( 'silent/pkg', array() );
 
 		// Should not throw and should not emit anything for this pkg.
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'P' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 
 		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
 		self::assertStringNotContainsString( 'silent/pkg', $generated );
@@ -383,7 +365,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 		$this->expectException( \RuntimeException::class );
 		$this->expectExceptionMessageMatches( '/psr-0/' );
 
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'P' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 	}
 
 	#[Test]
@@ -407,7 +389,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 			)
 		);
 
-		GenerateScopedAutoload::generate( $this->dependencies_dir, 'MyPlugin\\Scoped' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
 
 		$before = \spl_autoload_functions();
 		try {

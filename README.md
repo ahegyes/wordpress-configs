@@ -223,7 +223,7 @@ The contract is: **whichever package introduces references to external (non-pref
 
 `php/composer/ScopePhpDependencies.php` — Composer hooks for scoping third-party PHP dependencies via [php-scoper](https://github.com/humbug/php-scoper).
 
-This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your project's dev dependencies. Intended for third-party libraries (PDF generators, HTTP clients, DI containers, etc.) that may conflict with other plugins on the same WordPress site.
+This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your project's dev dependencies and `extra.scoped-dependencies-dir` is declared. Intended for third-party libraries (PDF generators, HTTP clients, DI containers, etc.) that may conflict with other plugins on the same WordPress site.
 
 **Wire it in your project's `composer.json`:**
 
@@ -237,39 +237,43 @@ This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your
             "DeepWebSolutions\\Config\\Composer\\CollectScopingStubs::postAutoloadDump",
             "DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::postAutoloadDump"
         ],
-        "scope-php-dependencies": "DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::run",
-        "scope-php-dependencies:raw": [
-            "@php vendor/bin/php-scoper add-prefix --prefix='DeepWebSolutions\\YourPlugin\\Scoped' --config=./scoper.inc.php --force --quiet"
-        ]
+        "scope-php-dependencies": "DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::run"
     },
     "extra": {
-        "scoped-dependencies-dir": "dependencies"
+        "scoped-dependencies-dir": "dependencies",
+        "scoping-prefix": "DeepWebSolutions\\YourPlugin\\Scoped",
+        "scoping-flags": [
+            "--ansi"
+        ]
     }
 }
 ```
 
-The scoped output directory is single-sourced from `extra.scoped-dependencies-dir`: the pipeline derives php-scoper's `--output-dir` from it and appends the flag when dispatching `scope-php-dependencies:raw`. The raw script holds only the prefix/config/flags — a raw script (or public script) carrying its own `--output-dir` (or the short `-o`) is rejected loudly, as is a raw `add-prefix` invocation left under the public `scope-php-dependencies` name (it would scope without regenerating the autoload on a manual run). The public script must reference `ScopePhpDependencies::run` (every listener is checked for that string); a listener that does not — e.g. an alias like `"@scope-php-dependencies:raw"` — is rejected with the wiring instructions.
+`extra.scoping-flags` is optional; omit it when no extra php-scoper flags are needed. The pipeline owns `--output-dir`/`-o`, `--prefix`, and `--config`, so those flags are rejected if they appear in `extra.scoping-flags`.
+
+The pipeline constructs this command itself:
+
+```bash
+PHP_BINARY vendor/bin/php-scoper add-prefix \
+  --prefix=<extra.scoping-prefix> \
+  --config=<project>/scoper.inc.php \
+  --output-dir=<project>/<extra.scoped-dependencies-dir> \
+  --force \
+  --quiet \
+  [extra.scoping-flags...]
+```
+
+`extra.scoping-prefix` is required whenever scoping runs and must be a non-empty PHP namespace prefix. `scoper.inc.php` must exist at the project root; missing config throws because php-scoper without a config would scope the whole current working directory.
 
 | Hook / script                | What It Does                                                                                                              |
 |------------------------------|---------------------------------------------------------------------------------------------------------------------------|
 | `preAutoloadDump`            | Ensures scoped directories/files exist before autoloader runs                                                             |
-| `postAutoloadDump`           | Dispatches `scope-php-dependencies:raw` with the derived `--output-dir`, then generates `dependencies/scoper-autoload.php` if opted in (see below) |
-| `run` (`composer scope-php-dependencies`) | Same pipeline for manual runs: scopes, then regenerates the autoload when `extra.scoping-prefix` is declared (the generator stays opt-in — without it a manual run scopes but skips `scoper-autoload.php`); throws if php-scoper is missing |
+| `postAutoloadDump`           | In dev mode, when php-scoper is installed and `extra.scoped-dependencies-dir` is declared, runs php-scoper and generates `dependencies/scoper-autoload.php` |
+| `run` (`composer scope-php-dependencies`) | Same pipeline for manual runs; throws if php-scoper is missing or required scoping config is incomplete |
 
-#### Autoload generator (opt-in)
+#### Autoload generator
 
-`php/composer/GenerateScopedAutoload.php` — runs at the end of `ScopePhpDependencies::postAutoloadDump` and emits a single `dependencies/scoper-autoload.php` that registers every scoped package's `autoload.psr-4` and `autoload.classmap` entries on a dedicated Composer `ClassLoader` it creates and registers (independent of whichever loader the host registered first), and `require_once`s each `autoload.files` entry. Host plugins reference this one file via their root `autoload.files` instead of hand-declaring a PSR-4 entry per scoped package.
-
-**Opt in by declaring both keys in your project's `composer.json`:**
-
-```json
-{
-    "extra": {
-        "scoped-dependencies-dir": "dependencies",
-        "scoping-prefix": "DeepWebSolutions\\YourPlugin\\Scoped"
-    }
-}
-```
+`php/composer/Internal/GenerateScopedAutoload.php` — runs after every successful scope and emits a single `dependencies/scoper-autoload.php` that registers every scoped package's `autoload.psr-4` and `autoload.classmap` entries on a dedicated Composer `ClassLoader` it creates and registers (independent of whichever loader the host registered first), and `require_once`s each `autoload.files` entry. Host plugins reference this one file via their root `autoload.files` instead of hand-declaring a PSR-4 entry per scoped package.
 
 **Wire the generated file in your `autoload`:**
 
@@ -286,15 +290,14 @@ The scoped output directory is single-sourced from `extra.scoped-dependencies-di
 }
 ```
 
-That's it — adding a new scoped package never requires editing the host `composer.json` again. The generator reads each scoped package's `composer.json` and emits the corresponding `addPsr4()` / `addClassMap()` calls and `require_once` statements at the next scoping run. The output is purely a function of the scoped tree and the prefix.
+That's it — adding a new scoped package never requires editing the host `composer.json` again. The generator reads each scoped package's `composer.json` and emits the corresponding `addPsr4()` / `addClassMap()` calls and `require_once` statements at the next scoping run. The output is purely a function of the scoped tree.
 
 The generator reads packages from both output layouts php-scoper produces: `dependencies/<vendor>/<pkg>/` (finders spanning several vendor namespaces) and the flattened `dependencies/<pkg>/` (finders covering a single vendor namespace, whose shared `vendor/<vendor>/` segment php-scoper collapses).
 
 | Behavior          | When                                                                                                                                                        |
 |-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Generator runs    | Both `extra.scoped-dependencies-dir` and `extra.scoping-prefix` set                                                                                         |
-| Generator skipped | `extra.scoping-prefix` missing (the generator is the opt-in half; scoping alone completes)                                                                  |
-| Throws            | No scoped package is found under the output dir (an empty generated autoload must never be silent), the output dir doesn't exist after a successful scoper run, a scoped package's `psr-4` key doesn't start with the declared prefix (pipeline drift), it declares `autoload.exclude-from-classmap` or `autoload.psr-0` (unsupported), or a classmap class resolves to more than one file |
+| Generator runs    | Every successful scoping run                                                                                                                                |
+| Throws            | No scoped package is found under the output dir (an empty generated autoload must never be silent), a scoped package declares `autoload.exclude-from-classmap` or `autoload.psr-0` (unsupported), or a classmap class resolves to more than one file |
 
 ### php-scoper Base Config
 
@@ -449,12 +452,12 @@ For test fixtures (admin login, block editor helpers, REST request utilities), i
 
 1. `pre-autoload-dump` → `ScopePhpDependencies::preAutoloadDump` — pre-creates the not-yet-scoped paths under `extra.scoped-dependencies-dir` so the autoloader dump doesn't error on a fresh clone.
 2. Composer dumps the autoloader.
-3. `post-autoload-dump` → `CollectScopingStubs` (writes `scoping-exclusions.json`), then `ScopePhpDependencies` (dispatches `scope-php-dependencies:raw` with the `--output-dir` derived from `extra.scoped-dependencies-dir`, then the autoload generator if opted in).
-4. `scope-php-dependencies:raw` → `php-scoper add-prefix` via the consumer's `scoper.inc.php`, which loads `scoper-base.inc.php`. The public `composer scope-php-dependencies` (bound to `ScopePhpDependencies::run`) executes the same full pipeline for manual runs.
+3. `post-autoload-dump` → `CollectScopingStubs` (writes `scoping-exclusions.json`), then `ScopePhpDependencies` (runs php-scoper with `--prefix` from `extra.scoping-prefix`, `--config=<project>/scoper.inc.php`, `--output-dir` from `extra.scoped-dependencies-dir`, and optional `extra.scoping-flags`, then runs the autoload generator).
+4. `composer scope-php-dependencies` (bound to `ScopePhpDependencies::run`) executes the same full pipeline for manual runs.
 
 **Consumer contract for framework packages:** installing any `ahegyes/wp-framework-*` package makes `extra.text-domain` mandatory in the consumer's `composer.json` — the `wp-framework.inc.php` scoper partial rewrites the framework's reserved `wp-framework-*` text domains to it at scope time (`"text-domain": false` is the explicit opt-out for non-plugin consumers with no translation catalog). The reserved literal space is enforced at scope time too: a `wp-framework-*` literal anywhere outside a plain gettext domain argument (including compound domain expressions, named-argument gettext calls, and heredoc/interpolated occurrences) fails the scope run.
 
-Net result: your bundled deps are scoped under your prefix, while declared-catalog symbols (WordPress, WooCommerce) and `Psr\*` stay unprefixed and resolve globally at runtime. With the autoload generator opted in, host code reaches the scoped tree through the single `dependencies/scoper-autoload.php` in `autoload.files` — no per-package PSR-4 wiring.
+Net result: your bundled deps are scoped under your prefix, while declared-catalog symbols (WordPress, WooCommerce) and `Psr\*` stay unprefixed and resolve globally at runtime. Host code reaches the scoped tree through the single `dependencies/scoper-autoload.php` in `autoload.files` — no per-package PSR-4 wiring.
 
 ## Reusable CI Workflows
 

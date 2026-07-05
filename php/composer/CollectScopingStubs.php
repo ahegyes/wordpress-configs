@@ -2,6 +2,8 @@
 
 namespace DeepWebSolutions\Config\Composer;
 
+use DeepWebSolutions\Config\Composer\Internal\StubSymbolCollector;
+
 /**
  * Composer post-autoload-dump hook. Reads each `extra.scoping-stubs` array from the
  * root package and every installed package — straight off Composer's in-memory package

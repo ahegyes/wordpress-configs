@@ -7,6 +7,7 @@
         "Composer\\Installer\\InstallationManager",
         "Composer\\Package\\PackageInterface",
         "Composer\\Script\\Event",
+        "Composer\\Util\\ProcessExecutor",
         "Symfony\\Component\\Finder\\Finder"
     ],
     "php-core-extensions": [

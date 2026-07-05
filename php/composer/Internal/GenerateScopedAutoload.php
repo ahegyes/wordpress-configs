@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Config\Composer;
+namespace DeepWebSolutions\Config\Composer\Internal;
 
 /**
  * Emits a single `dependencies/scoper-autoload.php` from each scoped package's
@@ -10,29 +10,28 @@ namespace DeepWebSolutions\Config\Composer;
  *
  * Deterministic: no `class_alias` / `expose-*`, and every entry is sorted before
  * emission. The generated file is purely a function of the scoped tree and the
- * prefix, so it regenerates byte-identical.
+ * scoped tree, so it regenerates byte-identical.
+ *
+ * @internal
  */
 final class GenerateScopedAutoload {
 
 	/**
 	 * Generates `dependencies/scoper-autoload.php` from the scoped tree.
 	 *
-	 * Scoped composer.json `autoload.psr-4` keys are already prefixed by php-scoper —
-	 * the generator emits them verbatim. `$prefix` is a sanity check; a mismatch
-	 * throws to catch pipeline drift between the consumer's prefix declaration and
-	 * what php-scoper actually applied. `autoload.classmap` directories are scanned
+	 * Scoped composer.json `autoload.psr-4` keys are already prefixed by php-scoper,
+	 * so the generator emits them verbatim. `autoload.classmap` directories are scanned
 	 * for their (already-prefixed) class declarations and emitted via `addClassMap`;
 	 * a class-free classmap (a functions-only package) contributes nothing.
 	 *
 	 * @param   string $dependencies_dir Absolute path to the php-scoper output dir (typically `<project>/dependencies`).
-	 * @param   string $prefix           Scoping prefix passed to php-scoper (e.g. `DeepWebSolutions\\InternalComments\\Scoped`).
 	 *
 	 * @throws  \JsonException     If a scoped composer.json exists but cannot be parsed.
-	 * @throws  \RuntimeException  If no scoped package is found (an empty generated autoload must never be silent), if a scoped composer.json or the output file cannot be read or written, if a psr-4 key doesn't start with the declared prefix, if a package declares autoload.exclude-from-classmap or autoload.psr-0 (both unsupported), if no class-map scanner is available, or if a classmap class maps to more than one file.
+	 * @throws  \RuntimeException  If no scoped package is found (an empty generated autoload must never be silent), if a scoped composer.json or the output file cannot be read or written, if a package declares autoload.exclude-from-classmap or autoload.psr-0 (both unsupported), if no class-map scanner is available, or if a classmap class maps to more than one file.
 	 *
 	 * @return  string Absolute path to the generated scoper-autoload.php.
 	 */
-	public static function generate( string $dependencies_dir, string $prefix ): string {
+	public static function generate( string $dependencies_dir ): string {
 		$packages = self::find_scoped_packages( $dependencies_dir );
 
 		// An empty scan means every scoped class would 404 at runtime while composer exits 0 —
@@ -45,8 +44,6 @@ final class GenerateScopedAutoload {
 				)
 			);
 		}
-
-		$prefix_normalised = self::rtrim_backslash( $prefix );
 
 		$psr4       = array();
 		$files      = array();
@@ -92,17 +89,6 @@ final class GenerateScopedAutoload {
 			foreach ( $autoload['psr-4'] ?? array() as $namespace => $sources ) {
 				if ( ! \is_string( $namespace ) ) {
 					continue;
-				}
-				// Pipeline-drift check — scoper ran with a different prefix than declared.
-				if ( ! \str_starts_with( $namespace, $prefix_normalised . '\\' ) ) {
-					throw new \RuntimeException(
-						\sprintf(
-							'Scoped package %s has PSR-4 key "%s" that does not start with the declared prefix "%s". Did php-scoper run with a different prefix?',
-							$pkg_rel,
-							$namespace,
-							$prefix_normalised
-						)
-					);
 				}
 				foreach ( (array) $sources as $source ) {
 					if ( ! \is_string( $source ) ) {
@@ -304,17 +290,6 @@ final class GenerateScopedAutoload {
 	private static function join_rel( string $pkg_rel, string $sub_path ): string {
 		$sub = \trim( \str_replace( '\\', '/', $sub_path ), '/' );
 		return '' === $sub ? $pkg_rel : $pkg_rel . '/' . $sub;
-	}
-
-	/**
-	 * Strips trailing backslashes from a PSR-4 namespace key for clean joining.
-	 *
-	 * @param   string $psr4_namespace Namespace string with or without trailing backslashes.
-	 *
-	 * @return  string
-	 */
-	private static function rtrim_backslash( string $psr4_namespace ): string {
-		return \rtrim( $psr4_namespace, '\\' );
 	}
 
 	/**

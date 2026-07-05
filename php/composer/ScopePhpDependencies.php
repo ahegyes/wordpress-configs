@@ -3,28 +3,22 @@
 namespace DeepWebSolutions\Config\Composer;
 
 use Composer\Script\Event;
+use Composer\Util\ProcessExecutor;
+use DeepWebSolutions\Config\Composer\Internal\GenerateScopedAutoload;
 
 /**
- * Composer event handlers wrapping the php-scoper invocation.
+ * Composer event handlers for the dependency-scoping pipeline.
  *
  * `preAutoloadDump` creates placeholder files/directories for the consumer's
  * `autoload.files`/`autoload.classmap` paths that sit under its
  * `extra.scoped-dependencies-dir`, so the autoloader dump doesn't fail before
  * scoping has populated that not-yet-generated scoped output.
  *
- * `postAutoloadDump` and `run` (the consumer's public `scope-php-dependencies`
- * script) both execute the full pipeline: dispatch the consumer's raw
- * `scope-php-dependencies:raw` script (the `php-scoper add-prefix` invocation),
- * then — when `extra.scoping-prefix` is declared, the autoload generator's
- * opt-in — regenerate the scoped autoload, so a manual scoping run can never
- * leave a stale `scoper-autoload.php` behind. Without the prefix a run scopes
- * but skips generation.
- *
- * `extra.scoped-dependencies-dir` is the single source for the scoped output
- * directory: the pipeline derives php-scoper's `--output-dir` from it and passes
- * the flag to the raw script as a dispatched argument. A raw script that carries
- * its own `--output-dir` is rejected loudly — two knobs for one directory is how
- * the autoload generator ends up scanning a directory php-scoper never wrote.
+ * `postAutoloadDump` and `run` construct and execute the php-scoper command from
+ * the consumer's root `composer.json`: `extra.scoped-dependencies-dir`,
+ * `extra.scoping-prefix`, optional `extra.scoping-flags`, and the required
+ * root `scoper.inc.php`. A successful scoper run is always followed by scoped
+ * autoload generation.
  */
 final class ScopePhpDependencies {
 	/**
@@ -33,14 +27,6 @@ final class ScopePhpDependencies {
 	 * @var string
 	 */
 	public const string PIPELINE_SCRIPT = 'scope-php-dependencies';
-
-	/**
-	 * Internal raw script name holding the consumer's bare `php-scoper add-prefix`
-	 * invocation (prefix + config + flags — never `--output-dir`).
-	 *
-	 * @var string
-	 */
-	public const string RAW_SCOPER_SCRIPT = 'scope-php-dependencies:raw';
 
 	/**
 	 * Creates placeholders for the scoped `autoload.files`/`classmap` paths before Composer dumps the
@@ -63,9 +49,8 @@ final class ScopePhpDependencies {
 		$composer_config   = \json_decode( $composer_contents, true, flags: JSON_THROW_ON_ERROR );
 
 		// Placeholders cover only the not-yet-generated scoped output under the consumer's
-		// scoped-dependencies-dir. A consumer that does not scope has nothing to pre-create — and
-		// placeholdering its real autoload paths would mask a typo as an empty file instead of
-		// letting Composer's autoload dump fail loudly on the missing source.
+		// scoped-dependencies-dir. A consumer that does not scope has nothing to pre-create, and
+		// placeholdering its real autoload paths would mask a typo as an empty file.
 		$scoped_dir = $composer_config['extra']['scoped-dependencies-dir'] ?? null;
 		if ( ! \is_string( $scoped_dir ) || '' === $scoped_dir ) {
 			return;
@@ -108,10 +93,7 @@ final class ScopePhpDependencies {
 	}
 
 	/**
-	 * Reports whether an autoload entry sits at or under the scoped-dependencies-dir — i.e. is one
-	 * of the not-yet-generated scoped paths to pre-create. Tolerates a leading `./` and an exact
-	 * directory match, while keeping the `dir/` boundary so `dependencies-foo/` is not mistaken for
-	 * `dependencies/`.
+	 * Reports whether an autoload entry sits at or under the scoped-dependencies-dir.
 	 *
 	 * @param   string $path                  Autoload entry from `composer.json`.
 	 * @param   string $scoped_dir_normalised Scoped-dependencies-dir, forward-slashed, no trailing slash.
@@ -125,8 +107,7 @@ final class ScopePhpDependencies {
 	}
 
 	/**
-	 * Forward-slashes a path and strips a single leading `./`, so the scoped dir and the autoload
-	 * entries are compared on the same footing whichever spelling composer.json uses.
+	 * Forward-slashes a path and strips a single leading `./`.
 	 *
 	 * @param   string $path Path to normalise.
 	 *
@@ -150,243 +131,157 @@ final class ScopePhpDependencies {
 	private static function assert_project_relative( string $path ): void {
 		$normalised = \str_replace( '\\', '/', $path );
 		if ( \str_starts_with( $normalised, '/' ) || 1 === \preg_match( '#^[A-Za-z]:/#', $normalised ) ) {
-			throw new \RuntimeException( \sprintf( 'Refusing absolute autoload path "%s" — must be project-relative.', $path ) );
+			throw new \RuntimeException( \sprintf( 'Refusing absolute autoload path "%s" - must be project-relative.', $path ) );
 		}
 
 		foreach ( \explode( '/', $normalised ) as $segment ) {
 			if ( '..' === $segment ) {
-				throw new \RuntimeException( \sprintf( 'Refusing autoload path "%s" — parent-directory traversal not allowed.', $path ) );
+				throw new \RuntimeException( \sprintf( 'Refusing autoload path "%s" - parent-directory traversal not allowed.', $path ) );
 			}
 		}
 	}
 
 	/**
-	 * Scopes the dependencies — only in dev mode and only when php-scoper is installed — then emits the
-	 * optional scoped autoload. php-scoper and the to-be-scoped packages exist only in the dev environment.
+	 * Scopes dependencies in dev mode when php-scoper is installed and the consumer declares
+	 * `extra.scoped-dependencies-dir`.
 	 *
 	 * @param   Event $event  Composer event object.
 	 *
-	 * @throws  \RuntimeException  If the consumer's scoping configuration is inconsistent, the raw scoper script fails, or scoped-autoload generation fails.
+	 * @throws  \RuntimeException  If the consumer's scoping configuration is inconsistent, php-scoper fails, or scoped-autoload generation fails.
 	 *
 	 * @return  void
 	 */
 	public static function postAutoloadDump( Event $event ): void {
 		$console_io = $event->getIO();
-		$vendor_dir = $event->getComposer()->getConfig()->get( 'vendor-dir' );
+		$scoper_bin = self::scoper_binary( $event );
 
 		if ( ! $event->isDevMode() ) {
 			$console_io->warning( 'Not scoping dependencies because this is not a development environment.' );
 			return;
 		}
-		if ( ! \is_file( $vendor_dir . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'php-scoper' ) ) {
+		if ( ! \is_file( $scoper_bin ) ) {
 			$console_io->write( 'Not scoping dependencies because the PHP scoper is not installed.' );
 			return;
 		}
 
-		$scripts    = self::root_scripts( $event );
 		$scoped_dir = self::resolve_scoped_dir( $event );
-
-		// Runs before the not-opted-in early return so an un-migrated consumer (raw invocation
-		// still parked under the public name, extras possibly absent) fails loudly here instead
-		// of silently skipping the scoping it used to get.
-		self::assert_public_script_is_not_raw_scoper( $scripts );
-
-		if ( ! isset( $scripts[ self::RAW_SCOPER_SCRIPT ] ) && null === $scoped_dir ) {
-			$console_io->write( \sprintf( 'Not scoping dependencies — neither the %s script nor extra.scoped-dependencies-dir is declared.', self::RAW_SCOPER_SCRIPT ) );
+		if ( null === $scoped_dir ) {
+			$console_io->write( 'Not scoping dependencies because extra.scoped-dependencies-dir is not declared.' );
 			return;
 		}
 
-		self::scope_and_generate( $event, $scripts, $scoped_dir );
+		self::scope_and_generate( $event, $scoped_dir, $scoper_bin );
 	}
 
 	/**
-	 * Public entry point for the consumer's `scope-php-dependencies` script: runs the full
-	 * pipeline (raw php-scoper dispatch, then scoped-autoload regeneration), so a manual
-	 * scoping run never leaves the generated autoload stale. Unlike the post-autoload-dump
-	 * hook, an explicit invocation fails loudly when scoping cannot run at all.
+	 * Public entry point for the consumer's `scope-php-dependencies` script.
 	 *
 	 * @param   Event $event  Composer event object.
 	 *
-	 * @throws  \RuntimeException  If php-scoper is not installed, the scoping configuration is inconsistent, the raw scoper script fails, or scoped-autoload generation fails.
+	 * @throws  \RuntimeException  If php-scoper is not installed, the scoping configuration is inconsistent, php-scoper fails, or scoped-autoload generation fails.
 	 *
 	 * @return  void
 	 */
 	public static function run( Event $event ): void {
-		$vendor_dir = $event->getComposer()->getConfig()->get( 'vendor-dir' );
+		$scoper_bin = self::scoper_binary( $event );
 
-		if ( ! \is_file( $vendor_dir . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'php-scoper' ) ) {
-			throw new \RuntimeException( 'Cannot scope dependencies — humbug/php-scoper is not installed (require-dev it and run a dev-mode composer install).' );
+		if ( ! \is_file( $scoper_bin ) ) {
+			throw new \RuntimeException( 'Cannot scope dependencies - humbug/php-scoper is not installed (require-dev it and run a dev-mode composer install).' );
 		}
 
-		self::scope_and_generate( $event, self::root_scripts( $event ), self::resolve_scoped_dir( $event ) );
-	}
-
-	/**
-	 * Executes the scoping pipeline: validates the single-source contract, dispatches the raw
-	 * scoper script with the derived `--output-dir`, then regenerates the scoped autoload.
-	 *
-	 * @param   Event                       $event      Composer event object.
-	 * @param   array<string, list<string>> $scripts    Root-package scripts, listeners normalised to lists.
-	 * @param   string|null                 $scoped_dir Validated `extra.scoped-dependencies-dir`, or null when not declared.
-	 *
-	 * @throws  \RuntimeException  If the raw script or the scoped-dir declaration is missing, the public script is not bound to `run`, a script carries `--output-dir`/`-o`, the raw script fails, or it produces no output directory.
-	 *
-	 * @return  void
-	 */
-	private static function scope_and_generate( Event $event, array $scripts, ?string $scoped_dir ): void {
-		$console_io  = $event->getIO();
-		$project_dir = \dirname( \Composer\Factory::getComposerFile() );
-
-		self::assert_public_script_is_not_raw_scoper( $scripts );
-
-		if ( ! isset( $scripts[ self::RAW_SCOPER_SCRIPT ] ) ) {
+		$scoped_dir = self::resolve_scoped_dir( $event );
+		if ( null === $scoped_dir ) {
 			throw new \RuntimeException(
 				\sprintf(
-					'Missing the "%1$s" script. Declare the raw `php-scoper add-prefix` invocation (prefix + config + flags, WITHOUT --output-dir) under "%1$s", and point "%2$s" at %3$s::run for manual full-pipeline runs.',
-					self::RAW_SCOPER_SCRIPT,
-					self::PIPELINE_SCRIPT,
-					self::class
+					'Missing extra.scoped-dependencies-dir - declare the project-relative scoped output directory before running "%s".',
+					self::PIPELINE_SCRIPT
 				)
 			);
 		}
 
-		self::assert_public_script_runs_the_pipeline( $scripts );
+		self::scope_and_generate( $event, $scoped_dir, $scoper_bin );
+	}
 
-		if ( null === $scoped_dir ) {
-			throw new \RuntimeException(
-				'Missing extra.scoped-dependencies-dir — the scoping pipeline derives php-scoper\'s --output-dir from it. Declare it (e.g. "dependencies") in composer.json.'
-			);
-		}
-
-		// Single-source enforcement: the output dir lives ONLY in extra.scoped-dependencies-dir.
-		// A --output-dir (or php-scoper's short -o, in its spaced/=/glued/quote-wrapped value
-		// forms — the shell strips quotes, so '-o./dir' is a live flag) left in a script would
-		// either silently lose to the appended derived flag or, under the public name, silently
-		// diverge from what the generator scans. Matching `-o` after whitespace/start/quote
-		// broadly is safe — long flags are preceded by `-`, not whitespace or a quote.
-		foreach ( array( self::RAW_SCOPER_SCRIPT, self::PIPELINE_SCRIPT ) as $script_name ) {
-			foreach ( $scripts[ $script_name ] ?? array() as $listener ) {
-				if ( \str_contains( $listener, '--output-dir' ) || 1 === \preg_match( '/(?:^|[\s\'"])-o/', $listener ) ) {
-					throw new \RuntimeException(
-						\sprintf( 'The "%s" script must not carry --output-dir (or -o) — the pipeline derives it from extra.scoped-dependencies-dir. Remove the flag.', $script_name )
-					);
-				}
-			}
-		}
-
+	/**
+	 * Executes php-scoper, then regenerates the scoped autoload from the scoped output tree.
+	 *
+	 * @param   Event  $event      Composer event object.
+	 * @param   string $scoped_dir Validated `extra.scoped-dependencies-dir`.
+	 * @param   string $scoper_bin Absolute path to `vendor/bin/php-scoper`.
+	 *
+	 * @throws  \RuntimeException If the scoping config is invalid, php-scoper fails, or the autoload generator fails.
+	 *
+	 * @return  void
+	 */
+	private static function scope_and_generate( Event $event, string $scoped_dir, string $scoper_bin ): void {
+		$console_io       = $event->getIO();
+		$project_dir      = \dirname( \Composer\Factory::getComposerFile() );
 		$dependencies_dir = $project_dir . DIRECTORY_SEPARATOR . \ltrim( $scoped_dir, '/\\' );
+		$config_file      = $project_dir . DIRECTORY_SEPARATOR . 'scoper.inc.php';
+
+		$prefix = self::resolve_scoping_prefix( $event );
+		$flags  = self::resolve_scoping_flags( $event );
+		self::assert_scoper_config_exists( $config_file );
 
 		$console_io->write( 'Scoping dependencies...' );
 
-		$exit_code = $event->getComposer()->getEventDispatcher()->dispatchScript(
-			self::RAW_SCOPER_SCRIPT,
-			$event->isDevMode(),
-			array( '--output-dir=' . $dependencies_dir )
-		);
+		$process   = new ProcessExecutor( $console_io );
+		$command   = self::build_scoper_command( $scoper_bin, $prefix, $config_file, $dependencies_dir, $flags );
+		$output    = null;
+		$exit_code = $process->execute( $command, $output, $project_dir );
 
-		// A PHP-callback scope script that returns false maps to a non-zero code Composer hands
-		// back here (only shell-command failures throw on their own); stop before regenerating the
-		// scoped autoload over partial or stale output.
 		if ( 0 !== $exit_code ) {
-			throw new \RuntimeException(
-				\sprintf( 'The %s script failed with exit code %d; not generating the scoped autoload.', self::RAW_SCOPER_SCRIPT, $exit_code )
-			);
+			$message = \sprintf( 'php-scoper failed with exit code %d; not generating the scoped autoload.', $exit_code );
+			$stderr  = \trim( $process->getErrorOutput() );
+			if ( '' !== $stderr ) {
+				$message .= "\n" . $stderr;
+			}
+
+			throw new \RuntimeException( $message );
 		}
 
-		// Unconditional: a successful raw run that produced nothing is pipeline breakage whether
-		// or not the consumer opted into the autoload generator.
-		if ( ! \is_dir( $dependencies_dir ) ) {
-			throw new \RuntimeException(
-				\sprintf( 'The %s script succeeded but produced no output at %s (the directory extra.scoped-dependencies-dir points at). Check the scoper config\'s finders and that the raw script forwards the dispatched --output-dir argument to php-scoper.', self::RAW_SCOPER_SCRIPT, $dependencies_dir )
-			);
-		}
-
-		$prefix = self::root_extra( $event )['scoping-prefix'] ?? null;
-		if ( ! \is_string( $prefix ) ) {
-			// The autoload generator is opt-in via extra.scoping-prefix; scoping alone is complete here.
-			$console_io->write( 'Skipping scoper-autoload generation — extra.scoping-prefix is not declared.' );
-			return;
-		}
-
-		$output_path = GenerateScopedAutoload::generate( $dependencies_dir, $prefix );
+		$output_path = GenerateScopedAutoload::generate( $dependencies_dir );
 		$console_io->write( \sprintf( 'Wrote %s', $output_path ) );
 	}
 
 	/**
-	 * Rejects a raw `php-scoper add-prefix` invocation parked under the public pipeline script
-	 * name. There it would run WITHOUT the autoload regeneration on a manual invocation —
-	 * exactly the stale-scoper-autoload trap the split into a raw script exists to close.
+	 * Builds the argv vector for php-scoper.
 	 *
-	 * @param   array<string, list<string>> $scripts Root-package scripts, listeners normalised to lists.
+	 * @param   string       $scoper_bin       Absolute path to `vendor/bin/php-scoper`.
+	 * @param   string       $prefix           Scoping namespace prefix.
+	 * @param   string       $config_file      Absolute path to `scoper.inc.php`.
+	 * @param   string       $dependencies_dir Absolute output directory.
+	 * @param   list<string> $flags            Extra php-scoper flags from `extra.scoping-flags`.
 	 *
-	 * @throws  \RuntimeException If a `scope-php-dependencies` listener is a php-scoper invocation.
-	 *
-	 * @return  void
+	 * @return  non-empty-list<string>
 	 */
-	private static function assert_public_script_is_not_raw_scoper( array $scripts ): void {
-		foreach ( $scripts[ self::PIPELINE_SCRIPT ] ?? array() as $listener ) {
-			if ( \str_contains( $listener, 'add-prefix' ) ) {
-				throw new \RuntimeException(
-					\sprintf(
-						'The "%1$s" script must run the full pipeline, not php-scoper directly. Move the `add-prefix` invocation (without --output-dir) to "%2$s" and bind "%1$s" to %3$s::run.',
-						self::PIPELINE_SCRIPT,
-						self::RAW_SCOPER_SCRIPT,
-						self::class
-					)
-				);
-			}
-		}
+	private static function build_scoper_command( string $scoper_bin, string $prefix, string $config_file, string $dependencies_dir, array $flags ): array {
+		return \array_merge(
+			array(
+				PHP_BINARY,
+				$scoper_bin,
+				'add-prefix',
+				'--prefix=' . $prefix,
+				'--config=' . $config_file,
+				'--output-dir=' . $dependencies_dir,
+				'--force',
+				'--quiet',
+			),
+			$flags
+		);
 	}
 
 	/**
-	 * Requires the public pipeline script to be bound to `ScopePhpDependencies::run` — the
-	 * positive half of the public-script contract. A missing binding, an alias onto the raw
-	 * script, or any other wrapper would let a manual `composer scope-php-dependencies` scope
-	 * without regenerating the scoped autoload.
-	 *
-	 * @param   array<string, list<string>> $scripts Root-package scripts, listeners normalised to lists.
-	 *
-	 * @throws  \RuntimeException If the public script is missing or any listener is not the `run` binding.
-	 *
-	 * @return  void
-	 */
-	private static function assert_public_script_runs_the_pipeline( array $scripts ): void {
-		$listeners = $scripts[ self::PIPELINE_SCRIPT ] ?? array();
-
-		$bound = array() !== $listeners;
-		foreach ( $listeners as $listener ) {
-			if ( ! \str_contains( $listener, 'ScopePhpDependencies::run' ) ) {
-				$bound = false;
-				break;
-			}
-		}
-
-		if ( ! $bound ) {
-			throw new \RuntimeException(
-				\sprintf(
-					'The "%1$s" script must be bound to "%2$s::run" (the full scope + autoload pipeline) — not an alias or wrapper. Declare "%1$s": "%2$s::run" and keep the raw php-scoper invocation under "%3$s".',
-					self::PIPELINE_SCRIPT,
-					self::class,
-					self::RAW_SCOPER_SCRIPT
-				)
-			);
-		}
-	}
-
-	/**
-	 * Returns the root package's scripts with each script's listeners normalised to a list.
+	 * Returns the php-scoper binary path under the Composer vendor directory.
 	 *
 	 * @param   Event $event Composer event object.
 	 *
-	 * @return  array<string, list<string>>
+	 * @return  string
 	 */
-	private static function root_scripts( Event $event ): array {
-		$scripts = array();
-		foreach ( $event->getComposer()->getPackage()->getScripts() as $name => $listeners ) {
-			$scripts[ $name ] = \array_values( \array_filter( (array) $listeners, \is_string( ... ) ) );
-		}
+	private static function scoper_binary( Event $event ): string {
+		$vendor_dir = $event->getComposer()->getConfig()->get( 'vendor-dir' );
 
-		return $scripts;
+		return $vendor_dir . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'php-scoper';
 	}
 
 	/**
@@ -402,8 +297,7 @@ final class ScopePhpDependencies {
 
 	/**
 	 * Resolves `extra.scoped-dependencies-dir` to a validated project-relative path, or null
-	 * when absent/empty. Confinement mirrors every other path in this class — the scoped
-	 * output must not escape the project via an absolute path or `..`.
+	 * when absent/empty.
 	 *
 	 * @param   Event $event Composer event object.
 	 *
@@ -420,5 +314,121 @@ final class ScopePhpDependencies {
 		self::assert_project_relative( $scoped_dir );
 
 		return $scoped_dir;
+	}
+
+	/**
+	 * Resolves and validates the required scoping prefix.
+	 *
+	 * @param   Event $event Composer event object.
+	 *
+	 * @throws  \RuntimeException If `extra.scoping-prefix` is missing or not a valid namespace prefix.
+	 *
+	 * @return  string
+	 */
+	private static function resolve_scoping_prefix( Event $event ): string {
+		$prefix = self::root_extra( $event )['scoping-prefix'] ?? null;
+		if ( ! \is_string( $prefix ) ) {
+			throw new \RuntimeException( 'Missing extra.scoping-prefix - declare the PHP namespace prefix passed to php-scoper (for example, "MyPlugin\\\\Scoped").' );
+		}
+
+		$prefix = \trim( $prefix, '\\' );
+		if ( '' === $prefix || 1 !== \preg_match( '/^[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff]*(\\\\[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff]*)*$/', $prefix ) ) {
+			throw new \RuntimeException(
+				\sprintf(
+					'Invalid extra.scoping-prefix "%s" - expected a non-empty, valid PHP namespace prefix such as "MyPlugin\\\\Scoped".',
+					$prefix
+				)
+			);
+		}
+
+		return $prefix;
+	}
+
+	/**
+	 * Resolves and validates extra php-scoper CLI flags.
+	 *
+	 * @param   Event $event Composer event object.
+	 *
+	 * @throws  \RuntimeException If `extra.scoping-flags` is malformed or tries to override pipeline-owned flags.
+	 *
+	 * @return  list<string>
+	 */
+	private static function resolve_scoping_flags( Event $event ): array {
+		$extra = self::root_extra( $event );
+		if ( ! \array_key_exists( 'scoping-flags', $extra ) ) {
+			return array();
+		}
+
+		$flags = $extra['scoping-flags'];
+		if ( ! \is_array( $flags ) ) {
+			throw new \RuntimeException(
+				\sprintf( 'extra.scoping-flags must be a list of strings; got %s.', \get_debug_type( $flags ) )
+			);
+		}
+		if ( ! \array_is_list( $flags ) ) {
+			throw new \RuntimeException( 'extra.scoping-flags must be a list of strings; associative keys are not supported.' );
+		}
+
+		foreach ( $flags as $flag ) {
+			if ( ! \is_string( $flag ) ) {
+				throw new \RuntimeException(
+					\sprintf( 'extra.scoping-flags must contain only strings; got %s.', \get_debug_type( $flag ) )
+				);
+			}
+			if ( self::is_pipeline_owned_flag( $flag ) ) {
+				throw new \RuntimeException(
+					\sprintf( 'extra.scoping-flags entry "%s" is not allowed because the pipeline owns the output-dir, prefix, and config flags (long and short forms).', $flag )
+				);
+			}
+		}
+
+		return $flags;
+	}
+
+	/**
+	 * Reports whether a CLI flag is owned by the pipeline rather than the consumer.
+	 *
+	 * @param   string $flag CLI flag from `extra.scoping-flags`.
+	 *
+	 * @return  bool
+	 */
+	private static function is_pipeline_owned_flag( string $flag ): bool {
+		foreach ( array( '--output-dir', '--prefix', '--config' ) as $owned ) {
+			if ( $flag === $owned || \str_starts_with( $flag, $owned . '=' ) ) {
+				return true;
+			}
+		}
+
+		// Short forms too: -o/-p/-c take a glued or separate value, so any flag starting
+		// with one of them is a pipeline-owned knob.
+		foreach ( array( '-o', '-p', '-c' ) as $owned_short ) {
+			if ( \str_starts_with( $flag, $owned_short ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Requires the consumer's scoper config to be explicit.
+	 *
+	 * @param   string $config_file Absolute path to `scoper.inc.php`.
+	 *
+	 * @throws  \RuntimeException If the config file does not exist.
+	 *
+	 * @return  void
+	 */
+	private static function assert_scoper_config_exists( string $config_file ): void {
+		if ( \is_file( $config_file ) ) {
+			return;
+		}
+
+		throw new \RuntimeException(
+			\sprintf(
+				'Cannot scope dependencies - missing %s. Create scoper.inc.php at the project root; php-scoper without an explicit config would scope the whole project.',
+				$config_file
+			)
+		);
 	}
 }

@@ -1,12 +1,14 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Config\Composer;
+namespace DeepWebSolutions\Config\Composer\Internal;
 
 /**
  * PhpParser visitor that harvests fully-qualified class, function, and constant names from a
  * parsed stubs file. Class-likes (class/interface/trait/enum) all flow into `$classes` —
  * php-scoper's `exclude-classes` covers them uniformly. A `NameResolver` must run ahead of this
  * visitor in the same traversal so `namespacedName` is populated on the collected nodes.
+ *
+ * @internal
  */
 final class StubSymbolCollector extends \PhpParser\NodeVisitorAbstract {
 	/**

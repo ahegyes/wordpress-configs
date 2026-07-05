@@ -2,7 +2,7 @@
 
 namespace DeepWebSolutions\Config\Tests\Unit;
 
-use DeepWebSolutions\Config\Composer\StubSymbolCollector;
+use DeepWebSolutions\Config\Composer\Internal\StubSymbolCollector;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\ParserFactory;
