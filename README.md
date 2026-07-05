@@ -42,7 +42,7 @@ The root package must also allow `dealerdirect/phpcodesniffer-composer-installer
 }
 ```
 
-Reusable CI workflows are referenced directly from GitHub (see [Reusable CI Workflows](#reusable-ci-workflows) below). The DWS repos pin them to a commit SHA (dependabot proposes bumps); the examples in this README show `@trunk` for copy-paste brevity.
+Reusable CI workflows are referenced directly from GitHub (see [Reusable CI Workflows](#reusable-ci-workflows) below). The DWS repos pin every reusable, including `reusable-release.yml`, to a commit SHA and dependabot proposes bumps; `@trunk` in this README's examples is shorthand for "replace this with a commit SHA pin."
 
 ## What's Included
 
@@ -461,7 +461,7 @@ Net result: your bundled deps are scoped under your prefix, while declared exter
 
 ## Reusable CI Workflows
 
-Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Plugins call them via `workflow_call` and compose them into their own pipelines. They only trigger on `workflow_call` — this repo's own CI exercises `reusable-workflow-checks` and `reusable-codeql` through its `workflow-checks` / `codeql` thin callers. The DWS repos pin the reusables to a commit SHA (dependabot proposes bumps); the `@trunk` refs in the examples below are for copy-paste brevity.
+Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Plugins call them via `workflow_call` and compose them into their own pipelines. They only trigger on `workflow_call` — this repo's own CI exercises `reusable-workflow-checks` and `reusable-codeql` through its `workflow-checks` / `codeql` thin callers. The DWS repos pin every reusable, including `reusable-release.yml`, to a commit SHA and dependabot proposes bumps; the `@trunk` refs in the examples below are shorthand for "replace this with a commit SHA pin."
 
 | Workflow                              | Purpose                                          | Key Inputs                                                   |
 |---------------------------------------|--------------------------------------------------|--------------------------------------------------------------|
@@ -539,7 +539,8 @@ jobs:
     # A reusable workflow can't elevate above the caller's token; grant the GitHub Release scope here.
     permissions:
       contents: write
-    uses: ahegyes/wordpress-configs/.github/workflows/reusable-release.yml@trunk
+    # Pin release like the other reusables; dependabot bumps this SHA.
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-release.yml@<sha>
     with:
       plugin-slug: your-plugin-slug
 ```

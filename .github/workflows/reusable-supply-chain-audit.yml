@@ -72,12 +72,44 @@ jobs:
           composer-options: ${{ inputs.composer-options }}
       - name: composer audit
         working-directory: ${{ inputs.project-path }}
-        continue-on-error: ${{ !inputs.fail-on-findings }}
         env:
           AUDIT_FLAGS: ${{ inputs.composer-audit-flags }}
+          FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
         run: |
+          audit_json="$(mktemp)"
+          set +e
+          # Composer has no distinct findings exit code; advisory mode softens only valid findings JSON.
           # shellcheck disable=SC2086
-          composer audit $AUDIT_FLAGS
+          composer audit $AUDIT_FLAGS --format=json > "$audit_json"
+          status=$?
+          set -e
+          cat "$audit_json"
+
+          if [ "$status" -eq 0 ]; then
+            exit 0
+          fi
+
+          if [ "$FAIL_ON_FINDINGS" = "true" ]; then
+            exit "$status"
+          fi
+
+          # shellcheck disable=SC2016
+          AUDIT_JSON="$audit_json" php -r '
+          $data = json_decode(file_get_contents(getenv("AUDIT_JSON")), true);
+          if (!is_array($data) || !array_key_exists("advisories", $data)) {
+              exit(1);
+          }
+          $advisories = $data["advisories"];
+          $abandoned = $data["abandoned"] ?? [];
+          $hasAdvisories = is_array($advisories) && count($advisories) > 0;
+          $hasAbandoned = is_array($abandoned) && count($abandoned) > 0;
+          exit(($hasAdvisories || $hasAbandoned) ? 0 : 1);
+          ' || {
+            echo "::error::composer audit failed before producing a valid findings report."
+            exit "$status"
+          }
+
+          echo "::warning::composer audit reported findings; fail-on-findings=false leaves this advisory-only."
 
   npm-audit:
     if: ${{ inputs.npm-audit }}
@@ -97,9 +129,45 @@ jobs:
         run: npm ci
       - name: npm audit
         working-directory: ${{ inputs.project-path }}
-        continue-on-error: ${{ !inputs.fail-on-findings }}
         env:
           AUDIT_FLAGS: ${{ inputs.npm-audit-flags }}
+          FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
         run: |
+          audit_json="$(mktemp)"
+          set +e
           # shellcheck disable=SC2086
-          npm audit $AUDIT_FLAGS
+          npm audit $AUDIT_FLAGS --json > "$audit_json"
+          status=$?
+          set -e
+          cat "$audit_json"
+
+          if [ "$status" -eq 0 ]; then
+            exit 0
+          fi
+
+          if [ "$FAIL_ON_FINDINGS" = "true" ]; then
+            exit "$status"
+          fi
+
+          AUDIT_JSON="$audit_json" node <<'NODE' || {
+          const fs = require('fs');
+
+          let data;
+          try {
+            data = JSON.parse(fs.readFileSync(process.env.AUDIT_JSON, 'utf8'));
+          } catch {
+            process.exit(1);
+          }
+
+          if (data.error || !data.metadata || !data.metadata.vulnerabilities) {
+            process.exit(1);
+          }
+
+          const total = Object.values(data.metadata.vulnerabilities).reduce((sum, value) => sum + (Number(value) || 0), 0);
+          process.exit(total > 0 ? 0 : 1);
+          NODE
+            echo "::error::npm audit failed before producing a valid findings report."
+            exit "$status"
+          }
+
+          echo "::warning::npm audit reported findings; fail-on-findings=false leaves this advisory-only."

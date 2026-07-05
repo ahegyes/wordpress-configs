@@ -2,11 +2,11 @@
 
 ## Consumption model
 
-wordpress-configs is consumed via `dev-trunk` only — no version tags or releases are published. Every change to `trunk` propagates to downstream consumers' next `composer update` (PHP) or git fetch (reusable GitHub Actions workflows referenced as `@trunk`).
+wordpress-configs is consumed via `dev-trunk` only — no version tags or releases are published. Every change to `trunk` propagates to downstream consumers' next `composer update` on the PHP side. This repo's internal third-party action refs are SHA-pinned and dependabot-tracked; reusable GitHub Actions workflows are consumed through SHA-pinned `uses:` refs tracked by dependabot, which carries `trunk` changes into consumers without mutable refs.
 
 Practical consequences:
 - Treat `trunk` as if it were a tagged release. Don't merge anything to `trunk` that you wouldn't tag.
-- Breaking changes to reusable workflow inputs, Composer script signatures, or ruleset behavior are immediately felt by every consumer. Consider backwards-compatibility carefully.
+- Breaking changes to Composer script signatures or ruleset behavior are immediately felt by every PHP consumer; reusable workflow changes are felt when consumers accept dependabot SHA bumps. Changes to the credentialed `deploy` path in `reusable-release.yml` are reviewed in consumers, never automerged.
 
 ## Development setup
 
@@ -25,8 +25,10 @@ CI (`quality.yml`) runs more than `composer test`. Mirror it locally:
 ```bash
 composer lint:php        # phpcs + phpstan + composer-require-checker
 composer test            # unit suite
+composer audit --abandoned=report
 npm run lint:scripts     # ESLint over node/
 npm run lint:config      # load-check the eslint / stylelint / tsconfig / playwright baselines
+npm audit --omit=dev --audit-level=high
 ```
 
 The scoping pipeline (`CollectScopingStubs` → `ScopePhpDependencies` → `scoper-base.inc.php` → autoload generator) only runs in a *consumer's* dev install; this repo tests each piece in isolation, so there's no build step to run here.
@@ -39,7 +41,7 @@ Mutation tests run via Infection on a weekly schedule (manually triggerable too)
 
 ## Reusable workflows are public API
 
-Anything in `.github/workflows/reusable-*.yml` is consumed by external repositories via `uses: ahegyes/wordpress-configs/.github/workflows/X.yml@trunk`. Changes to inputs, outputs, or behavior are breaking. Give every input a `description:` in the workflow's `inputs:` block — that's the authoritative reference; add it to the README table only if it's commonly set.
+Anything in `.github/workflows/reusable-*.yml` is consumed by external repositories via SHA-pinned refs such as `uses: ahegyes/wordpress-configs/.github/workflows/X.yml@<sha>`, with dependabot tracking new `trunk` commits. Changes to inputs, outputs, or behavior are breaking. Build-side reusable bumps may be automerged by consumer policy; changes to the credentialed `deploy` path in `reusable-release.yml` are reviewed, never automerged in consumers. Give every input a `description:` in the workflow's `inputs:` block — that's the authoritative reference; add it to the README table only if it's commonly set.
 
 ## composer-require-checker.json
 
