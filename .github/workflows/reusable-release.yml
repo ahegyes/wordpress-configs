@@ -27,8 +27,13 @@ on:
         type: boolean
         required: false
         default: true
+      generate-pot:
+        description: 'Regenerate languages/<domain>.pot via wp i18n make-pot before archive creation; set false only for plugins with no translatable strings'
+        type: boolean
+        required: false
+        default: true
       pot-domain:
-        description: 'Text domain for release-time POT generation; empty skips wp i18n make-pot'
+        description: 'Text domain for POT generation; empty derives it from plugin-slug (the wp.org convention Plugin Check enforces)'
         type: string
         required: false
         default: ''
@@ -114,10 +119,10 @@ jobs:
           fi
 
       - name: Generate POT
-        if: ${{ inputs.pot-domain != '' }}
+        if: ${{ inputs.generate-pot }}
         working-directory: ${{ inputs.project-path }}
         env:
-          POT_DOMAIN: ${{ inputs.pot-domain }}
+          POT_DOMAIN: ${{ inputs.pot-domain != '' && inputs.pot-domain || inputs.plugin-slug }}
           REQUIRES_SCOPED: ${{ inputs.requires-scoped-dependencies }}
         run: |
           if ! printf '%s' "$POT_DOMAIN" | grep -Eq '^[a-z0-9-]+$'; then
@@ -126,8 +131,12 @@ jobs:
           fi
           mkdir -p languages
           wp i18n make-pot . "languages/$POT_DOMAIN.pot" --domain="$POT_DOMAIN"
-          if [ "$REQUIRES_SCOPED" = "true" ] && ! grep -q '^#: dependencies/' "languages/$POT_DOMAIN.pot"; then
-            echo "::error::Generated POT has no dependencies/ source references. The scoped framework text-domain rewrite or scoping pipeline did not feed framework strings into the consumer catalog."
+          # Scoped trees carry catalogued strings only when the textdomain rewrite produced some —
+          # a tree of string-free libraries must not fail the gate.
+          if [ "$REQUIRES_SCOPED" = "true" ] \
+            && grep -rql --include='*.php' "'$POT_DOMAIN'" dependencies/ \
+            && ! grep -q '^#: dependencies/' "languages/$POT_DOMAIN.pot"; then
+            echo "::error::dependencies/ carries strings under '$POT_DOMAIN' but the generated POT has no dependencies/ source references — make-pot did not catalogue the scoped tree."
             exit 1
           fi
 

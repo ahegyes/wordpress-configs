@@ -469,7 +469,7 @@ Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Pl
 | `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `project-path`, `plugin-slug`, `php-version`                 |
 | `reusable-block-json-check.yml`       | Validates block.json against wp.org schema       | `project-path`, `node-version`                              |
 | `reusable-supply-chain-audit.yml`     | `composer audit` + `npm audit` (parallel jobs)   | `project-path`, `composer-audit`, `npm-audit`, plus `*-flags` |
-| `reusable-release.yml`                | Build → test built artifact → deploy to wp.org   | `plugin-slug`, `project-path`, `php-version`, `requires-scoped-dependencies`, `plugin-check`, `pot-domain` (no secrets) |
+| `reusable-release.yml`                | Build → test built artifact → deploy to wp.org   | `plugin-slug`, `project-path`, `php-version`, `requires-scoped-dependencies`, `plugin-check`, `generate-pot` (no secrets) |
 | `reusable-workflow-checks.yml`        | actionlint + zizmor with a blocking SARIF gate   | — (no inputs)                                                |
 | `reusable-codeql.yml`                 | CodeQL analysis across a language matrix         | `languages[]`                                                |
 
@@ -548,7 +548,7 @@ The workflow enforces two release contracts on the consumer:
 - **Main file named after the slug** — `<plugin-slug>.php` at the project root, with a `Version:` header equal to the tag's version; `readme.txt`'s `Stable tag:` must match too. Tags must be `v<major>.<minor>.<patch>` (no leading zeros); the version is taken from the tag exclusively and verified against both files, never stamped in.
 - **`.wp-env.json` maps `wp-content/plugins/<plugin-slug>`** — the artifact test remaps exactly that `mappings` key at the built zip (co-mounted plugins, port, and lifecycle scripts survive the per-key merge) and pins the environment to the latest stable WordPress core, so the E2E suite runs against what actually ships on what users actually run.
 
-`requires-scoped-dependencies` defaults to `true` and asserts `dependencies/scoper-autoload.php` plus scoped package files in the archive and mounted test artifact; set it to `false` for plugins that do not run the scoping pipeline. `plugin-check` defaults to `true` and runs WordPress Plugin Check against the built zip's extracted tree. `pot-domain` defaults to empty; when set, release regenerates `languages/<pot-domain>.pot` before archive creation and verifies scoped-dependency references when scoped dependencies are required.
+`requires-scoped-dependencies` defaults to `true` and asserts `dependencies/scoper-autoload.php` plus scoped package files in the archive and mounted test artifact; set it to `false` for plugins that do not run the scoping pipeline. `plugin-check` defaults to `true` and runs WordPress Plugin Check against the built zip's extracted tree. `generate-pot` defaults to `true`: release regenerates `languages/<domain>.pot` before archive creation, so the shipped zip always carries a current catalog — set it to `false` only for plugins with no translatable strings. The domain derives from `plugin-slug` (the wp.org convention Plugin Check enforces); `pot-domain` overrides it. When scoped dependencies are required and the scoped tree carries strings under the consumer domain, the step verifies those strings reached the POT.
 
 ## Typical Composer Scripts
 
@@ -568,7 +568,7 @@ Add these to your project's `composer.json` for a consistent dev workflow. Compo
 
 This repo's own `lint:php` adds a third tool, `composer-require-checker` (declared-dependency completeness, gated on a `composer-require-checker.json`) — add it if your package wants that check.
 
-Release regenerates the POT when `pot-domain` is set, so the script stays useful for local catalog refreshes before a tag.
+Release regenerates the POT on every tag build; the script stays useful for local catalog refreshes.
 
 ## Development
 
