@@ -13,6 +13,20 @@
         "node": ">=26",
         "npm": ">=11"
     },
+    "files": [
+        "node/",
+        "LICENSE"
+    ],
+    "exports": {
+        "./node/eslint.config.base.mjs": "./node/eslint.config.base.mjs",
+        "./node/stylelint.config.base.js": "./node/stylelint.config.base.js",
+        "./node/playwright.config.base.js": "./node/playwright.config.base.js",
+        "./node/tsconfig.base.json": "./node/tsconfig.base.json",
+        "./package.json": "./package.json"
+    },
+    "peerDependencies": {
+        "@wordpress/scripts": ">=32"
+    },
     "devDependencies": {
         "@wordpress/e2e-test-utils-playwright": "^1.50.0",
         "@wordpress/eslint-plugin": "^25.6.0",
