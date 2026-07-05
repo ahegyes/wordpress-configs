@@ -1,0 +1,11 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "dws/config-smoke",
+  "version": "1.0.0",
+  "title": "DWS Config Smoke Block",
+  "category": "widgets",
+  "icon": "smiley",
+  "description": "Throwaway block used only to dogfood reusable-block-json-check in this repo's CI.",
+  "textdomain": "dws-config-smoke"
+}

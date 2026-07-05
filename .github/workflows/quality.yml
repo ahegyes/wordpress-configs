@@ -62,3 +62,10 @@ jobs:
     uses: ./.github/workflows/reusable-supply-chain-audit.yml
     with:
       npm-audit-flags: '--omit=dev --audit-level=high'
+
+  block-json:
+    name: block.json schema check
+    # Dogfoods reusable-block-json-check against a throwaway fixture; this tooling repo ships no real blocks.
+    uses: ./.github/workflows/reusable-block-json-check.yml
+    with:
+      project-path: tests/fixtures/block-json

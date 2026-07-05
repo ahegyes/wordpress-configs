@@ -41,11 +41,13 @@ jobs:
             exit 0
           fi
           # schemas.wp.org publishes no versioned block.json path; trunk is the only (mutable) schema source.
-          # A schemas.wp.org outage fails this check; consumers needing hermetic CI can vendor a schema snapshot.
+          # ajv-cli reads -s from disk and picks its parser from the extension, so fetch to a .json path; curl -f fails this check on a schemas.wp.org outage.
+          schema="$(mktemp -d)/schema.json"
+          curl -fsSL https://schemas.wp.org/trunk/block.json -o "$schema"
           for file in "${files[@]}"; do
             echo "Validating $file"
             npx --yes ajv-cli@5.0.0 validate \
-              -s https://schemas.wp.org/trunk/block.json \
+              -s "$schema" \
               -d "$file" \
               --strict=false
           done
