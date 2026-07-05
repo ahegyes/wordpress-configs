@@ -52,6 +52,19 @@ final class ContribScoperPartialsTest extends TestCase {
 		);
 	}
 
+	#[Test]
+	public function php_di_partial_returns_no_finders_when_packages_are_not_installed(): void {
+		$php_di = ( require self::PHP_DI_PARTIAL )( $this->vendor_dir );
+
+		self::assertSame(
+			array(
+				'finders'       => array(),
+				'exclude_files' => array(),
+			),
+			$php_di
+		);
+	}
+
 	// endregion
 
 	// region wp-framework.inc.php
@@ -155,6 +168,16 @@ final class ContribScoperPartialsTest extends TestCase {
 		$this->expectExceptionMessageMatches( '/Prefixed Action Scheduler reference/' );
 
 		$guard( '/file.php', 'Prefix', "<?php \\Prefix\\as_schedule_single_action( 1, 'hook' );" );
+	}
+
+	#[Test]
+	public function as_guard_throws_on_a_prefixed_relative_action_scheduler_call(): void {
+		$guard = $this->getAsGuardPatcher();
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/Prefixed Action Scheduler reference/' );
+
+		$guard( '/file.php', 'Prefix', "<?php namespace Local; namespace\\Prefix\\as_schedule_single_action( 1, 'hook' );" );
 	}
 
 	#[Test]

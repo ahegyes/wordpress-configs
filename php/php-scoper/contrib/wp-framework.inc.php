@@ -66,8 +66,11 @@ return static function ( string $vendor_dir, string $project_dir = '' ): array {
 		throw new \RuntimeException( \sprintf( 'Framework packages are installed but no composer.json exists at %s — cannot resolve the consumer text domain for the framework-string rewrite.', $composer_path ) );
 	}
 
-	$composer_contents = file_get_contents( $composer_path ) ?: throw new \RuntimeException( sprintf( 'Could not read %s', $composer_path ) );
-	$composer_config   = json_decode( $composer_contents, true, flags: JSON_THROW_ON_ERROR );
+	$composer_contents = file_get_contents( $composer_path );
+	if ( false === $composer_contents ) {
+		throw new \RuntimeException( sprintf( 'Could not read %s', $composer_path ) );
+	}
+	$composer_config = json_decode( $composer_contents, true, flags: JSON_THROW_ON_ERROR );
 
 	$target_text_domain = $composer_config['extra']['text-domain'] ?? null;
 	if ( false !== $target_text_domain ) {
@@ -165,8 +168,11 @@ return static function ( string $vendor_dir, string $project_dir = '' ): array {
 				$in_nowdoc = \str_contains( $token[1], "'" );
 			} elseif ( T_END_HEREDOC === $token[0] ) {
 				$in_nowdoc = false;
-			} elseif ( T_NAME_FULLY_QUALIFIED === $token[0] || T_NAME_QUALIFIED === $token[0] ) {
+			} elseif ( T_NAME_FULLY_QUALIFIED === $token[0] || T_NAME_QUALIFIED === $token[0] || T_NAME_RELATIVE === $token[0] ) {
 				$haystack = \ltrim( $token[1], '\\' );
+				if ( T_NAME_RELATIVE === $token[0] && 0 === \stripos( $haystack, 'namespace\\' ) ) {
+					$haystack = \substr( $haystack, \strlen( 'namespace\\' ) );
+				}
 			} elseif ( T_CONSTANT_ENCAPSED_STRING === $token[0] ) {
 				// Constant strings carry php-scoper's doubled backslashes — normalise those.
 				$haystack = \str_replace( '\\\\', '\\', $token[1] );

@@ -262,6 +262,16 @@ final class CollectScopingStubsTest extends TestCase {
 	}
 
 	#[Test]
+	public function rejects_output_file_dot_segments(): void {
+		$this->writeProjectComposer( array() );
+		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_FILE=..' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/must be a filename, not a path/' );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+	}
+
+	#[Test]
 	public function skips_when_not_in_dev_mode(): void {
 		$io = new BufferIO();
 		$this->writeProjectComposer( array() );
@@ -951,6 +961,27 @@ final class CollectScopingStubsTest extends TestCase {
 
 		$result = $this->loadOutput( 'scoping-exclusions.json' );
 		self::assertContains( 'add_action', $result['functions'] );
+	}
+
+	#[Test]
+	public function skips_package_when_install_path_resolution_throws(): void {
+		$io      = new BufferIO();
+		$package = new CompletePackage( 'php-stubs/custom-installer', '1.0.0.0', '1.0.0' );
+		$package->setType( 'custom-installer' );
+		$this->installed_packages[] = $package;
+
+		$this->writeProjectComposer( array( 'php-stubs/custom-installer' ) );
+		CollectScopingStubs::postAutoloadDump( $this->event( io: $io ) );
+
+		self::assertSame(
+			array(
+				'classes'   => array(),
+				'functions' => array(),
+				'constants' => array(),
+			),
+			$this->loadOutput( 'scoping-exclusions.json' )
+		);
+		self::assertStringContainsString( 'Skipping declared stubs package "php-stubs/custom-installer"', $io->getOutput() );
 	}
 
 	#[Test]

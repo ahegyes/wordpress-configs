@@ -657,6 +657,23 @@ final class ScoperBaseConfigTest extends TestCase {
 	}
 
 	#[Test]
+	public function patcher_strips_prefix_from_binary_string_references(): void {
+		$this->writeScopingExclusions(
+			array(
+				'classes'   => array( 'WP_Post' ),
+				'functions' => array(),
+			)
+		);
+		$patcher = $this->getDefaultPatcher();
+
+		$input  = "<?php if (class_exists(b'MyPrefix\\\\WP_Post')) {}";
+		$output = $patcher( '/file.php', 'MyPrefix', $input );
+
+		self::assertStringContainsString( "class_exists('\\WP_Post'", $output );
+		self::assertStringNotContainsString( 'MyPrefix', $output );
+	}
+
+	#[Test]
 	public function rejects_unknown_override_key(): void {
 		$this->expectException( \InvalidArgumentException::class );
 

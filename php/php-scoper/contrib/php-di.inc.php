@@ -11,14 +11,32 @@ use Symfony\Component\Finder\Finder;
  * symbols needing prefixing anyway.
  */
 return static function ( string $vendor_dir ): array {
+	$finder_paths = array();
+	foreach ( array( $vendor_dir . '/php-di', $vendor_dir . '/laravel/serializable-closure' ) as $path ) {
+		if ( \is_dir( $path ) ) {
+			$finder_paths[] = $path;
+		}
+	}
+
+	if ( array() === $finder_paths ) {
+		return array(
+			'finders'       => array(),
+			'exclude_files' => array(),
+		);
+	}
+
+	$finder = Finder::create()
+		->files()
+		->ignoreVCS( true )
+		->name( array( '*.php', 'LICENSE', 'LICENSE.md', 'composer.json' ) );
+
+	foreach ( $finder_paths as $path ) {
+		$finder->in( $path );
+	}
+
 	return array(
 		'finders'       => array(
-			Finder::create()
-				->files()
-				->ignoreVCS( true )
-				->name( array( '*.php', 'LICENSE', 'LICENSE.md', 'composer.json' ) )
-				->in( $vendor_dir . '/php-di' )
-				->in( $vendor_dir . '/laravel/serializable-closure' ),
+			$finder,
 		),
 		'exclude_files' => array(
 			$vendor_dir . '/php-di/php-di/src/Compiler/Template.php',

@@ -12,6 +12,13 @@ namespace DeepWebSolutions\Config\Composer\Internal;
  */
 final class StubSymbolCollector extends \PhpParser\NodeVisitorAbstract {
 	/**
+	 * PHP symbol-name shape accepted by php-scoper's exclusion lists.
+	 *
+	 * @var string
+	 */
+	private const SYMBOL_NAME_REGEX = '/^\\\\?[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff\\\\]*$/';
+
+	/**
 	 * Fully-qualified class names collected from the parsed stubs.
 	 *
 	 * @var list<string>
@@ -46,18 +53,18 @@ final class StubSymbolCollector extends \PhpParser\NodeVisitorAbstract {
 			case \PhpParser\Node\Stmt\Trait_::class:
 			case \PhpParser\Node\Stmt\Enum_::class:
 				if ( null !== $node->namespacedName ) {
-					$this->classes[] = $node->namespacedName->toString();
+					$this->collect( $this->classes, $node->namespacedName->toString() );
 				}
 				return \PhpParser\NodeVisitor::DONT_TRAVERSE_CHILDREN;
 			case \PhpParser\Node\Stmt\Function_::class:
 				if ( null !== $node->namespacedName ) {
-					$this->functions[] = $node->namespacedName->toString();
+					$this->collect( $this->functions, $node->namespacedName->toString() );
 				}
 				break;
 			case \PhpParser\Node\Stmt\Const_::class:
 				foreach ( $node->consts as $const ) {
 					if ( null !== $const->namespacedName ) {
-						$this->constants[] = $const->namespacedName->toString();
+						$this->collect( $this->constants, $const->namespacedName->toString() );
 					}
 				}
 				break;
@@ -69,10 +76,24 @@ final class StubSymbolCollector extends \PhpParser\NodeVisitorAbstract {
 					&& $node->args[0] instanceof \PhpParser\Node\Arg
 					&& $node->args[0]->value instanceof \PhpParser\Node\Scalar\String_
 				) {
-					$this->constants[] = $node->args[0]->value->value;
+					$this->collect( $this->constants, $node->args[0]->value->value );
 				}
 				break;
 		}
 		return null;
+	}
+
+	/**
+	 * Adds a symbol only when it matches php-scoper's exclusion-name shape.
+	 *
+	 * @param list<string> $symbols Symbol list to append to.
+	 * @param string       $symbol  Harvested symbol name.
+	 *
+	 * @return void
+	 */
+	private function collect( array &$symbols, string $symbol ): void {
+		if ( 1 === \preg_match( self::SYMBOL_NAME_REGEX, $symbol ) ) {
+			$symbols[] = $symbol;
+		}
 	}
 }

@@ -192,6 +192,29 @@ final class GenerateScopedAutoloadTest extends TestCase {
 	}
 
 	#[Test]
+	public function finds_a_single_package_at_the_dependencies_root(): void {
+		\file_put_contents(
+			$this->dependencies_dir . '/composer.json',
+			\json_encode(
+				array(
+					'name'     => 'single/root',
+					'autoload' => array(
+						'psr-4' => array( 'P\\Root\\' => 'src/' ),
+						'files' => array( 'bootstrap.php' ),
+					),
+				),
+				JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT
+			)
+		);
+
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
+
+		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
+		self::assertStringContainsString( "\$loader->addPsr4( 'P\\\\Root\\\\', __DIR__ . '/src' );", $generated );
+		self::assertStringContainsString( "require_once __DIR__ . '/bootstrap.php';", $generated );
+	}
+
+	#[Test]
 	public function multiple_psr4_base_dirs_for_one_namespace_emit_one_entry_each(): void {
 		$this->installScopedPackage(
 			'multi/dirs',
@@ -364,6 +387,40 @@ final class GenerateScopedAutoloadTest extends TestCase {
 
 		$this->expectException( \RuntimeException::class );
 		$this->expectExceptionMessageMatches( '/psr-0/' );
+
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
+	}
+
+	#[Test]
+	public function throws_when_autoload_files_entry_escapes_the_package(): void {
+		$this->installScopedPackage(
+			'bad/files',
+			array(
+				'autoload' => array(
+					'files' => array( '../../../x.php' ),
+				),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/autoload\.files.*parent-directory traversal/' );
+
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
+	}
+
+	#[Test]
+	public function throws_when_classmap_entry_escapes_the_package(): void {
+		$this->installScopedPackage(
+			'bad/classmap',
+			array(
+				'autoload' => array(
+					'classmap' => array( '../../' ),
+				),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/autoload\.classmap.*parent-directory traversal/' );
 
 		GenerateScopedAutoload::generate( $this->dependencies_dir );
 	}

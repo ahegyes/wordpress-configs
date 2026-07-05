@@ -83,7 +83,12 @@ final class GenerateScopedAutoload {
 				if ( ! \is_string( $classmap_entry ) ) {
 					continue;
 				}
-				$scan_roots[] = $pkg . '/' . \trim( \str_replace( '\\', '/', $classmap_entry ), '/' );
+				$classmap_path = self::assert_package_relative_path( $pkg, $classmap_entry, 'autoload.classmap' );
+				$scan_roots[]  = self::confine_classmap_scan_root(
+					$pkg,
+					'' === $classmap_path ? $pkg : $pkg . '/' . $classmap_path,
+					$classmap_entry
+				);
 			}
 
 			foreach ( $autoload['psr-4'] ?? array() as $namespace => $sources ) {
@@ -96,7 +101,7 @@ final class GenerateScopedAutoload {
 					}
 					$psr4[] = array(
 						'namespace' => $namespace,
-						'path'      => self::join_rel( $pkg_rel, $source ),
+						'path'      => self::join_rel( $pkg_rel, self::assert_package_relative_path( $pkg, $source, 'autoload.psr-4' ) ),
 					);
 				}
 			}
@@ -105,7 +110,7 @@ final class GenerateScopedAutoload {
 				if ( ! \is_string( $file ) ) {
 					continue;
 				}
-				$files[] = self::join_rel( $pkg_rel, $file );
+				$files[] = self::join_rel( $pkg_rel, self::assert_package_relative_path( $pkg, $file, 'autoload.files' ) );
 			}
 		}
 
@@ -120,15 +125,14 @@ final class GenerateScopedAutoload {
 
 	/**
 	 * Finds every scoped package directory (one containing a `composer.json`) under the
-	 * scoped output directory, in both layouts php-scoper produces.
+	 * scoped output directory, in the three layouts this package's supported finders emit.
 	 *
 	 * Because php-scoper mirrors input paths relative to their COMMON ancestor, the layout
-	 * depends on the finder shape: finders spanning several vendor namespaces yield
-	 * `dependencies/<vendor>/<pkg>/`, while finders covering a single vendor namespace (a
-	 * framework-only consumer) collapse the shared `vendor/<vendor>/` segment and yield a
-	 * flattened `dependencies/<pkg>/`. A first-level directory holding a `composer.json` IS a
-	 * package root (a vendor directory never carries one directly); anything else is treated
-	 * as a vendor directory and scanned one level deeper.
+	 * depends on the finder shape: a single package can land at `dependencies/`, finders
+	 * covering one vendor namespace can yield flattened `dependencies/<pkg>/`, and finders
+	 * spanning several vendor namespaces yield nested `dependencies/<vendor>/<pkg>/`.
+	 * Deeper trees are unsupported by design because the supported finders do not emit them;
+	 * the empty-scan throw remains the loud failure mode for an unsupported layout.
 	 *
 	 * @param   string $dependencies_dir Absolute path to the scoped output directory.
 	 *
@@ -137,6 +141,9 @@ final class GenerateScopedAutoload {
 	private static function find_scoped_packages( string $dependencies_dir ): array {
 		if ( ! \is_dir( $dependencies_dir ) ) {
 			return array();
+		}
+		if ( \is_file( $dependencies_dir . '/composer.json' ) ) {
+			return array( $dependencies_dir );
 		}
 
 		$packages = array();
@@ -179,8 +186,11 @@ final class GenerateScopedAutoload {
 	 */
 	private static function read_autoload( string $package_dir ): array {
 		$composer_json = $package_dir . '/composer.json';
-		$contents      = \file_get_contents( $composer_json ) ?: throw new \RuntimeException( \sprintf( 'Could not read %s', $composer_json ) );
-		$data          = \json_decode( $contents, true, flags: JSON_THROW_ON_ERROR );
+		$contents      = \file_get_contents( $composer_json );
+		if ( false === $contents ) {
+			throw new \RuntimeException( \sprintf( 'Could not read %s', $composer_json ) );
+		}
+		$data = \json_decode( $contents, true, flags: JSON_THROW_ON_ERROR );
 
 		if ( ! \is_array( $data ) ) {
 			return array();
@@ -259,9 +269,19 @@ final class GenerateScopedAutoload {
 	 * @return  string
 	 */
 	private static function relative_path( string $base, string $target ): string {
+		$real_base   = \realpath( $base );
+		$real_target = \realpath( $target );
+		if ( false !== $real_base && false !== $real_target ) {
+			$base   = $real_base;
+			$target = $real_target;
+		}
+
 		$base   = self::normalise( $base );
 		$target = self::normalise( $target );
 
+		if ( $target === $base ) {
+			return '';
+		}
 		if ( 0 === \strncmp( $target, $base . '/', \strlen( $base ) + 1 ) ) {
 			return \substr( $target, \strlen( $base ) + 1 );
 		}
@@ -288,8 +308,62 @@ final class GenerateScopedAutoload {
 	 * @return  string
 	 */
 	private static function join_rel( string $pkg_rel, string $sub_path ): string {
-		$sub = \trim( \str_replace( '\\', '/', $sub_path ), '/' );
-		return '' === $sub ? $pkg_rel : $pkg_rel . '/' . $sub;
+		$sub = \trim( $sub_path, '/' );
+		if ( '' === $sub ) {
+			return $pkg_rel;
+		}
+		return '' === $pkg_rel ? $sub : $pkg_rel . '/' . $sub;
+	}
+
+	/**
+	 * Rejects package autoload paths that can escape the scoped package directory.
+	 *
+	 * @param string $package_dir Absolute package directory.
+	 * @param string $path        Autoload path from the scoped package's composer.json.
+	 * @param string $source      Autoload section containing the path.
+	 *
+	 * @throws \RuntimeException If the path is absolute or contains a parent-directory segment.
+	 *
+	 * @return string Normalised package-relative path.
+	 */
+	private static function assert_package_relative_path( string $package_dir, string $path, string $source ): string {
+		$normalised = \str_replace( '\\', '/', $path );
+		if ( \str_starts_with( $normalised, '/' ) || 1 === \preg_match( '#^[A-Za-z]:/#', $normalised ) ) {
+			throw new \RuntimeException( \sprintf( 'Scoped package %s declares absolute %s path "%s"; only package-relative paths are supported.', $package_dir, $source, $path ) );
+		}
+
+		foreach ( \explode( '/', $normalised ) as $segment ) {
+			if ( '..' === $segment ) {
+				throw new \RuntimeException( \sprintf( 'Scoped package %s declares %s path "%s" with parent-directory traversal; scoped autoload paths must stay inside the package.', $package_dir, $source, $path ) );
+			}
+		}
+
+		return \trim( $normalised, '/' );
+	}
+
+	/**
+	 * Realpath-confines a classmap scan root to its scoped package.
+	 *
+	 * @param string $package_dir Absolute package directory.
+	 * @param string $scan_root   Absolute classmap scan root.
+	 * @param string $entry       Original classmap entry from composer.json.
+	 *
+	 * @throws \RuntimeException If the scan root cannot be resolved inside the scoped package.
+	 *
+	 * @return string Resolved scan root.
+	 */
+	private static function confine_classmap_scan_root( string $package_dir, string $scan_root, string $entry ): string {
+		$real_package = \realpath( $package_dir );
+		$real_root    = \realpath( $scan_root );
+		if (
+			false === $real_package
+			|| false === $real_root
+			|| ( $real_root !== $real_package && ! \str_starts_with( $real_root, $real_package . DIRECTORY_SEPARATOR ) )
+		) {
+			throw new \RuntimeException( \sprintf( 'Scoped package %s declares autoload.classmap path "%s" that does not resolve inside the package.', $package_dir, $entry ) );
+		}
+
+		return $real_root;
 	}
 
 	/**

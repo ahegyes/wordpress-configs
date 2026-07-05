@@ -88,8 +88,11 @@ final class CollectScopingStubs {
 				}
 
 				foreach ( $stubs_paths as $stubs_path ) {
-					$contents = \file_get_contents( $stubs_path ) ?: throw new \RuntimeException( \sprintf( 'Could not read stubs file %s', $stubs_path ) );
-					$parsed   = $parser->parse( $contents );
+					$contents = \file_get_contents( $stubs_path );
+					if ( false === $contents ) {
+						throw new \RuntimeException( \sprintf( 'Could not read stubs file %s', $stubs_path ) );
+					}
+					$parsed = $parser->parse( $contents );
 					if ( null === $parsed ) {
 						$console_io->write( \sprintf( 'Skipping stubs file %s — could not parse.', $stubs_path ) );
 						continue;
@@ -394,7 +397,7 @@ final class CollectScopingStubs {
 			return 'scoping-exclusions.json';
 		}
 
-		if ( \str_contains( $override, '/' ) || \str_contains( $override, '\\' ) ) {
+		if ( '.' === $override || '..' === $override || \str_contains( $override, '/' ) || \str_contains( $override, '\\' ) ) {
 			throw new \RuntimeException( \sprintf( 'SCOPING_EXCLUSIONS_OUTPUT_FILE must be a filename, not a path; got "%s".', $override ) );
 		}
 
@@ -415,8 +418,18 @@ final class CollectScopingStubs {
 	 */
 	private static function write_atomically( string $output_path, string $payload ): void {
 		$temp_path = $output_path . '.tmp.' . \getmypid() . '.' . \bin2hex( \random_bytes( 4 ) );
-		\file_put_contents( $temp_path, $payload ) ?: throw new \RuntimeException( \sprintf( 'Could not write %s', $temp_path ) );
-		\rename( $temp_path, $output_path ) ?: throw new \RuntimeException( \sprintf( 'Could not rename %s to %s', $temp_path, $output_path ) );
+		if ( false === \file_put_contents( $temp_path, $payload ) ) {
+			throw new \RuntimeException( \sprintf( 'Could not write %s', $temp_path ) );
+		}
+
+		try {
+			\rename( $temp_path, $output_path ) || throw new \RuntimeException( \sprintf( 'Could not rename %s to %s', $temp_path, $output_path ) );
+		} catch ( \Throwable $throwable ) {
+			if ( \is_file( $temp_path ) ) {
+				\unlink( $temp_path );
+			}
+			throw $throwable;
+		}
 	}
 
 	/**
@@ -465,7 +478,16 @@ final class CollectScopingStubs {
 			return array();
 		}
 
-		$package_dir = $installation_manager->getInstallPath( $declared_package );
+		try {
+			$package_dir = $installation_manager->getInstallPath( $declared_package );
+		} catch ( \InvalidArgumentException ) {
+			if ( null !== $file ) {
+				$console_io->write( \sprintf( 'Skipping declared stubs file "%s" — its package "%s" has no installation path.', $file, $package ) );
+			} else {
+				$console_io->write( \sprintf( 'Skipping declared stubs package "%s" — it has no installation path.', $package ) );
+			}
+			return array();
+		}
 		if ( null === $package_dir ) {
 			// A metapackage (or anything with nothing on disk) has no install path.
 			if ( null !== $file ) {

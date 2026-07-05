@@ -29,6 +29,24 @@ final class ScopePhpDependencies {
 	public const string PIPELINE_SCRIPT = 'scope-php-dependencies';
 
 	/**
+	 * Extra php-scoper flags that cannot alter the pipeline's scope target.
+	 *
+	 * @var list<string>
+	 */
+	private const array ALLOWED_SCOPING_FLAGS = array(
+		'--ansi',
+		'--no-ansi',
+		'-n',
+		'--no-interaction',
+		'-q',
+		'--quiet',
+		'-v',
+		'-vv',
+		'-vvv',
+		'--verbose',
+	);
+
+	/**
 	 * Creates placeholders for the scoped `autoload.files`/`classmap` paths before Composer dumps the
 	 * autoloader. A fresh clone has not run php-scoper yet, so those paths are missing and the dump
 	 * would fatal with a 'file-not-found' error before scoping ever runs.
@@ -45,18 +63,20 @@ final class ScopePhpDependencies {
 		$composer_file = \Composer\Factory::getComposerFile();
 		$project_dir   = \dirname( $composer_file );
 
-		$composer_contents = \file_get_contents( $composer_file ) ?: throw new \RuntimeException( \sprintf( 'Could not read composer.json at %s', $composer_file ) );
-		$composer_config   = \json_decode( $composer_contents, true, flags: JSON_THROW_ON_ERROR );
+		$composer_contents = \file_get_contents( $composer_file );
+		if ( false === $composer_contents ) {
+			throw new \RuntimeException( \sprintf( 'Could not read composer.json at %s', $composer_file ) );
+		}
+		$composer_config = \json_decode( $composer_contents, true, flags: JSON_THROW_ON_ERROR );
 
 		// Placeholders cover only the not-yet-generated scoped output under the consumer's
 		// scoped-dependencies-dir. A consumer that does not scope has nothing to pre-create, and
 		// placeholdering its real autoload paths would mask a typo as an empty file.
 		$scoped_dir = $composer_config['extra']['scoped-dependencies-dir'] ?? null;
-		if ( ! \is_string( $scoped_dir ) || '' === $scoped_dir ) {
+		if ( ! \is_string( $scoped_dir ) ) {
 			return;
 		}
-		self::assert_project_relative( $scoped_dir );
-		$scoped_dir_normalised = \rtrim( self::normalise_for_match( $scoped_dir ), '/' );
+		$scoped_dir_normalised = self::normalise_scoped_dir( $scoped_dir );
 
 		$console_io->write( 'Making sure scoped autoload paths exist...' );
 
@@ -216,11 +236,13 @@ final class ScopePhpDependencies {
 	private static function scope_and_generate( Event $event, string $scoped_dir, string $scoper_bin ): void {
 		$console_io       = $event->getIO();
 		$project_dir      = \dirname( \Composer\Factory::getComposerFile() );
-		$dependencies_dir = $project_dir . DIRECTORY_SEPARATOR . \ltrim( $scoped_dir, '/\\' );
+		$scoped_dir       = self::normalise_scoped_dir( $scoped_dir );
+		$dependencies_dir = $project_dir . DIRECTORY_SEPARATOR . $scoped_dir;
 		$config_file      = $project_dir . DIRECTORY_SEPARATOR . 'scoper.inc.php';
 
 		$prefix = self::resolve_scoping_prefix( $event );
 		$flags  = self::resolve_scoping_flags( $event );
+		self::assert_scoped_dir_confined( $project_dir, $scoped_dir, $dependencies_dir );
 		self::assert_scoper_config_exists( $config_file );
 
 		$console_io->write( 'Scoping dependencies...' );
@@ -272,16 +294,16 @@ final class ScopePhpDependencies {
 	}
 
 	/**
-	 * Returns the php-scoper binary path under the Composer vendor directory.
+	 * Returns the php-scoper binary path under Composer's configured bin directory.
 	 *
 	 * @param   Event $event Composer event object.
 	 *
 	 * @return  string
 	 */
 	private static function scoper_binary( Event $event ): string {
-		$vendor_dir = $event->getComposer()->getConfig()->get( 'vendor-dir' );
+		$bin_dir = $event->getComposer()->getConfig()->get( 'bin-dir' );
 
-		return $vendor_dir . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'php-scoper';
+		return $bin_dir . DIRECTORY_SEPARATOR . 'php-scoper';
 	}
 
 	/**
@@ -297,23 +319,21 @@ final class ScopePhpDependencies {
 
 	/**
 	 * Resolves `extra.scoped-dependencies-dir` to a validated project-relative path, or null
-	 * when absent/empty.
+	 * when absent.
 	 *
 	 * @param   Event $event Composer event object.
 	 *
-	 * @throws  \RuntimeException If the declared path is absolute or contains a `..` segment.
+	 * @throws  \RuntimeException If the declared path is empty, absolute, points at the project root, or contains a `..` segment.
 	 *
 	 * @return  string|null
 	 */
 	private static function resolve_scoped_dir( Event $event ): ?string {
 		$scoped_dir = self::root_extra( $event )['scoped-dependencies-dir'] ?? null;
-		if ( ! \is_string( $scoped_dir ) || '' === $scoped_dir ) {
+		if ( ! \is_string( $scoped_dir ) ) {
 			return null;
 		}
 
-		self::assert_project_relative( $scoped_dir );
-
-		return $scoped_dir;
+		return self::normalise_scoped_dir( $scoped_dir );
 	}
 
 	/**
@@ -349,7 +369,7 @@ final class ScopePhpDependencies {
 	 *
 	 * @param   Event $event Composer event object.
 	 *
-	 * @throws  \RuntimeException If `extra.scoping-flags` is malformed or tries to override pipeline-owned flags.
+	 * @throws  \RuntimeException If `extra.scoping-flags` is malformed or contains a flag outside the allow-list.
 	 *
 	 * @return  list<string>
 	 */
@@ -375,9 +395,9 @@ final class ScopePhpDependencies {
 					\sprintf( 'extra.scoping-flags must contain only strings; got %s.', \get_debug_type( $flag ) )
 				);
 			}
-			if ( self::is_pipeline_owned_flag( $flag ) ) {
+			if ( ! \in_array( $flag, self::ALLOWED_SCOPING_FLAGS, true ) ) {
 				throw new \RuntimeException(
-					\sprintf( 'extra.scoping-flags entry "%s" is not allowed because the pipeline owns the output-dir, prefix, and config flags (long and short forms).', $flag )
+					\sprintf( 'extra.scoping-flags entry "%s" is not allowed. Allowed entries: %s.', $flag, \implode( ', ', self::ALLOWED_SCOPING_FLAGS ) )
 				);
 			}
 		}
@@ -386,28 +406,55 @@ final class ScopePhpDependencies {
 	}
 
 	/**
-	 * Reports whether a CLI flag is owned by the pipeline rather than the consumer.
+	 * Normalises and validates the scoped dependency output directory.
 	 *
-	 * @param   string $flag CLI flag from `extra.scoping-flags`.
+	 * @param string $scoped_dir Raw `extra.scoped-dependencies-dir` value.
 	 *
-	 * @return  bool
+	 * @throws \RuntimeException If the declared path is empty, absolute, points at the project root, or contains a `..` segment.
+	 *
+	 * @return string Normalised project-relative directory path with forward slashes.
 	 */
-	private static function is_pipeline_owned_flag( string $flag ): bool {
-		foreach ( array( '--output-dir', '--prefix', '--config' ) as $owned ) {
-			if ( $flag === $owned || \str_starts_with( $flag, $owned . '=' ) ) {
-				return true;
-			}
+	private static function normalise_scoped_dir( string $scoped_dir ): string {
+		self::assert_project_relative( $scoped_dir );
+
+		$normalised = \rtrim( self::normalise_for_match( $scoped_dir ), '/\\' );
+		if ( '' === $normalised || '.' === $normalised ) {
+			throw new \RuntimeException( \sprintf( 'Refusing scoped-dependencies-dir "%s" - must be a project-relative subdirectory, not the project root.', $scoped_dir ) );
 		}
 
-		// Short forms too: -o/-p/-c take a glued or separate value, so any flag starting
-		// with one of them is a pipeline-owned knob.
-		foreach ( array( '-o', '-p', '-c' ) as $owned_short ) {
-			if ( \str_starts_with( $flag, $owned_short ) ) {
-				return true;
+		return $normalised;
+	}
+
+	/**
+	 * Verifies an existing scoped output path, or its existing parent, stays under the project root.
+	 *
+	 * @param string $project_dir      Absolute project root.
+	 * @param string $scoped_dir       Normalised scoped-dependencies-dir value.
+	 * @param string $dependencies_dir Absolute scoped output directory.
+	 *
+	 * @throws \RuntimeException If the scoped output directory is not a strict descendant of the project root.
+	 *
+	 * @return void
+	 */
+	private static function assert_scoped_dir_confined( string $project_dir, string $scoped_dir, string $dependencies_dir ): void {
+		$real_project = \realpath( $project_dir ) ?: $project_dir;
+		if ( \is_dir( $dependencies_dir ) ) {
+			$real_dependencies = \realpath( $dependencies_dir );
+			if ( false === $real_dependencies || $real_dependencies === $real_project || ! \str_starts_with( $real_dependencies, $real_project . DIRECTORY_SEPARATOR ) ) {
+				throw new \RuntimeException( \sprintf( 'Refusing scoped-dependencies-dir "%s" - resolved output directory must be a strict descendant of the project root "%s".', $scoped_dir, $real_project ) );
 			}
+
+			return;
 		}
 
-		return false;
+		$parent_dir = \dirname( $dependencies_dir );
+		while ( ! \is_dir( $parent_dir ) && \dirname( $parent_dir ) !== $parent_dir ) {
+			$parent_dir = \dirname( $parent_dir );
+		}
+		$real_parent = \realpath( $parent_dir );
+		if ( false === $real_parent || ( $real_parent !== $real_project && ! \str_starts_with( $real_parent, $real_project . DIRECTORY_SEPARATOR ) ) ) {
+			throw new \RuntimeException( \sprintf( 'Refusing scoped-dependencies-dir "%s" - existing parent directory must be inside the project root "%s".', $scoped_dir, $real_project ) );
+		}
 	}
 
 	/**

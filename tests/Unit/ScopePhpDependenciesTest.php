@@ -267,8 +267,8 @@ final class ScopePhpDependenciesTest extends TestCase {
 		$this->writeScoperConfig();
 		$this->writeComposerJson(
 			$this->scopingComposerJson(
-				scopedDir: 'custom dependencies',
-				flags: array( '--flag=two words', '--ansi' )
+				scopedDir: 'custom dependencies/',
+				flags: array( '--ansi', '-vvv' )
 			)
 		);
 
@@ -285,8 +285,8 @@ final class ScopePhpDependenciesTest extends TestCase {
 				'--output-dir=' . $this->project_dir . '/custom dependencies',
 				'--force',
 				'--quiet',
-				'--flag=two words',
 				'--ansi',
+				'-vvv',
 			),
 			$recorded['argv']
 		);
@@ -333,13 +333,13 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 	#[Test]
 	#[DataProvider( 'forbiddenScopingFlags' )]
-	public function post_autoload_dump_rejects_pipeline_owned_scoping_flags( string $flag ): void {
+	public function post_autoload_dump_rejects_scoping_flags_outside_the_allow_list( string $flag ): void {
 		$this->installFakePhpScoper();
 		$this->writeScoperConfig();
 		$this->writeComposerJson( $this->scopingComposerJson( flags: array( $flag ) ) );
 
 		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/pipeline owns/' );
+		$this->expectExceptionMessageMatches( '/Allowed entries/' );
 		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
 	}
 
@@ -348,10 +348,11 @@ final class ScopePhpDependenciesTest extends TestCase {
 	 */
 	public static function forbiddenScopingFlags(): array {
 		return array(
-			'output dir long'  => array( '--output-dir=other' ),
-			'output dir short' => array( '-oother' ),
-			'prefix long'      => array( '--prefix=Other\\Prefix' ),
-			'config long'      => array( '--config=other.inc.php' ),
+			'no config'        => array( '--no-config' ),
+			'short cluster'    => array( '-qc/x' ),
+			'working dir long' => array( '--working-dir=/x' ),
+			'bare path'        => array( 'some/path' ),
+			'prefix long'      => array( '--prefix=X' ),
 		);
 	}
 
@@ -385,7 +386,8 @@ final class ScopePhpDependenciesTest extends TestCase {
 	public function post_autoload_dump_throws_when_php_scoper_fails_and_includes_stderr(): void {
 		$this->installFakePhpScoper();
 		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson( flags: array( '--fail-scoper' ) ) );
+		$this->writeComposerJson( $this->scopingComposerJson() );
+		\file_put_contents( $this->project_dir . '/fail-scoper', '1' );
 
 		try {
 			ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
@@ -400,7 +402,8 @@ final class ScopePhpDependenciesTest extends TestCase {
 	public function post_autoload_dump_propagates_generator_failure(): void {
 		$this->installFakePhpScoper();
 		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson( flags: array( '--empty-output' ) ) );
+		$this->writeComposerJson( $this->scopingComposerJson() );
+		\file_put_contents( $this->project_dir . '/empty-output', '1' );
 
 		$this->expectException( \RuntimeException::class );
 		$this->expectExceptionMessageMatches( '/No scoped packages found/' );
@@ -430,14 +433,63 @@ final class ScopePhpDependenciesTest extends TestCase {
 	}
 
 	#[Test]
-	public function post_autoload_dump_skips_for_empty_scoped_dependencies_dir(): void {
+	public function post_autoload_dump_rejects_empty_scoped_dependencies_dir(): void {
 		$this->installFakePhpScoper();
 		$this->writeScoperConfig();
 		$this->writeComposerJson( $this->scopingComposerJson( scopedDir: '' ) );
 
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/scoped-dependencies-dir/' );
 		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+	}
 
-		self::assertFileDoesNotExist( $this->project_dir . '/scoper-autoload.php' );
+	#[Test]
+	#[DataProvider( 'projectRootScopedDirs' )]
+	public function post_autoload_dump_rejects_scoped_dependencies_dir_pointing_at_project_root( string $scoped_dir ): void {
+		$this->installFakePhpScoper();
+		$this->writeScoperConfig();
+		$this->writeComposerJson( $this->scopingComposerJson( scopedDir: $scoped_dir ) );
+
+		try {
+			ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+			self::fail( 'Expected scoped-dependencies-dir validation to throw.' );
+		} catch ( \RuntimeException $exception ) {
+			self::assertStringContainsString( 'scoped-dependencies-dir', $exception->getMessage() );
+			self::assertFileDoesNotExist( $this->project_dir . '/recorded-command.json' );
+		}
+	}
+
+	/**
+	 * @return array<string, array{string}>
+	 */
+	public static function projectRootScopedDirs(): array {
+		return array(
+			'dot'       => array( '.' ),
+			'dot slash' => array( './' ),
+			'empty'     => array( '' ),
+		);
+	}
+
+	#[Test]
+	public function post_autoload_dump_rejects_scoped_dependencies_dir_under_symlinked_outside_parent(): void {
+		$this->installFakePhpScoper();
+		$this->writeScoperConfig();
+		$this->writeComposerJson( $this->scopingComposerJson( scopedDir: 'outside-link/dependencies' ) );
+
+		$outside_dir = \sys_get_temp_dir() . '/dws-wp-configs-scope-outside-' . \uniqid();
+		\mkdir( $outside_dir );
+		if ( ! @\symlink( $outside_dir, $this->project_dir . '/outside-link' ) ) {
+			\rmdir( $outside_dir );
+			self::markTestSkipped( 'Environment cannot create symlinks.' );
+		}
+
+		try {
+			$this->expectException( \RuntimeException::class );
+			$this->expectExceptionMessageMatches( '/inside the project root/' );
+			ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+		} finally {
+			\rmdir( $outside_dir );
+		}
 	}
 
 	#[Test]
@@ -538,7 +590,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 				)
 			);
 
-			if ( in_array( '--fail-scoper', $argv, true ) ) {
+			if ( file_exists( $project . '/fail-scoper' ) ) {
 				fwrite( STDERR, "intentional scoper failure\n" );
 				exit( 37 );
 			}
@@ -564,7 +616,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 			}
 
 			mkdir( $output_dir, 0755, true );
-			if ( in_array( '--empty-output', $argv, true ) ) {
+			if ( file_exists( $project . '/empty-output' ) ) {
 				exit( 0 );
 			}
 

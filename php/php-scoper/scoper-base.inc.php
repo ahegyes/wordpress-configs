@@ -53,7 +53,10 @@ return static function ( array $overrides = array() ): array {
 
 	$exclusions_path = $project_dir . '/scoping-exclusions.json';
 	if ( \is_file( $exclusions_path ) ) {
-		$contents   = file_get_contents( $exclusions_path ) ?: throw new \RuntimeException( sprintf( 'Could not read %s', $exclusions_path ) );
+		$contents = file_get_contents( $exclusions_path );
+		if ( false === $contents ) {
+			throw new \RuntimeException( sprintf( 'Could not read %s', $exclusions_path ) );
+		}
 		$exclusions = json_decode( $contents, true, flags: JSON_THROW_ON_ERROR );
 	} else {
 		$exclusions = array(
@@ -150,9 +153,13 @@ return static function ( array $overrides = array() ): array {
 			// class-constant string restores only the class portion. Matches re-emit single-quoted
 			// (symbol characters never need single-quote escaping).
 			if ( T_CONSTANT_ENCAPSED_STRING === $id ) {
-				$quote = $text[0];
+				$lexeme = $text;
+				if ( '' !== $lexeme && ( 'b' === $lexeme[0] || 'B' === $lexeme[0] ) ) {
+					$lexeme = \substr( $lexeme, 1 );
+				}
+				$quote = $lexeme[0] ?? '';
 				if ( '\'' === $quote || '"' === $quote ) {
-					$value     = \str_replace( '\\\\', '\\', \substr( $text, 1, -1 ) );
+					$value     = \str_replace( '\\\\', '\\', \substr( $lexeme, 1, -1 ) );
 					$separator = \strpos( $value, '::' );
 					$symbol    = false === $separator ? $value : \substr( $value, 0, $separator );
 					$restored  = $restore( $symbol );

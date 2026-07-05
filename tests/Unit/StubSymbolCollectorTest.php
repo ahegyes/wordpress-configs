@@ -52,6 +52,20 @@ final class StubSymbolCollectorTest extends TestCase {
 	}
 
 	#[Test]
+	public function skips_define_calls_with_invalid_constant_names(): void {
+		$collector = $this->collect(
+			<<<'PHP'
+			<?php
+			define('VALID_DEFINE', 1);
+			define('invalid-define', 2);
+			define('1_INVALID_DEFINE', 3);
+			PHP
+		);
+
+		self::assertSame( array( 'VALID_DEFINE' ), $collector->constants );
+	}
+
+	#[Test]
 	public function does_not_descend_into_class_members(): void {
 		// Class-like declarations short-circuit traversal (DONT_TRAVERSE_CHILDREN), so methods
 		// and class constants inside them are never collected as top-level symbols.
