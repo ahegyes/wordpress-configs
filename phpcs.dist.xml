@@ -5,9 +5,6 @@
 	<!-- Test fixtures are intentionally minimal stub files with deliberate redeclarations — not linted. -->
 	<exclude-pattern>*/tests/fixtures/*</exclude-pattern>
 
-	<!-- Shipped stub catalogs are parse-only symbol data (signatures mirror upstream), not tooling code. -->
-	<exclude-pattern>*/php/stubs/*</exclude-pattern>
-
 	<rule ref="./php/quality-assurance/phpcs.dist.xml">
 		<!-- No WP runtime — native PHP functions (file_get_contents, json_encode) are correct here. -->
 		<exclude name="WordPress.WP"/>

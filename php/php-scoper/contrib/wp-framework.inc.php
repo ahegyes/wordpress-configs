@@ -29,8 +29,8 @@ use Symfony\Component\Finder\Finder;
  * A second, always-on patcher guards the Action Scheduler surface: a scoped file that still
  * carries a `<prefix>\as_*` reference — as a name token, a constant-string reference, or inside
  * a heredoc/nowdoc/interpolated string — fails the run. The `as_*` family is host-provided
- * (never bundled), excluded via this repo's own `php/stubs/action-scheduler.php` declaration; a
- * prefixed residue means the exclusion pipeline broke and the call would be a runtime fatal.
+ * (never bundled), excluded by scoper-base.inc.php's `/^as_/` `exclude-functions` regex; a
+ * prefixed residue means the base config did not run and the call would be a runtime fatal.
  *
  * Callers (a consumer's `scoper.inc.php`) must forward the returned `patchers` into the base
  * config's `patchers` override, or neither the rewrite nor the guard ever runs.
@@ -386,14 +386,14 @@ return static function ( string $vendor_dir, string $project_dir = '' ): array {
 	}
 
 	// Guard against a prefixed Action Scheduler reference surviving into the scoped output. The
-	// `as_*` functions are host symbols excluded via this repo's own stub declaration; if that
-	// exclusion goes missing (stale scoping-exclusions.json, collector not run), php-scoper
-	// prefixes the calls and the break only surfaces as a runtime fatal — fail the scope run
-	// instead. Token-aware: name tokens catch rewritten calls, constant-string tokens catch
-	// rewritten `function_exists`-style references, and heredoc/interpolated fragments are
-	// checked on their DECODED value (they decode escapes at runtime; a nowdoc body stays raw);
-	// comments never match. Matching is case-insensitive — PHP resolves function and namespace
-	// names case-insensitively, so \Prefix\AS_… is the same runtime fatal.
+	// `as_*` functions are host symbols excluded by scoper-base.inc.php's `/^as_/` regex; if the
+	// base config is not composed, php-scoper prefixes the calls and the break only surfaces as a
+	// runtime fatal — fail the scope run instead. Token-aware: name tokens catch rewritten calls,
+	// constant-string tokens catch rewritten `function_exists`-style references, and
+	// heredoc/interpolated fragments are checked on their DECODED value (they decode escapes at
+	// runtime; a nowdoc body stays raw); comments never match. Matching is case-insensitive —
+	// PHP resolves function and namespace names case-insensitively, so \Prefix\AS_… is the same
+	// runtime fatal.
 	$patchers[] = static function ( string $file_path, string $prefix, string $content ) use ( $decode_escapes ): string {
 		$needle    = $prefix . '\\as_';
 		$in_nowdoc = false;
@@ -430,7 +430,7 @@ return static function ( string $vendor_dir, string $project_dir = '' ): array {
 			$reference = \substr( $haystack, $position, \strlen( $needle ) ) . ( $suffix_match[0] ?? '' );
 
 			throw new \RuntimeException(
-				\sprintf( 'Prefixed Action Scheduler reference "%s" in %s — the as_* exclusion did not reach php-scoper. Re-run composer\'s post-autoload-dump so CollectScopingStubs regenerates scoping-exclusions.json (the catalog ships in ahegyes/wordpress-configs php/stubs/action-scheduler.php), and check that your scoper.inc.php composes scoper-base.inc.php so the generated exclusions are applied.', $reference, $file_path )
+				\sprintf( 'Prefixed Action Scheduler reference "%s" in %s — the scope run is not composing scoper-base.inc.php, whose /^as_/ exclude-functions regex prevents php-scoper from prefixing host Action Scheduler calls. Check that scoper.inc.php loads the base config before merging contrib partials.', $reference, $file_path )
 			);
 		}
 

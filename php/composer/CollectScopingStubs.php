@@ -17,11 +17,10 @@ namespace DeepWebSolutions\Config\Composer;
  *    `vendor/<vendor>/<package>/<package>.php` path whenever it exists.
  *  - `vendor/package:relative/path/to/file.php` — resolves exactly that one file inside
  *    the package dir, for a secondary catalog the package ships but does not list in its
- *    `autoload.files` (e.g. `php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php`,
- *    the catalog declaring the Action Scheduler `as_*` functions). The separator is the
- *    first `:`; package names cannot contain one, so the split is unambiguous. The file
- *    part must be a safe relative path (no leading slash, no `..` segment, `.php`-suffixed)
- *    and is realpath-confined to the package dir.
+ *    `autoload.files` (e.g. `php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php`).
+ *    The separator is the first `:`; package names cannot contain one, so the split is
+ *    unambiguous. The file part must be a safe relative path (no leading slash, no `..`
+ *    segment, `.php`-suffixed) and is realpath-confined to the package dir.
  *
  * Declaration format:
  *
@@ -426,8 +425,7 @@ final class CollectScopingStubs {
 	 * `<name>/<name>.php` path whenever it exists (minimal hand-rolled catalogs ship only
 	 * that). The explicit-file form `vendor/package:relative/file.php` resolves that one named
 	 * file inside the package dir — for a secondary catalog the package ships but does not list
-	 * in its `autoload.files` (e.g. woocommerce-stubs' `woocommerce-packages-stubs.php`, which
-	 * declares the Action Scheduler `as_*` functions).
+	 * in its `autoload.files` (e.g. woocommerce-stubs' `woocommerce-packages-stubs.php`).
 	 *
 	 * The package directory is Composer's own `InstallationManager::getInstallPath()` for the
 	 * matched package — the canonical install location, which honours `target-dir` and custom

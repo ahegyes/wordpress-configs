@@ -96,11 +96,6 @@
       "@test:all"
     ]
   },
-  "extra": {
-    "scoping-stubs": [
-      "ahegyes/wordpress-configs:php/stubs/action-scheduler.php"
-    ]
-  },
 
   "config": {
     "allow-plugins": {

@@ -531,10 +531,9 @@ final class CollectScopingStubsTest extends TestCase {
 
 	#[Test]
 	public function explicit_file_entry_resolves_a_secondary_stub_outside_autoload_files(): void {
-		// Mimics php-stubs/woocommerce-stubs, which ships woocommerce-packages-stubs.php
-		// (Action Scheduler as_* functions) WITHOUT listing it in autoload.files. The bare
-		// package would resolve only the conventional <name>.php; the explicit-file form
-		// reaches the secondary catalog.
+		// Mimics php-stubs/woocommerce-stubs, which ships woocommerce-packages-stubs.php without
+		// listing it in autoload.files. The bare package would resolve only the conventional
+		// <name>.php; the explicit-file form reaches the secondary catalog.
 		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
 		\copy(
 			self::FIXTURES_DIR . '/stubs-secondary.php',
@@ -545,8 +544,8 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event() );
 
 		$result = $this->loadOutput( 'scoping-exclusions.json' );
-		self::assertContains( 'as_schedule_single_action', $result['functions'] );
-		self::assertContains( 'ActionScheduler_Store', $result['classes'] );
+		self::assertContains( 'wc_get_container', $result['functions'] );
+		self::assertContains( 'WC_Packages_Container', $result['classes'] );
 		// Only the named file is resolved — the conventional <name>.php is NOT pulled in.
 		self::assertNotContains( 'wc_get_product', $result['functions'] );
 	}
@@ -571,7 +570,7 @@ final class CollectScopingStubsTest extends TestCase {
 
 		$result = $this->loadOutput( 'scoping-exclusions.json' );
 		self::assertContains( 'wc_get_product', $result['functions'] );
-		self::assertContains( 'as_schedule_single_action', $result['functions'] );
+		self::assertContains( 'wc_get_container', $result['functions'] );
 	}
 
 	#[Test]
@@ -591,7 +590,7 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event() );
 
 		$result = $this->loadOutput( 'scoping-exclusions.json' );
-		self::assertContains( 'as_schedule_single_action', $result['functions'] );
+		self::assertContains( 'wc_get_container', $result['functions'] );
 	}
 
 	#[Test]
@@ -997,53 +996,6 @@ final class CollectScopingStubsTest extends TestCase {
 		$this->expectExceptionMessageMatches( '/root extra\.scoping-stubs must be an array/' );
 
 		CollectScopingStubs::postAutoloadDump( $this->event() );
-	}
-
-	#[Test]
-	public function ships_and_declares_the_action_scheduler_stub_catalog(): void {
-		// #86: the as_* exclusion must survive a consumer dropping php-stubs/woocommerce-stubs.
-		// This repo ships its own Action Scheduler catalog and declares it via its own
-		// extra.scoping-stubs, so every consumer installing ahegyes/wordpress-configs collects
-		// the as_* family with no WooCommerce dev-stub involved. The test wires the REAL
-		// declaration from this repo's composer.json against the REAL stub file, so a drift in
-		// either (entry renamed, file moved, catalog emptied) fails here.
-		$repo_root       = \dirname( __DIR__, 2 );
-		$composer_config = \json_decode( (string) \file_get_contents( $repo_root . '/composer.json' ), true, 512, JSON_THROW_ON_ERROR );
-		$declarations    = $composer_config['extra']['scoping-stubs'] ?? array();
-
-		$self_entry = null;
-		foreach ( $declarations as $entry ) {
-			if ( \is_string( $entry ) && \str_starts_with( $entry, 'ahegyes/wordpress-configs:' ) ) {
-				$self_entry = $entry;
-			}
-		}
-		self::assertNotNull( $self_entry, 'composer.json must declare the self-shipped Action Scheduler stub catalog.' );
-
-		$stub_relative = \explode( ':', $self_entry, 2 )[1];
-		$package_dir   = $this->vendor_dir . '/ahegyes/wordpress-configs';
-		\mkdir( \dirname( $package_dir . '/' . $stub_relative ), 0755, true );
-		\copy( $repo_root . '/' . $stub_relative, $package_dir . '/' . $stub_relative );
-		$this->registerPackage( 'ahegyes/wordpress-configs', extra: array( 'scoping-stubs' => array( $self_entry ) ) );
-
-		$this->writeProjectComposer( array() );
-		CollectScopingStubs::postAutoloadDump( $this->event() );
-
-		$result = $this->loadOutput( 'scoping-exclusions.json' );
-		foreach ( array(
-			'as_enqueue_async_action',
-			'as_schedule_single_action',
-			'as_schedule_recurring_action',
-			'as_schedule_cron_action',
-			'as_unschedule_action',
-			'as_unschedule_all_actions',
-			'as_next_scheduled_action',
-			'as_has_scheduled_action',
-			'as_get_scheduled_actions',
-			'as_get_datetime_object',
-			'as_supports',
-		) as $as_function ) {
-			self::assertContains( $as_function, $result['functions'] );
-		}
 	}
 
 	#[Test]

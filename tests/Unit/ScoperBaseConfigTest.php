@@ -88,7 +88,14 @@ final class ScoperBaseConfigTest extends TestCase {
 		$config = ( $this->build_config )( array( 'project_dir' => $this->project_dir ) );
 
 		self::assertSame( array(), $config['exclude-classes'] );
-		self::assertSame( array(), $config['exclude-functions'] );
+		self::assertSame( array( '/^as_/' ), $config['exclude-functions'] );
+	}
+
+	#[Test]
+	public function action_scheduler_function_family_is_excluded_by_regex(): void {
+		$config = ( $this->build_config )( array( 'project_dir' => $this->project_dir ) );
+
+		self::assertContains( '/^as_/', $config['exclude-functions'] );
 	}
 
 	#[Test]

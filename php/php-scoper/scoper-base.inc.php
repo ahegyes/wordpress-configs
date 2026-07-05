@@ -79,6 +79,11 @@ return static function ( array $overrides = array() ): array {
 	// flat lookup of every excluded symbol drives the patcher that restores those references.
 	$excluded_symbols = \array_flip( \array_merge( $exclude_classes, $exclude_functions, $exclude_constants ) );
 
+	// Action Scheduler's `as_*` API is host-provided by WooCommerce or the standalone plugin,
+	// so scoped code must never prefix it. A regex covers the whole family, including
+	// functions added upstream later.
+	$host_function_exclusions = array( '/^as_/' );
+
 	// Token-aware reference stripper. Working on the token stream rather than raw text makes it
 	// correct for any prefix depth (php-scoper writes multi-segment prefixes with doubled
 	// backslashes inside string literals, which text matching has to second-guess) and both
@@ -174,7 +179,7 @@ return static function ( array $overrides = array() ): array {
 		),
 
 		'exclude-classes'    => $exclude_classes,
-		'exclude-functions'  => $exclude_functions,
+		'exclude-functions'  => \array_merge( $host_function_exclusions, $exclude_functions ),
 		'exclude-constants'  => $exclude_constants,
 		'exclude-files'      => $overrides['exclude_files'] ?? array(),
 

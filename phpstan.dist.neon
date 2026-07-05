@@ -8,5 +8,3 @@ parameters:
     excludePaths:
         # Test fixtures are intentionally minimal stub files (no return types) for testing the stubs collector.
         - tests/fixtures/*
-        # Shipped stub catalogs are parse-only symbol data mirroring upstream signatures, never executed.
-        - php/stubs/*
