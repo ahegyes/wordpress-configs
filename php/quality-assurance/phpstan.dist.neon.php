@@ -57,26 +57,29 @@ if ( \is_file( $project_dir . '/style.css' ) ) {
 	}
 }
 
-// WPCompat needs EITHER pluginFile OR requiresAtLeast set or it errors per-file.
-// Themes fall through to requiresAtLeast — WPCompat has no themeFile key; honour the
-// theme's own `Requires at least:` contract, floored at this ruleset's minimum.
-if ( null !== $plugin_file ) {
-	$config['parameters']['WPCompat']['pluginFile'] = $plugin_file;
-} else {
-	$requires_at_least = '7.0';
-	$style_css         = $project_dir . '/style.css';
-	if ( \is_file( $style_css ) ) {
-		$style_header = \file_get_contents( $style_css, false, null, 0, 8192 );
-		if ( false !== $style_header && 1 === \preg_match( '/^[ \t\/*#@]*Requires at least:[ \t]*([^\r\n]+)/mi', $style_header, $matches ) ) {
-			$declared = \trim( $matches[1] );
-			// Validate a strict numeric version first — version_compare() would rank garbage like "8.x" above 7.0.
-			if ( 1 === \preg_match( '/^\d+(?:\.\d+){0,2}$/', $declared ) && \version_compare( $declared, '7.0', '>' ) ) {
-				$requires_at_least = $declared;
-			}
+// WPCompat's SinceVersionRule needs a minimum WP version or it throws for every analysed file.
+// Given `pluginFile` it reads that file's `Requires at least:` header itself and hard-throws when
+// the header is absent, aborting the whole run; `requiresAtLeast` is honoured as given and takes
+// precedence. So resolve the minimum here from the layout's main file — the plugin file, else the
+// theme's style.css (absent for a library, which falls back to the floor) — honouring a valid
+// numeric header above this ruleset's floor and flooring anything else. The strict-numeric gate is
+// load-bearing: version_compare() alone would rank garbage like "8.x" above 7.0.
+$read_requires_at_least = static function ( string $file ): string {
+	$floor = '7.0';
+	if ( ! \is_file( $file ) ) {
+		return $floor;
+	}
+	$header = \file_get_contents( $file, false, null, 0, 8192 );
+	if ( false !== $header && 1 === \preg_match( '/^[ \t\/*#@]*Requires at least:[ \t]*([^\r\n]+)/mi', $header, $matches ) ) {
+		$declared = \trim( $matches[1] );
+		if ( 1 === \preg_match( '/^\d+(?:\.\d+){0,2}$/', $declared ) && \version_compare( $declared, $floor, '>' ) ) {
+			return $declared;
 		}
 	}
-	$config['parameters']['WPCompat']['requiresAtLeast'] = $requires_at_least;
-}
+	return $floor;
+};
+
+$config['parameters']['WPCompat']['requiresAtLeast'] = $read_requires_at_least( $plugin_file ?? ( $project_dir . '/style.css' ) );
 
 $vendor_dir    = 'vendor';
 $composer_json = $project_dir . '/composer.json';

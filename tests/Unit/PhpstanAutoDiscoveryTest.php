@@ -40,9 +40,9 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 
 		$config = require self::CONFIG_FILE;
 
-		self::assertSame( $this->project_dir . '/my-plugin.php', $config['parameters']['WPCompat']['pluginFile'] );
 		self::assertContains( $this->project_dir . '/src', $config['parameters']['paths'] );
 		self::assertContains( $this->project_dir . '/my-plugin.php', $config['parameters']['paths'] );
+		self::assertArrayNotHasKey( 'pluginFile', $config['parameters']['WPCompat'] );
 	}
 
 	#[Test]
@@ -56,11 +56,8 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 
 		$config = require self::CONFIG_FILE;
 
-		self::assertSame(
-			$this->project_dir . '/internal-comments.php',
-			$config['parameters']['WPCompat']['pluginFile']
-		);
 		self::assertContains( $this->project_dir . '/internal-comments.php', $config['parameters']['paths'] );
+		self::assertArrayNotHasKey( 'pluginFile', $config['parameters']['WPCompat'] );
 	}
 
 	#[Test]
@@ -136,6 +133,61 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 	}
 
 	#[Test]
+	public function floors_header_less_plugin_to_framework_minimum_without_plugin_file(): void {
+		// A plugin whose main file carries `Plugin Name:` but no `Requires at least:` is a valid,
+		// supported layout. Handing WPCompat a `pluginFile` makes its SinceVersionRule read the
+		// header itself and hard-throw when it is absent, aborting the whole run; the resolved
+		// floor is passed as `requiresAtLeast`, which WPCompat honours without reading any header,
+		// so analysis proceeds.
+		\file_put_contents(
+			$this->project_dir . '/my-plugin.php',
+			"<?php\n/**\n * Plugin Name: Header Less\n */\n"
+		);
+
+		$config = require self::CONFIG_FILE;
+
+		self::assertArrayNotHasKey( 'pluginFile', $config['parameters']['WPCompat'] );
+		self::assertSame( '7.0', $config['parameters']['WPCompat']['requiresAtLeast'] );
+	}
+
+	#[Test]
+	public function honours_plugin_requires_at_least_header_above_framework_floor(): void {
+		\file_put_contents(
+			$this->project_dir . '/my-plugin.php',
+			"<?php\n/**\n * Plugin Name: Modern\n * Requires at least: 7.4\n */\n"
+		);
+
+		$config = require self::CONFIG_FILE;
+
+		self::assertArrayNotHasKey( 'pluginFile', $config['parameters']['WPCompat'] );
+		self::assertSame( '7.4', $config['parameters']['WPCompat']['requiresAtLeast'] );
+	}
+
+	#[Test]
+	public function floors_plugin_requires_at_least_header_below_framework_floor(): void {
+		\file_put_contents(
+			$this->project_dir . '/my-plugin.php',
+			"<?php\n/**\n * Plugin Name: Legacy\n * Requires at least: 6.5\n */\n"
+		);
+
+		$config = require self::CONFIG_FILE;
+
+		self::assertSame( '7.0', $config['parameters']['WPCompat']['requiresAtLeast'] );
+	}
+
+	#[Test]
+	public function floors_plugin_requires_at_least_header_with_non_numeric_value(): void {
+		\file_put_contents(
+			$this->project_dir . '/my-plugin.php',
+			"<?php\n/**\n * Plugin Name: Odd\n * Requires at least: 8.x\n */\n"
+		);
+
+		$config = require self::CONFIG_FILE;
+
+		self::assertSame( '7.0', $config['parameters']['WPCompat']['requiresAtLeast'] );
+	}
+
+	#[Test]
 	public function reads_custom_vendor_dir_from_composer_json(): void {
 		\file_put_contents(
 			$this->project_dir . '/composer.json',
@@ -172,7 +224,7 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 
 		$config = require self::CONFIG_FILE;
 
-		self::assertSame( $this->project_dir . '/my-plugin.php', $config['parameters']['WPCompat']['pluginFile'] );
+		self::assertContains( $this->project_dir . '/my-plugin.php', $config['parameters']['paths'] );
 	}
 
 	#[Test]
@@ -184,7 +236,7 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 
 		$config = require self::CONFIG_FILE;
 
-		self::assertSame( $this->project_dir . '/my-plugin.php', $config['parameters']['WPCompat']['pluginFile'] );
+		self::assertContains( $this->project_dir . '/my-plugin.php', $config['parameters']['paths'] );
 	}
 
 	#[Test]
