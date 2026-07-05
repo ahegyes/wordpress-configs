@@ -90,6 +90,19 @@ final class GenerateScopedAutoloadTest extends TestCase {
 	}
 
 	#[Test]
+	public function throws_when_an_autoload_files_entry_is_missing(): void {
+		$this->installScopedPackage(
+			'acme/broken',
+			array( 'autoload' => array( 'files' => array( 'missing.php' ) ) )
+		);
+		\unlink( $this->dependencies_dir . '/acme/broken/missing.php' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/autoload\.files/' );
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
+	}
+
+	#[Test]
 	public function handles_multiple_packages_with_mixed_autoload_shapes(): void {
 		$this->installScopedPackage(
 			'ahegyes/wp-framework-core',
@@ -206,6 +219,8 @@ final class GenerateScopedAutoloadTest extends TestCase {
 				JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT
 			)
 		);
+
+		\file_put_contents( $this->dependencies_dir . '/bootstrap.php', "<?php\n" );
 
 		GenerateScopedAutoload::generate( $this->dependencies_dir );
 
@@ -521,6 +536,24 @@ final class GenerateScopedAutoloadTest extends TestCase {
 				\mkdir( $file_dir, 0755, true );
 			}
 			\file_put_contents( $file_path, $contents );
+		}
+
+		// A scoped package's declared autoload.files must exist on disk (php-scoper copies them);
+		// the generator asserts this, so materialise a stub for any declared file a test did not
+		// supply explicitly. Skip unsafe entries (absolute / traversal) — those are throw-tested.
+		foreach ( (array) ( $composer_payload['autoload']['files'] ?? array() ) as $declared_file ) {
+			if ( ! \is_string( $declared_file ) || \str_contains( $declared_file, '..' ) || \str_starts_with( $declared_file, '/' ) ) {
+				continue;
+			}
+			$declared_path = $package_dir . '/' . $declared_file;
+			if ( \is_file( $declared_path ) ) {
+				continue;
+			}
+			$declared_dir = \dirname( $declared_path );
+			if ( ! \is_dir( $declared_dir ) ) {
+				\mkdir( $declared_dir, 0755, true );
+			}
+			\file_put_contents( $declared_path, "<?php\n" );
 		}
 	}
 

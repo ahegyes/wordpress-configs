@@ -110,7 +110,13 @@ final class GenerateScopedAutoload {
 				if ( ! \is_string( $file ) ) {
 					continue;
 				}
-				$files[] = self::join_rel( $pkg_rel, self::assert_package_relative_path( $pkg, $file, 'autoload.files' ) );
+				$relative = self::assert_package_relative_path( $pkg, $file, 'autoload.files' );
+				if ( ! \is_file( $pkg . '/' . $relative ) ) {
+					throw new \RuntimeException(
+						\sprintf( 'Scoped package %s declares autoload.files entry "%s", but no file exists at that path; the generated autoload would fatal at runtime.', $pkg, $file )
+					);
+				}
+				$files[] = self::join_rel( $pkg_rel, $relative );
 			}
 		}
 
