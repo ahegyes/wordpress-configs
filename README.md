@@ -338,6 +338,10 @@ return $build_config( array(
 
 **Default patcher limitation:** the reference-stripper rewrites statically-visible references to excluded symbols (direct calls, `use` statements, the string argument of `function_exists`/`defined`/`class_exists`-style calls, bare constants) and is token-aware, so prefix patterns inside comments are preserved. It does NOT reach a class name that exists only in a runtime string variable (e.g. `instanceof $dynamic`). If a scoped library relies on such dynamic patterns, add a custom callable to `patchers`.
 
+### Distribution Ignore
+
+`.distignore` — copy to your project root and extend with project-specific source-only paths before using `reusable-release.yml`. The release workflow requires the file to exist so `wp dist-archive` has explicit exclusions for tests, package-manager manifests, CI, IDE files, and source-only tooling.
+
 ### Editor Config
 
 `.editorconfig` — copy to your project root or reference in your editor's settings.

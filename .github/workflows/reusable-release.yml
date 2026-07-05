@@ -86,7 +86,7 @@ jobs:
         uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
         with:
           working-directory: ${{ inputs.project-path }}
-          composer-options: '--prefer-dist --ignore-platform-reqs'
+          composer-options: '--prefer-dist --ignore-platform-req=php+'
 
       - name: Build assets
         working-directory: ${{ inputs.project-path }}
@@ -114,7 +114,7 @@ jobs:
       # --no-scripts: the require-dev script handlers are pruned by this very install; dependencies/ lives outside vendor/ and survives.
       - name: Prune to production dependencies
         working-directory: ${{ inputs.project-path }}
-        run: composer install --no-dev --prefer-dist --ignore-platform-reqs --optimize-autoloader --no-scripts
+        run: composer install --no-dev --prefer-dist --ignore-platform-req=php+ --optimize-autoloader --no-scripts
 
       - name: Create plugin archive
         working-directory: ${{ inputs.project-path }}
@@ -227,7 +227,7 @@ jobs:
         uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # zizmor: ignore[cache-poisoning] cache feeds only the E2E harness — the published artifact is the zip from the build job
         with:
           working-directory: ${{ inputs.project-path }}
-          composer-options: '--prefer-dist --ignore-platform-reqs'
+          composer-options: '--prefer-dist --ignore-platform-req=php+'
 
       - name: Install npm dependencies (E2E runner)
         working-directory: ${{ inputs.project-path }}

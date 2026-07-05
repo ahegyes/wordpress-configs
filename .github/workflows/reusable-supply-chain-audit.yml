@@ -33,6 +33,11 @@ on:
         type: string
         required: false
         default: '--abandoned=report'
+      composer-options:
+        description: 'Composer install options passed to the dependency-install step.'
+        type: string
+        required: false
+        default: '--prefer-dist --ignore-platform-req=php+'
       npm-audit-flags:
         description: 'Extra flags passed to `npm audit`. Defaults to --audit-level=high — audits the full graph (dev/build deps included) and fails only on high/critical advisories; low/moderate are surfaced without failing. Pass --omit=dev to audit production deps only.'
         type: string
@@ -64,7 +69,7 @@ jobs:
       - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
         with:
           working-directory: ${{ inputs.project-path }}
-          composer-options: '--prefer-dist --ignore-platform-reqs'
+          composer-options: ${{ inputs.composer-options }}
       - name: composer audit
         working-directory: ${{ inputs.project-path }}
         continue-on-error: ${{ !inputs.fail-on-findings }}

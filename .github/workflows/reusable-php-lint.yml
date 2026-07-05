@@ -17,6 +17,11 @@ on:
         type: string
         required: false
         default: '.'
+      composer-options:
+        description: 'Composer install options passed to the dependency-install step.'
+        type: string
+        required: false
+        default: '--prefer-dist --ignore-platform-req=php+'
 
 permissions:
   contents: read
@@ -41,7 +46,7 @@ jobs:
       - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
         with:
           working-directory: ${{ inputs.project-path }}
-          composer-options: '--prefer-dist --ignore-platform-reqs'
+          composer-options: ${{ inputs.composer-options }}
       - name: composer ${{ matrix.script }}
         working-directory: ${{ inputs.project-path }}
         env:

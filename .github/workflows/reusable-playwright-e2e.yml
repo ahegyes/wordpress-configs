@@ -33,10 +33,10 @@ on:
         required: false
         default: '26'
       composer-options:
-        description: 'Composer install options. Plugins with a scoping pipeline that bakes deps into dependencies/ via post-autoload-dump need to omit --no-dev so the framework + PHP-DI install and scoping runs.'
+        description: 'Composer install options. The default includes --no-dev; override without it when a scoping pipeline populates dependencies/ during the dev-mode install.'
         type: string
         required: false
-        default: '--prefer-dist --no-dev --ignore-platform-reqs'
+        default: '--prefer-dist --no-dev --ignore-platform-req=php+'
       build-script:
         description: 'npm script to build assets before starting wp-env. Leave empty to skip (plugins without a frontend build).'
         type: string

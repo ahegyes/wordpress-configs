@@ -1,0 +1,32 @@
+# Baseline wp dist-archive exclusions for DWS WordPress projects.
+# Copy this file to each consumer project root and extend it there.
+
+.git
+.github
+.idea
+.vscode
+.editorconfig
+.gitattributes
+.gitignore
+.distignore
+node_modules
+tests
+vendor/bin
+composer.json
+composer.lock
+package.json
+package-lock.json
+.phpcs.xml
+phpcs.dist.xml
+.phpstan.neon
+phpstan.dist.neon
+phpunit.xml*
+infection.json*
+eslint.config.*
+stylelint.config.*
+tsconfig.json
+playwright.config.*
+scoper.inc.php
+scoping-exclusions.json
+.wp-env*
+.wordpress-org

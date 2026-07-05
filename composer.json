@@ -60,11 +60,11 @@
   },
 
   "scripts": {
-    "generate-autoloader": "@composer dump-autoload --ignore-platform-reqs -o",
-    "packages-install": "@composer install --ignore-platform-reqs --no-interaction",
+    "generate-autoloader": "@composer dump-autoload --ignore-platform-req=php+ -o",
+    "packages-install": "@composer install --ignore-platform-req=php+ --no-interaction",
     "packages-update": [
       "@composer clear-cache",
-      "@composer update --prefer-stable --ignore-platform-reqs --no-interaction"
+      "@composer update --prefer-stable --ignore-platform-req=php+ --no-interaction"
     ],
 
     "format:php": "phpcbf --standard=./phpcs.dist.xml --basepath=. ./ -v",
