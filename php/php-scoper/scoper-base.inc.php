@@ -180,8 +180,12 @@ return static function ( array $overrides = array() ): array {
 	return array(
 		'finders'            => $overrides['finders'] ?? array(),
 
+		// Anchored regex, not the bare literal 'Psr': php-scoper matches a plain namespace string
+		// by case-insensitive substring, so 'Psr' would also leave any namespace merely containing
+		// "psr" (e.g. `Nyholm\Psr7`, `GuzzleHttp\Psr7`) unprefixed — silently breaking isolation for
+		// bundled PSR-7 implementations. The regex excludes only the real `Psr\*` root.
 		'exclude-namespaces' => \array_merge(
-			array( 'Psr' ),
+			array( '/^Psr(?:\\\\|$)/i' ),
 			$overrides['exclude_namespaces'] ?? array()
 		),
 

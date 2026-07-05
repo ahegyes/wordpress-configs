@@ -102,7 +102,26 @@ final class ScoperBaseConfigTest extends TestCase {
 	public function psr_namespace_is_always_excluded(): void {
 		$config = ( $this->build_config )( array( 'project_dir' => $this->project_dir ) );
 
-		self::assertContains( 'Psr', $config['exclude-namespaces'] );
+		self::assertContains( '/^Psr(?:\\\\|$)/i', $config['exclude-namespaces'] );
+	}
+
+	#[Test]
+	public function psr_namespace_exclusion_is_anchored_not_substring(): void {
+		// php-scoper matches a non-regex namespace exclusion by case-insensitive substring, so a
+		// bare 'Psr' literal would also exclude any namespace merely containing "psr" — leaving
+		// bundled PSR-7 implementations like `Nyholm\Psr7` / `GuzzleHttp\Psr7` unprefixed and
+		// defeating per-plugin isolation. The emitted exclusion must match only the `Psr\*` root.
+		$config      = ( $this->build_config )( array( 'project_dir' => $this->project_dir ) );
+		$psr_pattern = '/^Psr(?:\\\\|$)/i';
+
+		self::assertContains( $psr_pattern, $config['exclude-namespaces'] );
+
+		self::assertSame( 1, \preg_match( $psr_pattern, 'Psr\\Log' ) );
+		self::assertSame( 1, \preg_match( $psr_pattern, 'Psr' ) );
+		self::assertSame( 0, \preg_match( $psr_pattern, 'Nyholm\\Psr7' ) );
+		self::assertSame( 0, \preg_match( $psr_pattern, 'GuzzleHttp\\Psr7' ) );
+		self::assertSame( 0, \preg_match( $psr_pattern, 'Acme\\Psr\\Thing' ) );
+		self::assertSame( 0, \preg_match( $psr_pattern, 'Psruff\\Widgets' ) );
 	}
 
 	#[Test]
@@ -123,7 +142,7 @@ final class ScoperBaseConfigTest extends TestCase {
 			)
 		);
 
-		self::assertContains( 'Psr', $config['exclude-namespaces'] );
+		self::assertContains( '/^Psr(?:\\\\|$)/i', $config['exclude-namespaces'] );
 		self::assertContains( 'Custom\\Namespace', $config['exclude-namespaces'] );
 		self::assertContains( 'WP_Post', $config['exclude-classes'] );
 		self::assertContains( 'CustomClass', $config['exclude-classes'] );
