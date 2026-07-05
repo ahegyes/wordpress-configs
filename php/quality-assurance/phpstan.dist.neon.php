@@ -1,7 +1,7 @@
 <?php declare( strict_types=1 );
 
 /**
- * PHPStan auto-discovery for DWS WordPress plugin / theme / library layouts.
+ * PHPStan auto-discovery for WordPress plugin / theme / library layouts.
  *
  * Plugin file detected by scanning root-level `*.php` files for a `Plugin Name:` header
  * (same parse strategy as WordPress core's `_get_plugin_data_from_file()`). Theme layout
@@ -59,7 +59,7 @@ if ( \is_file( $project_dir . '/style.css' ) ) {
 
 // WPCompat needs EITHER pluginFile OR requiresAtLeast set or it errors per-file.
 // Themes fall through to requiresAtLeast — WPCompat has no themeFile key; honour the
-// theme's own `Requires at least:` contract, floored at the framework minimum.
+// theme's own `Requires at least:` contract, floored at this ruleset's minimum.
 if ( null !== $plugin_file ) {
 	$config['parameters']['WPCompat']['pluginFile'] = $plugin_file;
 } else {

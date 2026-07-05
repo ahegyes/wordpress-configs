@@ -1,10 +1,5 @@
 /**
- * Shared Stylelint base config for DWS WordPress plugins: the SCSS preset of
- * `@wordpress/stylelint-config` plus DWS defaults.
- *
- * `ignoreFiles` only takes effect when this config is spread into the consumer
- * config. Under `extends`, Stylelint ignores `ignoreFiles` from the extended
- * config entirely, so the spread pattern is the required wiring.
+ * Spread this base into the consumer root config; `extends` drops `ignoreFiles`.
  */
 
 module.exports = {

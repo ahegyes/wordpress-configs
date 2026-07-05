@@ -97,7 +97,7 @@
 		<exclude-pattern>*/tests/*</exclude-pattern>
 	</rule>
 	<rule ref="WordPress.WP.AlternativeFunctions">
-		<!-- Unit/fixture code runs without WordPress, so WP_Filesystem does not exist. -->
+		<!-- Tests run without WordPress; native filesystem functions are correct here. -->
 		<exclude-pattern>*/tests/*</exclude-pattern>
 	</rule>
 	<rule ref="WordPress.PHP.DevelopmentFunctions">

@@ -1,6 +1,6 @@
 <?php
 
-// Minimal second-catalog stubs for unit-testing CollectScopingStubs union behavior.
+// Minimal second stubs file for unit-testing CollectScopingStubs union behavior.
 // Stand-in for, e.g., woocommerce-stubs.
 
 class WC_Logger {}

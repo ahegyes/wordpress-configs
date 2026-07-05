@@ -119,7 +119,7 @@ parameters:
         - vendor/wp-plugin/woocommerce  # If using WooCommerce
 ```
 
-WordPress 7.0 stubs resolve out of the box: this package rides `szepeviktor/phpstan-wordpress` at `2.x-dev`, whose `php-stubs/wordpress-stubs: >=6.6.2` constraint admits the 7.x catalogs (the tagged v2.0.3 still caps below 7.0 — revert to `^2` at the next release). A consumer whose own dependencies cap the stubs (`php-stubs/woocommerce-stubs` does) restores 7.0 analysis with a root-`require-dev` inline alias — root-only, a dependency-declared alias is ignored by the solver — bumping the exact 7.x version as new catalogs ship:
+WordPress 7.0 stubs resolve out of the box: this package rides `szepeviktor/phpstan-wordpress` at `2.x-dev`, whose `php-stubs/wordpress-stubs: >=6.6.2` constraint admits 7.x stubs (the tagged v2.0.3 still caps below 7.0 — revert to `^2` at the next release). A consumer whose own dependencies cap the stubs (`php-stubs/woocommerce-stubs` does) restores 7.0 analysis with a root-`require-dev` inline alias — root-only, a dependency-declared alias is ignored by the solver — bumping the exact 7.x version as new stubs ship:
 
 ```json
 {
@@ -156,9 +156,9 @@ The bundled `phpstan.dist.neon.php` auto-discovers paths by layout:
 
 #### CollectScopingStubs
 
-`php/composer/CollectScopingStubs.php` — Composer post-autoload-dump hook that aggregates per-package stubs-catalog declarations and writes the unioned symbol set to a JSON file the [php-scoper base config](#php-scoper-base-config) consumes.
+`php/composer/CollectScopingStubs.php` — Composer post-autoload-dump hook that aggregates per-package stubs declarations and writes the unioned symbol set to a JSON file the [php-scoper base config](#php-scoper-base-config) consumes.
 
-Each Composer package in the dep graph (and the consuming project itself) declares the stubs catalogs covering its scoped code's external references via `extra.scoping-stubs` in its own `composer.json`:
+Each Composer package in the dep graph (and the consuming project itself) declares the stubs packages or files covering its scoped code's external references via `extra.scoping-stubs` in its own `composer.json`:
 
 ```json
 {
@@ -168,9 +168,9 @@ Each Composer package in the dep graph (and the consuming project itself) declar
 }
 ```
 
-Each declaration is either a bare `vendor/package` (a whole catalog) or an explicit `vendor/package:relative/file.php` (one specific stubs file). For a bare entry the hook reads the package's `autoload.files` plus the conventional `<package>.php`; the FQCNs of every class, interface, trait, enum, function, and constant it finds are unioned into `scoping-exclusions.json`.
+Each declaration is either a bare `vendor/package` (the package's stubs files) or an explicit `vendor/package:relative/file.php` (one specific stubs file). For a bare entry the hook reads the package's `autoload.files` plus the conventional `<package>.php`; the FQCNs of every class, interface, trait, enum, function, and constant it finds are unioned into `scoping-exclusions.json`.
 
-A catalog the package ships but does **not** list in its `autoload.files` needs the explicit form — `vendor/package:relative/file.php` names that one secondary file:
+A stubs file the package ships but does **not** list in its `autoload.files` needs the explicit form — `vendor/package:relative/file.php` names that one secondary file:
 
 ```json
 {
@@ -183,7 +183,7 @@ A catalog the package ships but does **not** list in its `autoload.files` needs 
 }
 ```
 
-The Action Scheduler `as_*` functions need **no consumer declaration at all**: `scoper-base.inc.php` excludes the family with a built-in `/^as_/` `exclude-functions` regex, so they stay unprefixed even when no stubs catalog declares them. The explicit `woocommerce-packages-stubs.php` entry above remains useful only for the other symbols that file carries (WooCommerce packages internals) — not for `as_*` coverage.
+The Action Scheduler `as_*` functions need **no consumer declaration at all**: `scoper-base.inc.php` excludes the family with a built-in `/^as_/` `exclude-functions` regex, so they stay unprefixed even when no stubs file declares them. The explicit `woocommerce-packages-stubs.php` entry above remains useful only for the other symbols that file carries (WooCommerce packages internals) — not for `as_*` coverage.
 
 **Wire it in your project's `composer.json`:**
 
@@ -206,9 +206,9 @@ The Action Scheduler `as_*` functions need **no consumer declaration at all**: `
 | Malformed declaration in the PROJECT's own composer.json        | **Throws** — a root typo must not silently shrink the exclusion set |
 | Malformed declaration in an installed package                   | Skipped with a console warning (third-party metadata the consumer cannot fix) |
 
-**Action Scheduler exclusion:** `scoper-base.inc.php` excludes the `as_*` public API with a `/^as_/` `exclude-functions` regex, so every consumer that uses the base config keeps the family unprefixed without declaring a catalog. Action Scheduler is host-provided at runtime (bundled by WooCommerce or the standalone plugin) and must never be prefixed; the regex survives a consumer dropping `php-stubs/woocommerce-stubs` and covers functions added upstream. The `wp-framework.inc.php` contrib partial additionally installs a scope-time guard that fails the run if a prefixed `as_*` reference ever reaches the scoped output.
+**Action Scheduler exclusion:** `scoper-base.inc.php` excludes the `as_*` public API with a `/^as_/` `exclude-functions` regex, so every consumer that uses the base config keeps the family unprefixed without declaring stubs. Action Scheduler is host-provided at runtime (bundled by WooCommerce or the standalone plugin) and must never be prefixed; the regex survives a consumer dropping `php-stubs/woocommerce-stubs` and covers functions added upstream. The `wp-framework.inc.php` contrib partial additionally installs a scope-time guard that fails the run if a prefixed `as_*` reference ever reaches the scoped output.
 
-The contract is: **whichever package introduces references to external (non-prefixable) symbols is the package that declares the catalog covering them.** A consumer plugin doesn't need to enumerate WP usage — the framework packages it depends on declare `php-stubs/wordpress-stubs` and the helper picks that up automatically. A consumer that integrates with WooCommerce adds `php-stubs/woocommerce-stubs` to its own `composer.json`.
+The contract is: **whichever package introduces references to external (non-prefixable) symbols is the package that declares the stubs covering them.** A consumer plugin doesn't need to enumerate WP usage — the framework packages it depends on declare `php-stubs/wordpress-stubs` and the helper picks that up automatically. A consumer that integrates with WooCommerce adds `php-stubs/woocommerce-stubs` to its own `composer.json`.
 
 **Trust model:** vendor packages can declare their own `extra.scoping-stubs`, and the helper parses + reads symbol names from those declared files. A malicious vendor could declare custom symbol names that, after merging into `scoping-exclusions.json`, weaken the consumer's scoping (those symbols stay unprefixed and may clash with WP core). This is the standard composer supply-chain trust model — only install vendor packages you trust. The helper does NOT execute anything from the parsed stubs files; it only extracts class, function, and constant declaration names via AST traversal.
 
@@ -273,7 +273,7 @@ PHP_BINARY vendor/bin/php-scoper add-prefix \
 
 #### Autoload generator
 
-`php/composer/Internal/GenerateScopedAutoload.php` — runs after every successful scope and emits a single `dependencies/scoper-autoload.php` that registers every scoped package's `autoload.psr-4` and `autoload.classmap` entries on a dedicated Composer `ClassLoader` it creates and registers (independent of whichever loader the host registered first), and `require_once`s each `autoload.files` entry. Host plugins reference this one file via their root `autoload.files` instead of hand-declaring a PSR-4 entry per scoped package.
+`php/composer/Internal/GenerateScopedAutoload.php` — runs after every successful scope and emits a single `dependencies/scoper-autoload.php` that registers every scoped package's `autoload.psr-4` and `autoload.classmap` entries on a dedicated Composer `ClassLoader` it creates and registers (independent of whichever loader the host registered first), and `require_once`s each `autoload.files` entry. Consumers reference this one file via their root `autoload.files` instead of hand-declaring a PSR-4 entry per scoped package.
 
 **Wire the generated file in your `autoload`:**
 
@@ -389,7 +389,7 @@ Create a `tsconfig.json` in your project:
 
 #### ESLint
 
-`node/eslint.config.base.mjs` — flat-config wrapping `@wordpress/eslint-plugin`'s recommended preset plus DWS defaults, with the plugin's `test-unit` / `test-playwright` presets scoped to the DWS test layout (`**/test/**`, `tests/e2e/**`). Requires `@wordpress/eslint-plugin` v25+ and ESLint v9+ (the flat format is the only one ESLint v10 supports).
+`node/eslint.config.base.mjs` — flat-config wrapping `@wordpress/eslint-plugin`'s recommended preset, with the plugin's `test-unit` / `test-playwright` presets scoped to project test globs (`**/test/**`, `**/*.test.*`, `tests/e2e/**`). Requires `@wordpress/eslint-plugin` v25+ and ESLint v9+ (the flat format is the only one ESLint v10 supports).
 
 Create an `eslint.config.mjs` in your project:
 
@@ -408,7 +408,7 @@ export default [
 
 #### Stylelint
 
-`node/stylelint.config.base.js` — extends `@wordpress/stylelint-config/scss` with DWS defaults, including `ignoreFiles` for generated/vendored trees. Do not load this base via `extends`: Stylelint ignores the `ignoreFiles` property of an extended config entirely. Use the spread pattern shown below; the globs then live in the consumer's root config and resolve against the consumer project.
+`node/stylelint.config.base.js` — extends `@wordpress/stylelint-config/scss` and adds `ignoreFiles` for generated/vendored trees. Do not load this base via `extends`: Stylelint ignores the `ignoreFiles` property of an extended config entirely. Use the spread pattern shown below; the globs then live in the consumer's root config and resolve against the consumer project.
 
 Create a `stylelint.config.js` in your project:
 
@@ -457,7 +457,7 @@ For test fixtures (admin login, block editor helpers, REST request utilities), i
 
 **Consumer contract for framework packages:** installing any `ahegyes/wp-framework-*` package makes `extra.text-domain` mandatory in the consumer's `composer.json` — the `wp-framework.inc.php` scoper partial rewrites the framework's reserved `wp-framework-*` text domains to it at scope time (`"text-domain": false` is the explicit opt-out for non-plugin consumers with no translation catalog). The reserved literal space is enforced at scope time too: a `wp-framework-*` literal anywhere outside a plain gettext domain argument (including compound domain expressions, named-argument gettext calls, and heredoc/interpolated occurrences) fails the scope run.
 
-Net result: your bundled deps are scoped under your prefix, while declared-catalog symbols (WordPress, WooCommerce) and `Psr\*` stay unprefixed and resolve globally at runtime. Host code reaches the scoped tree through the single `dependencies/scoper-autoload.php` in `autoload.files` — no per-package PSR-4 wiring.
+Net result: your bundled deps are scoped under your prefix, while declared external symbols (WordPress, WooCommerce) and `Psr\*` stay unprefixed and resolve globally at runtime. Consumer code reaches the scoped tree through the single `dependencies/scoper-autoload.php` in `autoload.files` — no per-package PSR-4 wiring.
 
 ## Reusable CI Workflows
 

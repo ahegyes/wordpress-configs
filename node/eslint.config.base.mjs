@@ -1,7 +1,5 @@
 /**
- * Shared ESLint base config (flat) for DWS WordPress plugins: the recommended
- * `@wordpress/eslint-plugin` preset plus DWS defaults, with the plugin's test
- * presets scoped to the DWS test layout.
+ * Shared flat ESLint baseline for WordPress projects; append project overrides after this array.
  */
 
 import wordpress from '@wordpress/eslint-plugin';

@@ -4,13 +4,13 @@ namespace DeepWebSolutions\Config\Composer\Internal;
 
 /**
  * Emits a single `dependencies/scoper-autoload.php` from each scoped package's
- * `autoload.psr-4`, `autoload.classmap` and `autoload.files`. Host plugins
+ * `autoload.psr-4`, `autoload.classmap` and `autoload.files`. Consumers
  * reference this one file via their root `autoload.files`; new scoped packages
- * flow in automatically without host composer.json edits.
+ * flow in automatically without root composer.json edits.
  *
  * Deterministic: no `class_alias` / `expose-*`, and every entry is sorted before
- * emission. The generated file is purely a function of the scoped tree and the
- * scoped tree, so it regenerates byte-identical.
+ * emission. The generated file is purely a function of the scoped tree, so it
+ * regenerates byte-identical.
  *
  * @internal
  */

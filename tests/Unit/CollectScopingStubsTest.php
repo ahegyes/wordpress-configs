@@ -533,7 +533,7 @@ final class CollectScopingStubsTest extends TestCase {
 	public function explicit_file_entry_resolves_a_secondary_stub_outside_autoload_files(): void {
 		// Mimics php-stubs/woocommerce-stubs, which ships woocommerce-packages-stubs.php without
 		// listing it in autoload.files. The bare package would resolve only the conventional
-		// <name>.php; the explicit-file form reaches the secondary catalog.
+		// <name>.php; the explicit-file form reaches the secondary stubs file.
 		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
 		\copy(
 			self::FIXTURES_DIR . '/stubs-secondary.php',
@@ -867,7 +867,7 @@ final class CollectScopingStubsTest extends TestCase {
 		// A Composer path-repository package symlinked into vendor (monorepo dev) that declares
 		// extra.scoping-stubs. A vendor directory walk does not descend the symlink and silently
 		// misses the declaration; reading Composer's in-memory package list catches it. The
-		// declared catalog (wordpress-stubs) is a normally-installed package.
+		// declared stubs package (wordpress-stubs) is normally installed.
 		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
 
 		// Real path-repo source dir OUTSIDE vendor.
@@ -903,9 +903,8 @@ final class CollectScopingStubsTest extends TestCase {
 
 	#[Test]
 	public function resolves_stubs_through_a_symlinked_path_repository_install_path(): void {
-		// A symlinked path-repo package that ships its own stub catalog must still have that
-		// catalog resolved: the package dir is the standard vendor layout (the symlink), and the
-		// realpath confinement resolves through it to the real source.
+		// A symlinked path-repo package that ships its own stubs file must still resolve through
+		// the vendor-layout symlink to the real source.
 		$source_dir = $this->project_dir . '/packages/wp-framework-shared';
 		\mkdir( $source_dir, 0755, true );
 		\copy( self::FIXTURES_DIR . '/stubs-extra.php', $source_dir . '/shared-stubs.php' );
@@ -1000,7 +999,7 @@ final class CollectScopingStubsTest extends TestCase {
 
 	#[Test]
 	public function output_symbol_lists_are_sorted_for_deterministic_regeneration(): void {
-		// Two catalogs whose symbols interleave; the merged lists must come out sorted so the
+		// Two stubs packages whose symbols interleave; the merged lists must come out sorted so the
 		// file regenerates byte-identical regardless of package iteration order.
 		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
 		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );

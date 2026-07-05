@@ -18,7 +18,7 @@ use DeepWebSolutions\Config\Composer\Internal\StubSymbolCollector;
  *  - `vendor/package` — resolves the package's `autoload.files` plus the conventional
  *    `vendor/<vendor>/<package>/<package>.php` path whenever it exists.
  *  - `vendor/package:relative/path/to/file.php` — resolves exactly that one file inside
- *    the package dir, for a secondary catalog the package ships but does not list in its
+ *    the package dir, for a secondary stubs file the package ships but does not list in its
  *    `autoload.files` (e.g. `php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php`).
  *    The separator is the first `:`; package names cannot contain one, so the split is
  *    unambiguous. The file part must be a safe relative path (no leading slash, no `..`
@@ -422,11 +422,11 @@ final class CollectScopingStubs {
 	/**
 	 * Resolves one `extra.scoping-stubs` entry to its stubs-file paths.
 	 *
-	 * A bare `vendor/package` reads the package's `autoload.files` (multi-file catalogs
-	 * like `php-stubs/woocommerce-stubs`) from its in-memory metadata plus the conventional
-	 * `<name>/<name>.php` path whenever it exists (minimal hand-rolled catalogs ship only
+	 * A bare `vendor/package` reads the package's `autoload.files` (multi-file stubs
+	 * packages like `php-stubs/woocommerce-stubs`) from its in-memory metadata plus the conventional
+	 * `<name>/<name>.php` path whenever it exists (minimal hand-rolled stubs packages ship only
 	 * that). The explicit-file form `vendor/package:relative/file.php` resolves that one named
-	 * file inside the package dir — for a secondary catalog the package ships but does not list
+	 * file inside the package dir — for a secondary stubs file the package ships but does not list
 	 * in its `autoload.files` (e.g. woocommerce-stubs' `woocommerce-packages-stubs.php`).
 	 *
 	 * The package directory is Composer's own `InstallationManager::getInstallPath()` for the

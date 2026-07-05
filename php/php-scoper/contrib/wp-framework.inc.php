@@ -17,8 +17,7 @@ use Symfony\Component\Finder\Finder;
  * plain reserved literal is a domain wherever it appears in the token stream. Comments stay
  * inert; heredoc/nowdoc/interpolated fragments, mid-string occurrences, and escape-obfuscated
  * occurrences fail because they sit outside the plain-literal guarantee. A non-plugin consumer
- * (e.g. a test fixture with no translation catalog) opts out explicitly with
- * `"text-domain": false`; missing or invalid metadata throws.
+ * opts out explicitly with `"text-domain": false`; missing or invalid metadata throws.
  *
  * A second, always-on patcher guards the Action Scheduler surface: a scoped file that still
  * carries a `<prefix>\as_*` reference — as a name token, a constant-string reference, or inside

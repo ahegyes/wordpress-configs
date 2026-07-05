@@ -18,7 +18,7 @@ wordpress-configs/
 │   │   ├── scoper-base.inc.php      # catalog-agnostic; reads scoping-exclusions.json; excludes as_* by regex; token-aware patcher
 │   │   └── contrib/
 │   │       ├── php-di.inc.php       # PHP-DI 7 + transitive deps
-│   │       └── wp-framework.inc.php # auto-detect ahegyes/wp-framework-* packages; requires extra.text-domain (false = explicit opt-out); position-agnostic rewrite: every constant string whose raw value starts with wp-framework- becomes the consumer domain (framework WPCS I18n text_domain enforcement guarantees plain reserved literals ARE domains); tripwire throws on any reserved occurrence outside that guarantee (mid-string, escape-obfuscated via stripcslashes, heredoc/nowdoc/interpolated); always-on guard throws on a prefixed as_* residue (name tokens, string refs, encapsed fragments)
+│   │       └── wp-framework.inc.php # auto-detect ahegyes/wp-framework-* packages; rewrites reserved wp-framework-* literal domains from extra.text-domain; fails reserved-literal and prefixed as_* residues
 │   └── composer/
 │       ├── CollectScopingStubs.php  # post-autoload-dump: aggregates extra.scoping-stubs → scoping-exclusions.json (classes, functions, constants); malformed ROOT declaration throws, malformed installed-package declaration warns
 │       ├── ScopePhpDependencies.php # full pipeline: builds and runs php-scoper from extra.scoped-dependencies-dir + extra.scoping-prefix + optional extra.scoping-flags; owns --output-dir/-o, --prefix, and --config; requires project-root scoper.inc.php; regenerates scoped autoload after every successful scope

@@ -38,8 +38,7 @@ on:
         required: false
         default: ''
 
-# Serialize per plugin slug so concurrent runs don't race the same SVN tag/trunk; different slugs still release in parallel.
-# Don't cancel mid-deploy: a half-pushed SVN tag is worse than queueing.
+# Queue per plugin slug so concurrent runs do not race the same SVN tag/trunk; a half-pushed SVN tag is worse than waiting.
 concurrency:
   group: release-${{ inputs.plugin-slug }}
   cancel-in-progress: false
@@ -57,8 +56,7 @@ jobs:
     name: Build artifact
     runs-on: ubuntu-latest
     steps:
-      # Everything downstream trusts VERSION and PLUGIN_SLUG, so reject malformed values before any work happens.
-      # No leading zeros: '01.2.3' is version_compare()-equal to '1.2.3', which breaks wp.org update detection.
+      # Reject malformed release inputs early; leading-zero tags compare equal in wp.org update checks.
       - name: Enforce version tag and slug shape
         env:
           REF_TYPE: ${{ github.ref_type }}
@@ -100,8 +98,7 @@ jobs:
         with:
           node-version: '26'
 
-      # Dev install on purpose: the scoping pipeline (php-scoper, the framework packages, the composer
-      # script handlers) lives in require-dev and populates dependencies/ via post-autoload-dump.
+      # Dev install runs build-time scoping hooks from require-dev.
       - name: Install Composer dependencies (dev — runs the scoping pipeline)
         uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
         with:
@@ -131,8 +128,7 @@ jobs:
           fi
           mkdir -p languages
           wp i18n make-pot . "languages/$POT_DOMAIN.pot" --domain="$POT_DOMAIN"
-          # Scoped trees carry catalogued strings only when the textdomain rewrite produced some —
-          # a tree of string-free libraries must not fail the gate.
+          # Only scoped trees with domain strings must contribute POT references.
           if [ "$REQUIRES_SCOPED" = "true" ] \
             && grep -rql --include='*.php' "'$POT_DOMAIN'" dependencies/ \
             && ! grep -q '^#: dependencies/' "languages/$POT_DOMAIN.pot"; then
@@ -192,9 +188,7 @@ jobs:
               status=1
             fi
           done
-          # Every scoped package the pipeline produced must ship at least one file — a dropped package activates into
-          # runtime fatals. Package-level, not per-file: .distignore's gitignore semantics strip nested metadata
-          # (e.g. composer.json) at any depth, so file-exact comparison would false-fail.
+          # Each scoped package must ship at least one file; package-level checks avoid false failures from nested metadata exclusions.
           if [ "$REQUIRES_SCOPED" = "true" ]; then
             if [ ! -d dependencies ]; then
               echo "::error::No dependencies/ directory — the scoping pipeline did not run."
@@ -256,10 +250,8 @@ jobs:
     # SVN deploy uses environment secrets, not GITHUB_TOKEN, so no extra scope.
     permissions:
       contents: write
-    # Source provides the E2E runner (tests/, playwright.config, .wp-env.json, package.json) and wp.org assets (.wordpress-org/).
-    # The built zip is the system under test — .wp-env.override.json remaps the plugin's mappings key at it
-    # (wp-env merges mappings per-key, so co-mounted plugins, port, and lifecycle scripts survive).
-    # Deploy reuses the same extracted tree (./built/<slug>/) — what gets tested is what gets pushed to SVN.
+    # Source stays checked out as the E2E/wp.org-assets harness; deploy uses the extracted artifact tree.
+    # Remapping only the plugin's wp-env mapping key keeps co-mounted entries intact.
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -288,8 +280,7 @@ jobs:
         with:
           node-version: '26'
 
-      # Dev install: the source tree is the E2E harness and materializes the co-mounted dev plugins
-      # (e.g. vendor/wp-plugin/woocommerce) that .wp-env.json maps into the container.
+      # Dev install prepares the source-side E2E harness and any packages .wp-env.json co-mounts.
       - name: Install Composer dependencies (E2E harness)
         uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # zizmor: ignore[cache-poisoning] cache feeds only the E2E harness — the published artifact is the zip from the build job
         with:
@@ -312,14 +303,12 @@ jobs:
           BUILT_PATH: ${{ github.workspace }}/built/${{ inputs.plugin-slug }}
         run: |
           key="wp-content/plugins/$PLUGIN_SLUG"
-          # Release contract: .wp-env.json must mount the plugin via mappings under its slug, so the
-          # override swaps exactly that key at the built zip and nothing else.
+          # Remap exactly the plugin's mapping key to the built artifact and nothing else.
           if [ ! -f .wp-env.json ] || ! jq -e --arg key "$key" '.mappings | has($key)' .wp-env.json > /dev/null; then
             echo "::error::Release contract violation — .wp-env.json must exist and map \"$key\" to the plugin source; found mappings: $(jq -c '.mappings // {}' .wp-env.json 2> /dev/null || echo 'none')."
             exit 1
           fi
-          # core: null pins the release gate to the latest stable WordPress — the source config may target
-          # nightly for dev, but a ship/no-ship signal must not move underneath the release.
+          # core: null pins the release gate to latest stable WordPress even when source targets nightly.
           jq -n --arg key "$key" --arg built "$BUILT_PATH" '{core: null, mappings: {($key): $built}}' > .wp-env.override.json
           echo "Generated .wp-env.override.json:"
           cat .wp-env.override.json

@@ -1,4 +1,4 @@
-# Baseline wp dist-archive exclusions for DWS WordPress projects.
+# Baseline wp dist-archive exclusions for WordPress projects.
 # Copy this file to each consumer project root and extend it there.
 
 .git
