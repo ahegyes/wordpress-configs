@@ -373,6 +373,32 @@ final class GenerateScopedAutoloadTest extends TestCase {
 	}
 
 	#[Test]
+	public function continues_past_ignored_flattened_packages_to_emit_later_autoload_entries(): void {
+		$this->installScopedPackage( 'aaa-empty', array() );
+		$this->installScopedPackage(
+			'zzz-feature',
+			array(
+				'autoload' => array(
+					'psr-4'    => array( 'P\\Z\\' => 'src/' ),
+					'classmap' => array( 'legacy/' ),
+					'files'    => array( 'bootstrap.php' ),
+				),
+			),
+			array(
+				'legacy/Widget.php' => "<?php\nnamespace P\\Z\\Legacy;\nclass Widget {}\n",
+				'bootstrap.php'     => "<?php\n",
+			)
+		);
+
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
+
+		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
+		self::assertStringContainsString( "\$loader->addPsr4( 'P\\\\Z\\\\', __DIR__ . '/zzz-feature/src' );", $generated );
+		self::assertStringContainsString( "'P\\\\Z\\\\Legacy\\\\Widget' => __DIR__ . '/zzz-feature/legacy/Widget.php',", $generated );
+		self::assertStringContainsString( "require_once __DIR__ . '/zzz-feature/bootstrap.php';", $generated );
+	}
+
+	#[Test]
 	public function throws_when_a_package_declares_psr0(): void {
 		// psr-0's directory mapping differs from psr-4; the generator fails loud rather than
 		// silently drop the package's classes from the autoload.

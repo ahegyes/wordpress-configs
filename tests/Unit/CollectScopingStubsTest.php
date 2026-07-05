@@ -100,6 +100,28 @@ final class CollectScopingStubsTest extends TestCase {
 	}
 
 	#[Test]
+	public function aggregates_multiple_declarations_from_one_installed_package(): void {
+		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
+		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
+		$this->writeProjectComposer( array() );
+		$this->registerPackage(
+			'some/catalog-consumer',
+			extra: array(
+				'scoping-stubs' => array(
+					'php-stubs/wordpress-stubs',
+					'php-stubs/woocommerce-stubs',
+				),
+			)
+		);
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'add_action', $result['functions'] );
+		self::assertContains( 'wc_get_product', $result['functions'] );
+	}
+
+	#[Test]
 	public function unions_symbols_across_multiple_declared_packages(): void {
 		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
 		$this->installStubsPackage(
@@ -152,10 +174,8 @@ final class CollectScopingStubsTest extends TestCase {
 
 	#[Test]
 	public function continues_past_first_missing_stubs_package_to_collect_subsequent_ones(): void {
-		// First package declared but not installed; second package declared AND installed.
-		// `continue` mutated to `break` would stop after the first miss and yield empty results.
-		$this->installStubsPackage( 'php-stubs/woocommerce-stubs', self::FIXTURES_DIR . '/stubs-extra.php' );
-		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs', 'php-stubs/woocommerce-stubs' ) );
+		$this->installStubsPackage( 'zzz/present', self::FIXTURES_DIR . '/stubs-extra.php' );
+		$this->writeProjectComposer( array( 'aaa/missing', 'zzz/present' ) );
 
 		CollectScopingStubs::postAutoloadDump( $this->event() );
 
@@ -239,6 +259,22 @@ final class CollectScopingStubsTest extends TestCase {
 			CollectScopingStubs::postAutoloadDump( $this->event() );
 		} finally {
 			\rmdir( $outside_dir );
+		}
+	}
+
+	#[Test]
+	public function rejects_output_dir_that_only_shares_the_project_path_prefix(): void {
+		$this->writeProjectComposer( array() );
+		$outside_dir = $this->project_dir . '-outside';
+		\mkdir( $outside_dir );
+		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR=' . $outside_dir );
+
+		try {
+			$this->expectException( \RuntimeException::class );
+			$this->expectExceptionMessageMatches( '/must be inside the project root/' );
+			CollectScopingStubs::postAutoloadDump( $this->event() );
+		} finally {
+			$this->rrmdir( $outside_dir );
 		}
 	}
 
@@ -746,6 +782,37 @@ final class CollectScopingStubsTest extends TestCase {
 		self::assertContains( 'add_action', $result['functions'] );
 		self::assertNotContains( 'bare_traversal_secret', $result['functions'] );
 		self::assertNotContains( 'BareTraversalSecret', $result['classes'] );
+	}
+
+	#[Test]
+	public function bare_package_does_not_read_sibling_directory_that_shares_the_package_prefix(): void {
+		$package_dir = $this->vendor_dir . '/php-stubs/prefix';
+		$sibling_dir = $this->vendor_dir . '/php-stubs/prefix-evil';
+		\mkdir( $package_dir, 0755, true );
+		\mkdir( $sibling_dir, 0755, true );
+		\copy( self::FIXTURES_DIR . '/stubs.php', $package_dir . '/legit.php' );
+		\file_put_contents( $sibling_dir . '/secret.php', "<?php\nclass PrefixSiblingSecret {}\nfunction prefix_sibling_secret() {}\n" );
+		\file_put_contents(
+			$package_dir . '/composer.json',
+			\json_encode(
+				array(
+					'name'     => 'php-stubs/prefix',
+					'autoload' => array(
+						'files' => array( 'legit.php', '../prefix-evil/secret.php' ),
+					),
+				),
+				JSON_THROW_ON_ERROR
+			)
+		);
+		$this->registerPackage( 'php-stubs/prefix', autoload: array( 'files' => array( 'legit.php', '../prefix-evil/secret.php' ) ) );
+
+		$this->writeProjectComposer( array( 'php-stubs/prefix' ) );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'add_action', $result['functions'] );
+		self::assertNotContains( 'prefix_sibling_secret', $result['functions'] );
+		self::assertNotContains( 'PrefixSiblingSecret', $result['classes'] );
 	}
 
 	#[Test]

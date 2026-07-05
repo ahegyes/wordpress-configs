@@ -62,6 +62,20 @@ final class ScopePhpDependenciesTest extends TestCase {
 	}
 
 	#[Test]
+	public function pre_autoload_dump_does_not_create_paths_under_a_sibling_prefix_dir(): void {
+		$this->writeComposerJson(
+			array(
+				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
+				'autoload' => array( 'files' => array( 'dependencies-old/file.php' ) ),
+			)
+		);
+
+		ScopePhpDependencies::preAutoloadDump( $this->event() );
+
+		self::assertFileDoesNotExist( $this->project_dir . '/dependencies-old/file.php' );
+	}
+
+	#[Test]
 	public function pre_autoload_dump_is_a_noop_without_a_scoped_dependencies_dir(): void {
 		$this->writeComposerJson(
 			array(
@@ -183,6 +197,20 @@ final class ScopePhpDependenciesTest extends TestCase {
 			array(
 				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
 				'autoload' => array( 'files' => array( 'dependencies/../../escape.php' ) ),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/parent-directory traversal/' );
+		ScopePhpDependencies::preAutoloadDump( $this->event() );
+	}
+
+	#[Test]
+	public function pre_autoload_dump_rejects_scoped_classmap_path_with_parent_traversal(): void {
+		$this->writeComposerJson(
+			array(
+				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
+				'autoload' => array( 'classmap' => array( 'dependencies/../../escape' ) ),
 			)
 		);
 
