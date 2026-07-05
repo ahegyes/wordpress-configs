@@ -216,6 +216,19 @@ final class CollectScopingStubsTest extends TestCase {
 	}
 
 	#[Test]
+	public function writes_default_output_to_project_root_when_vendor_dir_is_custom(): void {
+		$this->vendor_dir = $this->project_dir . '/build/vendor';
+		\mkdir( $this->vendor_dir, 0755, true );
+		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
+		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs' ), array( 'vendor-dir' => 'build/vendor' ) );
+
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		self::assertFileExists( $this->project_dir . '/scoping-exclusions.json' );
+		self::assertFileDoesNotExist( $this->project_dir . '/build/scoping-exclusions.json' );
+	}
+
+	#[Test]
 	public function rejects_output_dir_outside_project_root(): void {
 		$this->writeProjectComposer( array() );
 		$outside_dir = \sys_get_temp_dir() . '/dws-wp-configs-escape-' . \uniqid();
@@ -1094,13 +1107,19 @@ final class CollectScopingStubsTest extends TestCase {
 	}
 
 	/**
-	 * @param list<mixed> $scoping_stubs Test fixtures intentionally exercise mixed types to verify filtering.
+	 * @param list<mixed>              $scoping_stubs Test fixtures intentionally exercise mixed types to verify filtering.
+	 * @param array<array-key, mixed>  $config         Composer config values to write.
 	 */
-	private function writeProjectComposer( array $scoping_stubs ): void {
+	private function writeProjectComposer( array $scoping_stubs, array $config = array() ): void {
+		$payload = array( 'extra' => array( 'scoping-stubs' => $scoping_stubs ) );
+		if ( array() !== $config ) {
+			$payload['config'] = $config;
+		}
+
 		\file_put_contents(
 			$this->project_dir . '/composer.json',
 			\json_encode(
-				array( 'extra' => array( 'scoping-stubs' => $scoping_stubs ) ),
+				$payload,
 				JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT
 			)
 		);

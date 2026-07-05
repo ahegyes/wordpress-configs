@@ -469,7 +469,7 @@ Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Pl
 | `reusable-php-lint.yml`               | Named composer scripts as parallel jobs          | `project-path`, `php-version`, `scripts[]`                   |
 | `reusable-scripts-styles-lint.yml`    | ESLint + Stylelint via npm scripts               | `project-path`, `node-version`                               |
 | `reusable-phpunit.yml`                | PHPUnit; wp-env startup gated by `needs-wp-env`  | `project-path`, `php-version`, `wp-version`, `needs-wp-env`  |
-| `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `project-path`, `plugin-slug`, `php-version`                 |
+| `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `project-path`, `artifact-slug`, `php-version`               |
 | `reusable-block-json-check.yml`       | Validates block.json against wp.org schema       | `project-path`, `node-version`                              |
 | `reusable-supply-chain-audit.yml`     | `composer audit` + `npm audit` (parallel jobs)   | `project-path`, `composer-audit`, `npm-audit`, plus `*-flags` |
 | `reusable-release.yml`                | Build zip/assets → verify/test zip → deploy verified artifacts to wp.org | `plugin-slug`, `project-path`, `scoped-dependencies-dir`, `php-version`, `requires-scoped-dependencies`, `plugin-check`, `generate-pot`, `pot-domain` (no secrets) |
@@ -519,7 +519,7 @@ jobs:
   e2e:
     uses: ahegyes/wordpress-configs/.github/workflows/reusable-playwright-e2e.yml@trunk
     with:
-      plugin-slug: your-plugin-slug
+      artifact-slug: your-artifact-slug
 ```
 
 **`.github/workflows/release.yml`** — runs on version tags:

@@ -9,15 +9,16 @@ use Symfony\Component\Finder\Finder;
  * Framework CI owns source-shape enforcement: WPCS `WordPress.WP.I18n` with `text_domain`
  * pinned to the real package domains accepts plain literal `wp-framework-*` text domains in
  * gettext calls. This partial owns scope-time consequences: every constant string whose raw
- * value starts with `wp-framework-` is rewritten to the consumer's domain, and any reserved
- * occurrence outside that lint guarantee trips the scope run.
+ * value exactly matches an installed framework domain is rewritten to the consumer's domain,
+ * and any reserved occurrence outside that lint guarantee trips the scope run.
  *
- * The rewrite is deliberately position-agnostic. Framework source reserves plain
- * `wp-framework-*` literals for text domains (hooks and options use the `dws_` prefix), so a
- * plain reserved literal is a domain wherever it appears in the token stream. Comments stay
- * inert; heredoc/nowdoc/interpolated fragments, mid-string occurrences, and escape-obfuscated
- * occurrences fail because they sit outside the plain-literal guarantee. A non-plugin consumer
- * opts out explicitly with `"text-domain": false`; missing or invalid metadata throws.
+ * The rewrite is deliberately position-agnostic. Framework source reserves exact installed
+ * `wp-framework-*` package domains for text domains (hooks and options use the `dws_` prefix),
+ * so an exact installed-domain literal is a domain wherever it appears in the token stream.
+ * Comments stay inert; package-name/path literals, heredoc/nowdoc/interpolated fragments,
+ * mid-string occurrences, and escape-obfuscated occurrences fail because they sit outside the
+ * plain-literal guarantee. A non-plugin consumer opts out explicitly with `"text-domain": false`;
+ * missing or invalid metadata throws.
  *
  * A second, always-on patcher guards the Action Scheduler surface: a scoped file that still
  * carries a `<prefix>\as_*` reference — as a name token, a constant-string reference, or inside
@@ -43,6 +44,8 @@ return static function ( string $vendor_dir, string $project_dir = '' ): array {
 			'patchers' => array(),
 		);
 	}
+
+	$domains = \array_map( 'basename', $packages );
 
 	$finder = Finder::create()
 		->files()
@@ -77,12 +80,13 @@ return static function ( string $vendor_dir, string $project_dir = '' ): array {
 		if ( ! \is_string( $target_text_domain ) || '' === $target_text_domain ) {
 			throw new \RuntimeException( \sprintf( 'Framework packages are installed but "extra.text-domain" is missing or empty in %s. Declare the consumer text domain, or set it to false to opt out of the framework-string rewrite (non-plugin consumers only).', $composer_path ) );
 		}
-		if ( 1 !== \preg_match( '/^[a-z0-9][a-z0-9-]*$/', $target_text_domain ) ) {
-			throw new \RuntimeException( \sprintf( 'Invalid "extra.text-domain" %s in %s — expected a lowercase slug (a-z, 0-9, hyphen).', \var_export( $target_text_domain, true ), $composer_path ) );
+		// WP text domains permit underscores though the wp.org handbook prefers hyphens.
+		if ( 1 !== \preg_match( '/^[a-z0-9][a-z0-9_-]*$/', $target_text_domain ) ) {
+			throw new \RuntimeException( \sprintf( 'Invalid "extra.text-domain" %s in %s — expected a lowercase slug (a-z, 0-9, hyphen, underscore).', \var_export( $target_text_domain, true ), $composer_path ) );
 		}
 
 		$framework_domain_prefix = 'wp-framework-';
-		$patchers[]              = static function ( string $file_path, string $prefix, string $content ) use ( $framework_domain_prefix, $target_text_domain ): string {
+		$patchers[]              = static function ( string $file_path, string $prefix, string $content ) use ( $domains, $framework_domain_prefix, $target_text_domain ): string {
 			$replacement = \var_export( $target_text_domain, true );
 
 			// The raw body of a constant-string token, after the b-prefix and quotes.
@@ -124,7 +128,7 @@ return static function ( string $vendor_dir, string $project_dir = '' ): array {
 
 				if ( T_CONSTANT_ENCAPSED_STRING === $token[0] ) {
 					$raw = $raw_value( $token[1] );
-					if ( \str_starts_with( $raw, $framework_domain_prefix ) ) {
+					if ( \in_array( $raw, $domains, true ) ) {
 						$out .= $replacement;
 						continue;
 					}

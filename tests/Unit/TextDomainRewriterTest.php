@@ -76,11 +76,11 @@ final class TextDomainRewriterTest extends TestCase {
 	}
 
 	#[Test]
-	public function rewrites_framework_literals_in_any_code_position(): void {
+	public function rewrites_exact_installed_framework_domains_in_any_code_position(): void {
 		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
 
-		$input    = "<?php \$domain = 'wp-framework-core'; register_thing( 'wp-framework-hook' ); \\__( 'wp-framework-message', 'third-party' );";
-		$expected = "<?php \$domain = 'my-plugin'; register_thing( 'my-plugin' ); \\__( 'my-plugin', 'third-party' );";
+		$input    = "<?php \$domain = 'wp-framework-core'; register_thing( 'wp-framework-bootstrap' );";
+		$expected = "<?php \$domain = 'my-plugin'; register_thing( 'my-plugin' );";
 
 		self::assertSame( $expected, $patcher( '/file.php', 'Prefix', $input ) );
 	}
@@ -103,6 +103,24 @@ final class TextDomainRewriterTest extends TestCase {
 		$input = "<?php \\__( 'Hello', 'some-other-domain' ); \\translate( 'Hello', 'third-party-domain' );";
 
 		self::assertSame( $input, $patcher( '/third-party.php', 'Prefix', $input ) );
+	}
+
+	#[Test]
+	public function trips_on_framework_prefixed_literal_that_is_not_an_installed_domain(): void {
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectFrameworkLintTripwire( '/not-installed.php' );
+
+		$patcher( '/not-installed.php', 'Prefix', "<?php \$domain = 'wp-framework-notinstalled';" );
+	}
+
+	#[Test]
+	public function trips_on_installed_framework_domain_with_extra_path_suffix(): void {
+		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
+
+		$this->expectFrameworkLintTripwire( '/path-suffix.php' );
+
+		$patcher( '/path-suffix.php', 'Prefix', "<?php \$asset = 'wp-framework-core/assets/x';" );
 	}
 
 	#[Test]
@@ -271,6 +289,15 @@ final class TextDomainRewriterTest extends TestCase {
 	}
 
 	#[Test]
+	public function accepts_text_domain_slug_with_underscores(): void {
+		$patcher = $this->getTextDomainPatcher( 'my_plugin_domain' );
+
+		$output = $patcher( '/file.php', 'Prefix', "<?php \\__( 'Hello', 'wp-framework-core' );" );
+
+		self::assertStringContainsString( "'my_plugin_domain'", $output );
+	}
+
+	#[Test]
 	public function throws_on_malformed_composer_json(): void {
 		$this->installFrameworkPackage();
 		\file_put_contents( $this->project_dir . '/composer.json', '{ "extra": { not valid json' );
@@ -282,6 +309,7 @@ final class TextDomainRewriterTest extends TestCase {
 
 	private function installFrameworkPackage(): void {
 		\mkdir( $this->vendor_dir . '/ahegyes/wp-framework-core', 0755, true );
+		\mkdir( $this->vendor_dir . '/ahegyes/wp-framework-bootstrap', 0755, true );
 	}
 
 	/**

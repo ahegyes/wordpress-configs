@@ -58,7 +58,6 @@ final class CollectScopingStubs {
 	public static function postAutoloadDump( \Composer\Script\Event $event ): void {
 		$composer    = $event->getComposer();
 		$console_io  = $event->getIO();
-		$vendor_dir  = $composer->getConfig()->get( 'vendor-dir' );
 		$project_dir = \dirname( \Composer\Factory::getComposerFile() );
 
 		if ( ! $event->isDevMode() ) {
@@ -121,7 +120,7 @@ final class CollectScopingStubs {
 		\sort( $functions );
 		\sort( $constants );
 
-		$output_dir  = self::resolve_output_dir( $project_dir, $vendor_dir );
+		$output_dir  = self::resolve_output_dir( $project_dir );
 		$output_file = self::resolve_output_file();
 
 		self::write_atomically(
@@ -356,16 +355,15 @@ final class CollectScopingStubs {
 	 * the write outside the project tree.
 	 *
 	 * @param   string $project_dir Absolute path to the project root.
-	 * @param   string $vendor_dir  Absolute path to the composer vendor directory.
 	 *
 	 * @throws  \RuntimeException If the env-var-supplied directory is missing or escapes the project root.
 	 *
 	 * @return  string Absolute path to the resolved output directory.
 	 */
-	private static function resolve_output_dir( string $project_dir, string $vendor_dir ): string {
+	private static function resolve_output_dir( string $project_dir ): string {
 		$override = \getenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR' );
 		if ( false === $override || '' === $override ) {
-			return \dirname( $vendor_dir );
+			return $project_dir;
 		}
 
 		$resolved_override = \realpath( $override );
