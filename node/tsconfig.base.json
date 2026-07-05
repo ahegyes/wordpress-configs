@@ -1,7 +1,6 @@
 {
 	"$schema": "https://json.schemastore.org/tsconfig",
-	// Assumes TypeScript 6+ defaults (strict, esnext/bundler, floating latest target); only deltas live here.
-	"compilerOptions": {
+	"compilerOptions": { // Assumes TypeScript 6+ defaults (strict, esnext/bundler, floating latest target); only deltas live here.
 		"jsx": "react-jsx",
 
 		"noImplicitReturns": true,
