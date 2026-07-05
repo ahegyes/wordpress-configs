@@ -54,7 +54,9 @@ final class ScopePhpDependencies {
 	 * @param   Event $event  Composer event object.
 	 *
 	 * @throws  \JsonException      If the composer.json file cannot be parsed.
-	 * @throws  \RuntimeException   If composer.json cannot be read, or a file or directory cannot be created.
+	 * @throws  \RuntimeException   If composer.json cannot be read; the scoped-dependencies-dir is empty, absolute, points
+	 *                              at the project root, or contains `..`; a scoped autoload path is absolute or contains
+	 *                              `..`; or a file or directory cannot be created.
 	 *
 	 * @return  void
 	 */

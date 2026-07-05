@@ -36,8 +36,6 @@ final class CollectScopingStubsTest extends TestCase {
 
 	protected function setUp(): void {
 		// Clear all env vars CollectScopingStubs reads, so each test starts from a known state.
-		// `CI` is set by GitHub Actions; without this, tests that need the script to run would
-		// hit the CI-skip branch.
 		foreach ( self::ENV_VARS as $var ) {
 			\putenv( $var );
 		}

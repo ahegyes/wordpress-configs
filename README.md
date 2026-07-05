@@ -223,12 +223,15 @@ The contract is: **whichever package introduces references to external (non-pref
 
 `php/composer/ScopePhpDependencies.php` — Composer hooks for scoping third-party PHP dependencies via [php-scoper](https://github.com/humbug/php-scoper).
 
-This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your project's dev dependencies and `extra.scoped-dependencies-dir` is declared. Intended for third-party libraries (PDF generators, HTTP clients, DI containers, etc.) that may conflict with other plugins on the same WordPress site.
+This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your project's dev dependencies and `extra.scoped-dependencies-dir` is declared. The `wordpress-configs` package has php-scoper in its own `require-dev`, but Composer does not install a dependency's dev dependencies into consumers; the pipeline only runs when `humbug/php-scoper` is installed in the consumer project, so add it to your own `require-dev`. Intended for third-party libraries (PDF generators, HTTP clients, DI containers, etc.) that may conflict with other plugins on the same WordPress site.
 
 **Wire it in your project's `composer.json`:**
 
 ```json
 {
+    "require-dev": {
+        "humbug/php-scoper": "^0.18"
+    },
     "scripts": {
         "pre-autoload-dump": [
             "DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::preAutoloadDump"
@@ -242,6 +245,7 @@ This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your
     "extra": {
         "scoped-dependencies-dir": "dependencies",
         "scoping-prefix": "DeepWebSolutions\\YourPlugin\\Scoped",
+        "text-domain": "your-text-domain",
         "scoping-flags": [
             "--ansi"
         ]
@@ -250,6 +254,8 @@ This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your
 ```
 
 `extra.scoping-flags` is optional; omit it when no extra php-scoper flags are needed. The pipeline owns `--output-dir`/`-o`, `--prefix`, and `--config`, so those flags are rejected if they appear in `extra.scoping-flags`.
+
+`extra.text-domain` is required when the consumer installs any `ahegyes/wp-framework-*` package; see the framework consumer contract below. Set it to your plugin's own text domain — the same value as your plugin header's `Text Domain` (conventionally the plugin slug) — so the rewritten framework strings resolve against the catalog your plugin actually loads; a value that disagrees with the header leaves those strings untranslatable. Use `"text-domain": false` only for non-plugin consumers with no translation catalog.
 
 The pipeline constructs this command itself:
 
@@ -315,17 +321,25 @@ The generator reads packages from both output layouts php-scoper produces: `depe
 ```php
 <?php declare( strict_types = 1 );
 
-use Isolated\Symfony\Component\Finder\Finder;
+$vendor_dir = __DIR__ . '/vendor';
 
-$build_config = require __DIR__ . '/vendor/ahegyes/wordpress-configs/php/php-scoper/scoper-base.inc.php';
+$build_config = require $vendor_dir . '/ahegyes/wordpress-configs/php/php-scoper/scoper-base.inc.php';
+$php_di = ( require $vendor_dir . '/ahegyes/wordpress-configs/php/php-scoper/contrib/php-di.inc.php' )( $vendor_dir );
+$wp_framework = ( require $vendor_dir . '/ahegyes/wordpress-configs/php/php-scoper/contrib/wp-framework.inc.php' )( $vendor_dir, __DIR__ );
 
-return $build_config( array(
-    'finders' => array(
-        Finder::create()->files()->in( 'vendor/php-di' )->name( '*.php' ),
-        // Add per-library finders for whatever you want to scope...
-    ),
-) );
+return $build_config(
+    array(
+        'finders'       => array_merge(
+            $php_di['finders'],
+            $wp_framework['finders'],
+        ),
+        'exclude_files' => $php_di['exclude_files'],
+        'patchers'      => $wp_framework['patchers'],
+    )
+);
 ```
+
+The framework partial returns both `finders` and `patchers`; forward both into `scoper-base.inc.php`. The patchers rewrite reserved framework text domains to the consumer's `extra.text-domain` and guard against prefixed Action Scheduler references.
 
 **Available overrides** (all optional, all merged with the defaults):
 
@@ -359,7 +373,7 @@ return $build_config( array(
 
 ### Node Baselines
 
-Shared baseline configurations for Node-ecosystem tooling — one central config per tool, extended and tweaked per project (the same central-defaults-plus-overrides pattern `@wordpress/scripts` itself uses). Live in `node/` (parallel to `php/`). Plugins extend each via `extends`-style composition.
+Shared baseline configurations for Node-ecosystem tooling — one central config per tool, extended and tweaked per project (the same central-defaults-plus-overrides pattern `@wordpress/scripts` itself uses). Live in `node/` (parallel to `php/`). Plugins compose each baseline using the tool-specific pattern shown below.
 
 The baselines assume the consuming plugin has installed `@wordpress/scripts` — the standard modern WP plugin stack. It brings `@wordpress/eslint-plugin` and `@wordpress/stylelint-config` transitively and declares `@playwright/test` as a peer dependency (npm installs peers automatically; stricter package managers may need it declared explicitly).
 

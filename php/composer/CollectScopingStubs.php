@@ -16,7 +16,8 @@ use DeepWebSolutions\Config\Composer\Internal\StubSymbolCollector;
  * Each `extra.scoping-stubs` entry takes one of two forms:
  *
  *  - `vendor/package` — resolves the package's `autoload.files` plus the conventional
- *    `vendor/<vendor>/<package>/<package>.php` path whenever it exists.
+ *    `<install-path>/<package-name>.php` path via
+ *    `InstallationManager::getInstallPath()` whenever it exists.
  *  - `vendor/package:relative/path/to/file.php` — resolves exactly that one file inside
  *    the package dir, for a secondary stubs file the package ships but does not list in its
  *    `autoload.files` (e.g. `php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php`).
@@ -52,7 +53,7 @@ final class CollectScopingStubs {
 	 * @param \Composer\Script\Event $event Composer event object.
 	 *
 	 * @throws \JsonException    If encoding the output JSON fails.
-	 * @throws \PhpParser\Error  If the PHP parser fails to initialise.
+	 * @throws \PhpParser\Error  If a declared stubs file cannot be parsed.
 	 * @throws \RuntimeException If the root `extra.scoping-stubs` is malformed, a declared stubs file cannot be read, or the output file cannot be written.
 	 */
 	public static function postAutoloadDump( \Composer\Script\Event $event ): void {
@@ -435,8 +436,9 @@ final class CollectScopingStubs {
 	 *
 	 * A bare `vendor/package` reads the package's `autoload.files` (multi-file stubs
 	 * packages like `php-stubs/woocommerce-stubs`) from its in-memory metadata plus the conventional
-	 * `<name>/<name>.php` path whenever it exists (minimal hand-rolled stubs packages ship only
-	 * that). The explicit-file form `vendor/package:relative/file.php` resolves that one named
+	 * `<install-path>/<package-name>.php` path via `InstallationManager::getInstallPath()` whenever
+	 * it exists (minimal hand-rolled stubs packages ship only that). The explicit-file form
+	 * `vendor/package:relative/file.php` resolves that one named
 	 * file inside the package dir — for a secondary stubs file the package ships but does not list
 	 * in its `autoload.files` (e.g. woocommerce-stubs' `woocommerce-packages-stubs.php`).
 	 *
@@ -446,7 +448,8 @@ final class CollectScopingStubs {
 	 * (so realpath confinement resolves through the symlink to the real source). A declared
 	 * package absent from the local repository (declared but not installed), or one with no
 	 * install path (a metapackage), yields nothing. Every candidate — each `autoload.files`
-	 * entry, the conventional `<name>.php` path, and the explicit-file form — is realpath-confined
+	 * entry, the conventional `<package-name>.php` path under that install path, and the
+	 * explicit-file form — is realpath-confined
 	 * to that directory via `confine_to_package`, so a compromised package declaring a traversal
 	 * `autoload.files` entry or shipping a symlink that escapes its own dir cannot have an outside
 	 * file's symbols harvested.
