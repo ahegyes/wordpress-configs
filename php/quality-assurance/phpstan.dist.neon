@@ -1,3 +1,4 @@
+# Shared PHPStan baseline: every consumer repo's phpstan.neon extends this, so edits here reach all DWS repos.
 includes:
     - phpstan.dist.neon.php
 

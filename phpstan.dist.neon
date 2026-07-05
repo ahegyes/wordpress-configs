@@ -1,3 +1,4 @@
+# Repo self-lint: lints this repo only, extending the shared php/quality-assurance/phpstan.dist.neon baseline.
 includes:
     - php/quality-assurance/phpstan.dist.neon
 
