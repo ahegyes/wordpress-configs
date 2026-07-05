@@ -499,6 +499,35 @@ final class ScopePhpDependenciesTest extends TestCase {
 	}
 
 	#[Test]
+	#[DataProvider( 'reservedScopedDirs' )]
+	public function post_autoload_dump_rejects_scoped_dependencies_dir_naming_a_reserved_directory( string $scoped_dir ): void {
+		$this->installFakePhpScoper();
+		$this->writeScoperConfig();
+		$this->writeComposerJson( $this->scopingComposerJson( scopedDir: $scoped_dir ) );
+
+		try {
+			ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+			self::fail( 'Expected scoped-dependencies-dir validation to throw.' );
+		} catch ( \RuntimeException $exception ) {
+			self::assertStringContainsString( 'reserved directory', $exception->getMessage() );
+			self::assertFileDoesNotExist( $this->project_dir . '/recorded-command.json' );
+		}
+	}
+
+	/**
+	 * @return array<string, array{string}>
+	 */
+	public static function reservedScopedDirs(): array {
+		return array(
+			'vendor'       => array( 'vendor' ),
+			'src'          => array( 'src' ),
+			'tests'        => array( 'tests' ),
+			'node_modules' => array( 'node_modules' ),
+			'git'          => array( '.git' ),
+		);
+	}
+
+	#[Test]
 	public function post_autoload_dump_rejects_scoped_dependencies_dir_under_symlinked_outside_parent(): void {
 		$this->installFakePhpScoper();
 		$this->writeScoperConfig();

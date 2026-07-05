@@ -412,7 +412,7 @@ final class ScopePhpDependencies {
 	 *
 	 * @param string $scoped_dir Raw `extra.scoped-dependencies-dir` value.
 	 *
-	 * @throws \RuntimeException If the declared path is empty, absolute, points at the project root, or contains a `..` segment.
+	 * @throws \RuntimeException If the declared path is empty, absolute, points at the project root, contains a `..` segment, or names a reserved directory a forced scope run would delete.
 	 *
 	 * @return string Normalised project-relative directory path with forward slashes.
 	 */
@@ -422,6 +422,14 @@ final class ScopePhpDependencies {
 		$normalised = \rtrim( self::normalise_for_match( $scoped_dir ), '/\\' );
 		if ( '' === $normalised || '.' === $normalised ) {
 			throw new \RuntimeException( \sprintf( 'Refusing scoped-dependencies-dir "%s" - must be a project-relative subdirectory, not the project root.', $scoped_dir ) );
+		}
+
+		// A scope run always passes --force, which makes php-scoper delete the whole output
+		// directory before regenerating it. Refuse a directory that normally holds real source or
+		// dependencies, so a typo like "vendor" or "src" cannot wipe the working tree; a dedicated
+		// subdirectory (e.g. "dependencies") is the intended target.
+		if ( \in_array( $normalised, array( 'vendor', 'src', 'tests', 'node_modules', '.git' ), true ) ) {
+			throw new \RuntimeException( \sprintf( 'Refusing scoped-dependencies-dir "%s" - "%s" is a reserved directory a forced scope run would delete; use a dedicated subdirectory such as "dependencies".', $scoped_dir, $normalised ) );
 		}
 
 		return $normalised;
