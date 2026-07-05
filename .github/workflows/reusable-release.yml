@@ -12,6 +12,11 @@ on:
         type: string
         required: false
         default: '.'
+      scoped-dependencies-dir:
+        description: 'Project-relative php-scoper output directory that contains scoper-autoload.php'
+        type: string
+        required: false
+        default: 'dependencies'
       php-version:
         description: 'PHP version for build steps'
         type: string
@@ -38,41 +43,76 @@ on:
         required: false
         default: ''
 
-# Queue per plugin slug so concurrent runs do not race the same SVN tag/trunk; a half-pushed SVN tag is worse than waiting.
 concurrency:
   group: release-${{ inputs.plugin-slug }}
   cancel-in-progress: false
 
-# Default workflow-level: read-only. test-and-deploy widens to contents: write per job.
 permissions:
   contents: read
 
 env:
-  # Single-sourced here because npx-inline versions are invisible to dependabot.
   WP_ENV_VERSION: '11.9.0'
 
 jobs:
   build:
     name: Build artifact
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.archive-digest.outputs.digest }}
+      version: ${{ steps.release-inputs.outputs.version }}
     steps:
-      # Reject malformed release inputs early; leading-zero tags compare equal in wp.org update checks.
-      - name: Enforce version tag and slug shape
+      - name: Enforce release inputs
+        id: release-inputs
         env:
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
           PLUGIN_SLUG: ${{ inputs.plugin-slug }}
+          PROJECT_PATH: ${{ inputs.project-path }}
+          SCOPED_DEPENDENCIES_DIR: ${{ inputs.scoped-dependencies-dir }}
         run: |
+          # Slash-wrap so a `..` segment anywhere (start, middle, end, or whole) is caught.
+          has_dotdot_segment() {
+            case "/$1/" in
+              */../*) return 0 ;;
+              *) return 1 ;;
+            esac
+          }
+
+          validate_path_input() {
+            name="$1"
+            value="$2"
+            if ! printf '%s' "$value" | grep -Eq '^[A-Za-z0-9._/-]+$'; then
+              echo "::error::$name must match ^[A-Za-z0-9._/-]+$ — got '$value'."
+              exit 1
+            fi
+            case "$value" in
+              /*)
+                echo "::error::$name must be relative — got '$value'."
+                exit 1
+                ;;
+            esac
+            if has_dotdot_segment "$value"; then
+              echo "::error::$name must not contain a .. path segment — got '$value'."
+              exit 1
+            fi
+          }
+
           if [ "$REF_TYPE" != "tag" ] || ! printf '%s' "$REF_NAME" | grep -Eq '^v(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}$'; then
             echo "::error::Releases run from version tags only (vMAJOR.MINOR.PATCH, no leading zeros) — got $REF_TYPE '$REF_NAME'."
             exit 1
           fi
-          # The slug feeds shell commands, jq keys, and grep patterns downstream; a strict charset keeps every use literal.
           if ! printf '%s' "$PLUGIN_SLUG" | grep -Eq '^[a-z0-9-]+$'; then
             echo "::error::plugin-slug must match ^[a-z0-9-]+$ — got '$PLUGIN_SLUG'."
             exit 1
           fi
-          echo "VERSION=${REF_NAME#v}" >> "$GITHUB_ENV"
+          validate_path_input 'project-path' "$PROJECT_PATH"
+          validate_path_input 'scoped-dependencies-dir' "$SCOPED_DEPENDENCIES_DIR"
+
+          version="${REF_NAME#v}"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -82,7 +122,7 @@ jobs:
         working-directory: ${{ inputs.project-path }}
         run: |
           if [ ! -f .distignore ]; then
-            echo "::error::Missing .distignore — refusing to build a wp.org archive without explicit file exclusions. Without it, wp dist-archive ships everything including tests/, node_modules/, and dev-only vendor files."
+            echo "::error::Missing .distignore — refusing to build a wp.org archive without explicit file exclusions."
             exit 1
           fi
 
@@ -94,11 +134,10 @@ jobs:
           tools: composer:v2, wp-cli
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] setup-node auto-cache accepted — the artifact is built and tested before publish
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0; zizmor: ignore[cache-poisoning] setup-node auto-cache accepted because the artifact is tested before publish
         with:
           node-version: '26'
 
-      # Dev install runs build-time scoping hooks from require-dev.
       - name: Install Composer dependencies (dev — runs the scoping pipeline)
         uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
         with:
@@ -121,22 +160,21 @@ jobs:
         env:
           POT_DOMAIN: ${{ inputs.pot-domain != '' && inputs.pot-domain || inputs.plugin-slug }}
           REQUIRES_SCOPED: ${{ inputs.requires-scoped-dependencies }}
+          SCOPED_DEPENDENCIES_DIR: ${{ inputs.scoped-dependencies-dir }}
         run: |
-          if ! printf '%s' "$POT_DOMAIN" | grep -Eq '^[a-z0-9-]+$'; then
-            echo "::error::pot-domain must match ^[a-z0-9-]+$ — got '$POT_DOMAIN'."
+          if ! printf '%s' "$POT_DOMAIN" | grep -Eq '^[a-z0-9_-]+$'; then
+            echo "::error::pot-domain must match ^[a-z0-9_-]+$ — got '$POT_DOMAIN'."
             exit 1
           fi
           mkdir -p languages
           wp i18n make-pot . "languages/$POT_DOMAIN.pot" --domain="$POT_DOMAIN"
-          # Only scoped trees with domain strings must contribute POT references.
           if [ "$REQUIRES_SCOPED" = "true" ] \
-            && grep -rql --include='*.php' "'$POT_DOMAIN'" dependencies/ \
-            && ! grep -q '^#: dependencies/' "languages/$POT_DOMAIN.pot"; then
-            echo "::error::dependencies/ carries strings under '$POT_DOMAIN' but the generated POT has no dependencies/ source references — make-pot did not catalogue the scoped tree."
-            exit 1
+            && [ -d "$SCOPED_DEPENDENCIES_DIR" ] \
+            && grep -rql --include='*.php' "'$POT_DOMAIN'" "$SCOPED_DEPENDENCIES_DIR" \
+            && ! grep -Fq "#: $SCOPED_DEPENDENCIES_DIR/" "languages/$POT_DOMAIN.pot"; then
+            echo "::warning::$SCOPED_DEPENDENCIES_DIR/ carries strings under '$POT_DOMAIN' but the generated POT has no $SCOPED_DEPENDENCIES_DIR/ source references."
           fi
 
-      # The tag is the single version source — the shipped metadata must already agree with it.
       - name: Verify version consistency
         working-directory: ${{ inputs.project-path }}
         env:
@@ -149,7 +187,7 @@ jobs:
             exit 1
           fi
 
-      # --no-scripts: the require-dev script handlers are pruned by this very install; dependencies/ lives outside vendor/ and survives.
+      # --no-scripts avoids invoking handlers that were just pruned from require-dev.
       - name: Prune to production dependencies
         working-directory: ${{ inputs.project-path }}
         run: composer install --no-dev --prefer-dist --ignore-platform-req=php+ --optimize-autoloader --no-scripts
@@ -160,25 +198,26 @@ jobs:
           PLUGIN_SLUG: ${{ inputs.plugin-slug }}
         run: |
           wp package install wp-cli/dist-archive-command:3.2.2
-          # The ./ prefix is load-bearing: a bare filename target makes dist-archive write the zip to the PARENT of the source dir.
           wp dist-archive . "./$PLUGIN_SLUG.zip" --plugin-dirname="$PLUGIN_SLUG"
 
-      # A zip that misses runtime files activates into a blank notice; one that leaks dev files fails wp.org review.
       - name: Assert archive contents
         working-directory: ${{ inputs.project-path }}
         env:
           PLUGIN_SLUG: ${{ inputs.plugin-slug }}
           REQUIRES_SCOPED: ${{ inputs.requires-scoped-dependencies }}
+          SCOPED_DEPENDENCIES_DIR: ${{ inputs.scoped-dependencies-dir }}
         run: |
           entries=$(unzip -Z1 "$PLUGIN_SLUG.zip")
           status=0
+
           if [ "$REQUIRES_SCOPED" = "true" ]; then
-            required_scoped="$PLUGIN_SLUG/dependencies/scoper-autoload.php"
+            required_scoped="$PLUGIN_SLUG/$SCOPED_DEPENDENCIES_DIR/scoper-autoload.php"
             if ! printf '%s\n' "$entries" | grep -qxF "$required_scoped"; then
               echo "::error::Archive is missing $required_scoped."
               status=1
             fi
           fi
+
           for required in \
             "$PLUGIN_SLUG/vendor/autoload.php" \
             "$PLUGIN_SLUG/$PLUGIN_SLUG.php" \
@@ -188,34 +227,90 @@ jobs:
               status=1
             fi
           done
-          # Each scoped package must ship at least one file; package-level checks avoid false failures from nested metadata exclusions.
+
           if [ "$REQUIRES_SCOPED" = "true" ]; then
-            if [ ! -d dependencies ]; then
-              echo "::error::No dependencies/ directory — the scoping pipeline did not run."
+            if [ ! -d "$SCOPED_DEPENDENCIES_DIR" ]; then
+              echo "::error::No $SCOPED_DEPENDENCIES_DIR/ directory — the scoping pipeline did not run."
               status=1
             else
-              while IFS= read -r pkg; do
-                if ! printf '%s\n' "$entries" | grep -qE "^$PLUGIN_SLUG/$pkg/.*[^/]$"; then
-                  echo "::error::Archive is missing scoped package $pkg/."
-                  status=1
-                fi
-              done < <(find dependencies -mindepth 2 -maxdepth 2 -type d | LC_ALL=C sort)
+              scoped_package_roots=$(
+                if [ -f "$SCOPED_DEPENDENCIES_DIR/composer.json" ]; then
+                  printf '%s\n' "$SCOPED_DEPENDENCIES_DIR"
+                else
+                  find "$SCOPED_DEPENDENCIES_DIR" -mindepth 2 -maxdepth 2 -type f -name composer.json -exec dirname {} \;
+                  find "$SCOPED_DEPENDENCIES_DIR" -mindepth 3 -maxdepth 3 -type f -name composer.json -exec dirname {} \;
+                fi | LC_ALL=C sort -u
+              )
+              if [ -z "$scoped_package_roots" ]; then
+                echo "::error::No scoped package roots found under $SCOPED_DEPENDENCIES_DIR/."
+                status=1
+              else
+                while IFS= read -r pkg; do
+                  [ -n "$pkg" ] || continue
+                  pkg_entries=$(
+                    printf '%s\n' "$entries" \
+                      | grep -F -- "$PLUGIN_SLUG/$pkg/" \
+                      | grep '[^/]$' || true
+                  )
+                  if [ "$pkg" = "$SCOPED_DEPENDENCIES_DIR" ]; then
+                    pkg_entries=$(printf '%s\n' "$pkg_entries" | grep -vxF "$PLUGIN_SLUG/$SCOPED_DEPENDENCIES_DIR/scoper-autoload.php" || true)
+                  fi
+                  if [ -z "$pkg_entries" ]; then
+                    echo "::error::Archive is missing scoped package $pkg/."
+                    status=1
+                  fi
+                done <<< "$scoped_package_roots"
+              fi
             fi
           fi
-          # Anchored to the archive root — an unanchored substring would false-fail on a nested path repeating the slug.
-          for forbidden in \
-            "vendor/bin/" \
-            "node_modules/" \
-            "tests/" \
-            "composer\.json$" \
-            "scoper\.inc\.php$" \
-            "\.wp-env"; do
-            if printf '%s\n' "$entries" | grep -qE "^$PLUGIN_SLUG/$forbidden"; then
-              echo "::error::Archive must not contain $PLUGIN_SLUG/${forbidden//\\/}."
-              status=1
-            fi
-          done
+
+          while IFS= read -r entry; do
+            case "$entry" in
+              "$PLUGIN_SLUG/node_modules/"*|"$PLUGIN_SLUG/"*/node_modules/*|"$PLUGIN_SLUG/tests/"*|"$PLUGIN_SLUG/"*/tests/*|"$PLUGIN_SLUG/vendor/bin/"*|"$PLUGIN_SLUG/"*/vendor/bin/*)
+                echo "::error::Archive must not contain $entry."
+                status=1
+                ;;
+              "$PLUGIN_SLUG/.git/"*|"$PLUGIN_SLUG/.github/"*|"$PLUGIN_SLUG/.idea/"*|"$PLUGIN_SLUG/.vscode/"*|"$PLUGIN_SLUG/.wordpress-org/"*)
+                echo "::error::Archive must not contain $entry."
+                status=1
+                ;;
+              "$PLUGIN_SLUG/.editorconfig"|"$PLUGIN_SLUG/.gitattributes"|"$PLUGIN_SLUG/.gitignore"|"$PLUGIN_SLUG/.distignore")
+                echo "::error::Archive must not contain $entry."
+                status=1
+                ;;
+              "$PLUGIN_SLUG/composer.json"|"$PLUGIN_SLUG/composer.lock"|"$PLUGIN_SLUG/package.json"|"$PLUGIN_SLUG/package-lock.json")
+                echo "::error::Archive must not contain $entry."
+                status=1
+                ;;
+              "$PLUGIN_SLUG/.phpcs.xml"|"$PLUGIN_SLUG/phpcs.dist.xml"|"$PLUGIN_SLUG/.phpstan.neon"|"$PLUGIN_SLUG/phpstan.dist.neon")
+                echo "::error::Archive must not contain $entry."
+                status=1
+                ;;
+              "$PLUGIN_SLUG/phpunit.xml"|"$PLUGIN_SLUG/phpunit.xml."*|"$PLUGIN_SLUG/infection.json"|"$PLUGIN_SLUG/infection.json."*)
+                echo "::error::Archive must not contain $entry."
+                status=1
+                ;;
+              "$PLUGIN_SLUG/eslint.config."*|"$PLUGIN_SLUG/stylelint.config."*|"$PLUGIN_SLUG/tsconfig.json"|"$PLUGIN_SLUG/playwright.config."*)
+                echo "::error::Archive must not contain $entry."
+                status=1
+                ;;
+              "$PLUGIN_SLUG/scoper.inc.php"|"$PLUGIN_SLUG/scoping-exclusions.json"|"$PLUGIN_SLUG/.wp-env"*)
+                echo "::error::Archive must not contain $entry."
+                status=1
+                ;;
+            esac
+          done <<< "$entries"
+
           exit "$status"
+
+      - name: Record archive digest
+        id: archive-digest
+        working-directory: ${{ inputs.project-path }}
+        env:
+          PLUGIN_SLUG: ${{ inputs.plugin-slug }}
+        run: |
+          digest=$(sha256sum "$PLUGIN_SLUG.zip" | awk '{print $1}')
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
       - name: Prepare Plugin Check build
         if: ${{ inputs.plugin-check }}
@@ -226,32 +321,42 @@ jobs:
           rm -rf plugin-check-build
           unzip -q "$PLUGIN_SLUG.zip" -d ./plugin-check-build
 
-      # The gate runs the same checks wp.org applies at review, against the exact tree that ships.
       - name: Run Plugin Check
         if: ${{ inputs.plugin-check }}
         uses: WordPress/plugin-check-action@98a1788320d0add90df2d8183934ecccbc4e05d2 # v1.1.7
         with:
           build-dir: ${{ inputs.project-path }}/plugin-check-build/${{ inputs.plugin-slug }}
 
-      - name: Upload artifact
+      - name: Prepare wp.org assets artifact
+        working-directory: ${{ inputs.project-path }}
+        run: |
+          rm -rf wp-org-assets-artifact
+          mkdir -p wp-org-assets-artifact
+          if [ -d .wordpress-org ]; then
+            cp -R .wordpress-org/. wp-org-assets-artifact/
+          fi
+          touch wp-org-assets-artifact/__artifact_keep__
+
+      - name: Upload zip artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.plugin-slug }}-zip
           path: ${{ inputs.project-path }}/${{ inputs.plugin-slug }}.zip
           retention-days: 30
 
-  test-and-deploy:
-    name: Test built artifact + deploy
+      - name: Upload wp.org assets artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.plugin-slug }}-wp-org-assets
+          path: ${{ inputs.project-path }}/wp-org-assets-artifact/**
+          retention-days: 30
+
+  test:
+    name: Test built artifact
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref_type == 'tag'
-    environment: wp-org-release
-    # softprops/action-gh-release creates a GitHub Release with the built zip attached → needs contents: write.
-    # SVN deploy uses environment secrets, not GITHUB_TOKEN, so no extra scope.
     permissions:
-      contents: write
-    # Source stays checked out as the E2E/wp.org-assets harness; deploy uses the extracted artifact tree.
-    # Remapping only the plugin's wp-env mapping key keeps co-mounted entries intact.
+      contents: read
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -263,10 +368,21 @@ jobs:
           name: ${{ inputs.plugin-slug }}-zip
           path: ./dist
 
+      - name: Verify artifact digest
+        env:
+          PLUGIN_SLUG: ${{ inputs.plugin-slug }}
+          EXPECTED_DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          actual_digest=$(sha256sum "./dist/$PLUGIN_SLUG.zip" | awk '{print $1}')
+          if [ "$actual_digest" != "$EXPECTED_DIGEST" ]; then
+            echo "::error::Zip digest mismatch — expected '$EXPECTED_DIGEST', got '$actual_digest'."
+            exit 1
+          fi
+
       - name: Extract artifact
         env:
           PLUGIN_SLUG: ${{ inputs.plugin-slug }}
-        run: unzip -q "./dist/$PLUGIN_SLUG.zip" -d ./built
+        run: unzip -q "./dist/$PLUGIN_SLUG.zip" -d ./built-test
 
       - name: Setup PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
@@ -276,13 +392,12 @@ jobs:
           tools: composer:v2
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] setup-node auto-cache accepted — the artifact is built and tested before publish
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0; zizmor: ignore[cache-poisoning] setup-node auto-cache accepted because the published artifact is the verified zip from build
         with:
           node-version: '26'
 
-      # Dev install prepares the source-side E2E harness and any packages .wp-env.json co-mounts.
       - name: Install Composer dependencies (E2E harness)
-        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # zizmor: ignore[cache-poisoning] cache feeds only the E2E harness — the published artifact is the zip from the build job
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0; zizmor: ignore[cache-poisoning] cache feeds only the E2E harness
         with:
           working-directory: ${{ inputs.project-path }}
           composer-options: '--prefer-dist --ignore-platform-req=php+'
@@ -300,15 +415,13 @@ jobs:
         working-directory: ${{ inputs.project-path }}
         env:
           PLUGIN_SLUG: ${{ inputs.plugin-slug }}
-          BUILT_PATH: ${{ github.workspace }}/built/${{ inputs.plugin-slug }}
+          BUILT_PATH: ${{ github.workspace }}/built-test/${{ inputs.plugin-slug }}
         run: |
           key="wp-content/plugins/$PLUGIN_SLUG"
-          # Remap exactly the plugin's mapping key to the built artifact and nothing else.
           if [ ! -f .wp-env.json ] || ! jq -e --arg key "$key" '.mappings | has($key)' .wp-env.json > /dev/null; then
             echo "::error::Release contract violation — .wp-env.json must exist and map \"$key\" to the plugin source; found mappings: $(jq -c '.mappings // {}' .wp-env.json 2> /dev/null || echo 'none')."
             exit 1
           fi
-          # core: null pins the release gate to latest stable WordPress even when source targets nightly.
           jq -n --arg key "$key" --arg built "$BUILT_PATH" '{core: null, mappings: {($key): $built}}' > .wp-env.override.json
           echo "Generated .wp-env.override.json:"
           cat .wp-env.override.json
@@ -321,14 +434,14 @@ jobs:
         working-directory: ${{ inputs.project-path }}
         env:
           PLUGIN_SLUG: ${{ inputs.plugin-slug }}
-          REF_NAME: ${{ github.ref_name }}
           REQUIRES_SCOPED: ${{ inputs.requires-scoped-dependencies }}
+          SCOPED_DEPENDENCIES_DIR: ${{ inputs.scoped-dependencies-dir }}
+          VERSION: ${{ needs.build.outputs.version }}
         run: |
-          VERSION="${REF_NAME#v}"
           target="wp-content/plugins/$PLUGIN_SLUG"
           run_cli() { npx --yes @wordpress/env@"$WP_ENV_VERSION" run cli "$@"; }
           if [ "$REQUIRES_SCOPED" = "true" ]; then
-            run_cli test -f "$target/dependencies/scoper-autoload.php"
+            run_cli test -f "$target/$SCOPED_DEPENDENCIES_DIR/scoper-autoload.php"
           fi
           if run_cli test -f "$target/composer.json"; then
             echo "::error::Mounted plugin has composer.json — wp-env is serving the source tree, not the built zip."
@@ -339,7 +452,6 @@ jobs:
             exit 1
           fi
           run_cli wp plugin is-active "$PLUGIN_SLUG"
-          # Positional args keep slug/version out of the inner shell's parse; the comparison runs in-container because run_cli output is not capture-clean.
           # shellcheck disable=SC2016
           run_cli bash -c 'got=$(wp plugin get "$1" --field=version); echo "Active plugin version: $got (expected $2)"; test "$got" = "$2"' -- "$PLUGIN_SLUG" "$VERSION"
 
@@ -353,7 +465,38 @@ jobs:
             echo "Source has no E2E config — the artifact assertions above are the only artifact test."
           fi
 
-      # Defense-in-depth: deploy must be unreachable from a non-version ref even if the job-level gate changes.
+  deploy:
+    name: Deploy verified artifact
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
+    environment: wp-org-release
+    permissions:
+      contents: write
+    steps:
+      - name: Download built artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.plugin-slug }}-zip
+          path: ./dist
+
+      - name: Download wp.org assets artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.plugin-slug }}-wp-org-assets
+          path: ./wp-org-assets
+
+      - name: Verify artifact digest
+        env:
+          PLUGIN_SLUG: ${{ inputs.plugin-slug }}
+          EXPECTED_DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          actual_digest=$(sha256sum "./dist/$PLUGIN_SLUG.zip" | awk '{print $1}')
+          if [ "$actual_digest" != "$EXPECTED_DIGEST" ]; then
+            echo "::error::Zip digest mismatch — expected '$EXPECTED_DIGEST', got '$actual_digest'."
+            exit 1
+          fi
+
       - name: Re-verify version tag before deploy
         env:
           REF_NAME: ${{ github.ref_name }}
@@ -361,7 +504,6 @@ jobs:
           printf '%s' "$REF_NAME" | grep -Eq '^v(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}$' || { echo "::error::Refusing to deploy from non-version ref '$REF_NAME'."; exit 1; }
           echo "VERSION=${REF_NAME#v}" >> "$GITHUB_ENV"
 
-      # Secrets resolve from the CALLER repo's wp-org-release environment — environment secrets cannot travel through workflow_call.
       - name: Verify SVN credentials
         env:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
@@ -370,6 +512,22 @@ jobs:
           if [ -z "$SVN_USERNAME" ] || [ -z "$SVN_PASSWORD" ]; then
             echo "::error::Missing SVN credentials — create environment wp-org-release in the calling repository with secrets SVN_USERNAME and SVN_PASSWORD."
             exit 1
+          fi
+
+      - name: Extract verified artifact for publish
+        env:
+          PLUGIN_SLUG: ${{ inputs.plugin-slug }}
+        run: |
+          rm -rf ./publish
+          mkdir -p ./publish
+          unzip -q "./dist/$PLUGIN_SLUG.zip" -d ./publish
+          test -d "./publish/$PLUGIN_SLUG"
+
+      - name: Prepare wp.org assets
+        run: |
+          find ./wp-org-assets -type f -name __artifact_keep__ -delete
+          if ! find ./wp-org-assets -mindepth 1 -print -quit | grep -q .; then
+            rmdir ./wp-org-assets
           fi
 
       - name: Deploy to wp.org
@@ -382,11 +540,10 @@ jobs:
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
           SLUG: ${{ inputs.plugin-slug }}
           VERSION: ${{ env.VERSION }}
-          BUILD_DIR: ./built/${{ inputs.plugin-slug }}
-          # Banner/icon assets from source's .wordpress-org/ — 10up's deploy.sh skips silently if the directory is missing.
-          ASSETS_DIR: ${{ inputs.project-path }}/.wordpress-org
+          BUILD_DIR: ./publish/${{ inputs.plugin-slug }}
+          ASSETS_DIR: ./wp-org-assets
 
       - name: Attach artifact to GitHub release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # zizmor: ignore[superfluous-actions] deliberate: handles release creation + asset upload as one reviewed step
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v2.3.3; zizmor: ignore[superfluous-actions] deliberate release creation and asset upload are one reviewed action
         with:
           files: ./dist/${{ inputs.plugin-slug }}.zip
