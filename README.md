@@ -119,7 +119,7 @@ parameters:
         - vendor/wp-plugin/woocommerce  # If using WooCommerce
 ```
 
-For WordPress 7.0 stubs, add the `php-stubs/wordpress-stubs` inline alias to each consumer's root `require-dev`: the released `szepeviktor/phpstan-wordpress` (v2.0.3) caps `php-stubs/wordpress-stubs` below 7.0, and Composer inline aliases are root-only, so a dependency-declared alias is ignored by the solver. Bump the exact 7.x stubs version as new WordPress 7.x catalogs ship. Drop the alias once a `szepeviktor/phpstan-wordpress` release ships the widened `>=6.6.2` constraint (on `master` since commit `84577e2e`) — unless another dependency still caps the stubs (`php-stubs/woocommerce-stubs` does).
+WordPress 7.0 stubs resolve out of the box: this package rides `szepeviktor/phpstan-wordpress` at `2.x-dev`, whose `php-stubs/wordpress-stubs: >=6.6.2` constraint admits the 7.x catalogs (the tagged v2.0.3 still caps below 7.0 — revert to `^2` at the next release). A consumer whose own dependencies cap the stubs (`php-stubs/woocommerce-stubs` does) restores 7.0 analysis with a root-`require-dev` inline alias — root-only, a dependency-declared alias is ignored by the solver — bumping the exact 7.x version as new catalogs ship:
 
 ```json
 {

@@ -25,7 +25,7 @@
     "phpstan/phpstan-deprecation-rules": "^2",
     "phpstan/phpstan-strict-rules": "^2",
     "johnbillion/wp-compat": "^1",
-    "szepeviktor/phpstan-wordpress": "^2",
+    "szepeviktor/phpstan-wordpress": "2.x-dev",
     "swissspidy/phpstan-no-private": "^1",
 
     "roave/security-advisories": "dev-latest"

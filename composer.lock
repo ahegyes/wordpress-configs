@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "52dccf5799d66eb392ec5461a27522db",
+    "content-hash": "531221d2ea21a605bc871d98ed51b878",
     "packages": [
         {
             "name": "dealerdirect/phpcodesniffer-composer-installer",
@@ -239,16 +239,16 @@
         },
         {
             "name": "php-stubs/wordpress-stubs",
-            "version": "v6.9.4",
+            "version": "v7.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/php-stubs/wordpress-stubs.git",
-                "reference": "90a9412826b9944f93b10bf41d795b5fe68abcd5"
+                "reference": "d74b963ed4f47303859bf73c741c80f554c83dc6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/php-stubs/wordpress-stubs/zipball/90a9412826b9944f93b10bf41d795b5fe68abcd5",
-                "reference": "90a9412826b9944f93b10bf41d795b5fe68abcd5",
+                "url": "https://api.github.com/repos/php-stubs/wordpress-stubs/zipball/d74b963ed4f47303859bf73c741c80f554c83dc6",
+                "reference": "d74b963ed4f47303859bf73c741c80f554c83dc6",
                 "shasum": ""
             },
             "conflict": {
@@ -285,9 +285,9 @@
             ],
             "support": {
                 "issues": "https://github.com/php-stubs/wordpress-stubs/issues",
-                "source": "https://github.com/php-stubs/wordpress-stubs/tree/v6.9.4"
+                "source": "https://github.com/php-stubs/wordpress-stubs/tree/v7.0.0"
             },
-            "time": "2026-05-01T20:36:01+00:00"
+            "time": "2026-05-21T21:41:34+00:00"
         },
         {
             "name": "phpcompatibility/php-compatibility",
@@ -2155,21 +2155,21 @@
         },
         {
             "name": "szepeviktor/phpstan-wordpress",
-            "version": "v2.0.3",
+            "version": "2.x-dev",
             "source": {
                 "type": "git",
                 "url": "https://github.com/szepeviktor/phpstan-wordpress.git",
-                "reference": "aa722f037b2d034828cd6c55ebe9e5c74961927e"
+                "reference": "84577e2ea1e4c2a95537fe5ea2ac8e18f4ceab1a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/szepeviktor/phpstan-wordpress/zipball/aa722f037b2d034828cd6c55ebe9e5c74961927e",
-                "reference": "aa722f037b2d034828cd6c55ebe9e5c74961927e",
+                "url": "https://api.github.com/repos/szepeviktor/phpstan-wordpress/zipball/84577e2ea1e4c2a95537fe5ea2ac8e18f4ceab1a",
+                "reference": "84577e2ea1e4c2a95537fe5ea2ac8e18f4ceab1a",
                 "shasum": ""
             },
             "require": {
                 "php": "^7.4 || ^8.0",
-                "php-stubs/wordpress-stubs": "^6.6.2",
+                "php-stubs/wordpress-stubs": ">=6.6.2",
                 "phpstan/phpstan": "^2.0"
             },
             "require-dev": {
@@ -2185,6 +2185,7 @@
             "suggest": {
                 "swissspidy/phpstan-no-private": "Detect usage of internal core functions, classes and methods"
             },
+            "default-branch": true,
             "type": "phpstan-extension",
             "extra": {
                 "phpstan": {
@@ -2212,9 +2213,9 @@
             ],
             "support": {
                 "issues": "https://github.com/szepeviktor/phpstan-wordpress/issues",
-                "source": "https://github.com/szepeviktor/phpstan-wordpress/tree/v2.0.3"
+                "source": "https://github.com/szepeviktor/phpstan-wordpress/tree/2.x"
             },
-            "time": "2025-09-14T02:58:22+00:00"
+            "time": "2026-05-22T16:22:09+00:00"
         },
         {
             "name": "wp-coding-standards/wpcs",
@@ -8551,7 +8552,8 @@
     "minimum-stability": "dev",
     "stability-flags": {
         "phpcompatibility/phpcompatibility-wp": 15,
-        "roave/security-advisories": 20
+        "roave/security-advisories": 20,
+        "szepeviktor/phpstan-wordpress": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,
