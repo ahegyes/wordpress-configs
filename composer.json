@@ -33,9 +33,13 @@
   "require-dev": {
     "composer/composer": "^2",
     "humbug/php-scoper": "^0.18",
-    "infection/infection": "^0.33",
+    "infection/infection": "^0.34",
     "maglnet/composer-require-checker": "^4",
     "phpunit/phpunit": "^13"
+  },
+  "suggest": {
+    "humbug/php-scoper": "Required for the dependency-scoping pipeline (ScopePhpDependencies + the scoper-base config).",
+    "php-stubs/woocommerce-stubs": "Declares the WooCommerce symbol catalogs for scoping exclusions via extra.scoping-stubs."
   },
 
   "minimum-stability": "dev",

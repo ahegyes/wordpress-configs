@@ -23,6 +23,25 @@ Add the VCS repository and require the package as a dev dependency:
 }
 ```
 
+#### Consumer prerequisites
+
+A consuming project's root `composer.json` must declare `minimum-stability: dev` with `prefer-stable: true`, because this package requires `roave/security-advisories: dev-latest` as a deliberate solver-time CVE gate on every dev install and `phpcompatibility/phpcompatibility-wp: ^3@alpha`. Composer honours stability flags only in the root package.
+
+The root package must also allow `dealerdirect/phpcodesniffer-composer-installer` and `phpstan/extension-installer`; they register the PHPCS standards and discover PHPStan extensions, and a non-interactive install fails when they are not allowed.
+
+```json
+{
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true,
+            "phpstan/extension-installer": true
+        }
+    }
+}
+```
+
 Reusable CI workflows are referenced directly from GitHub (see [Reusable CI Workflows](#reusable-ci-workflows) below). The DWS repos pin them to a commit SHA (dependabot proposes bumps); the examples in this README show `@trunk` for copy-paste brevity.
 
 ## What's Included
@@ -98,6 +117,16 @@ includes:
 parameters:
     scanDirectories:
         - vendor/wp-plugin/woocommerce  # If using WooCommerce
+```
+
+For WordPress 7.0 stubs, add the `php-stubs/wordpress-stubs` inline alias to each consumer's root `require-dev`: the released `szepeviktor/phpstan-wordpress` (v2.0.3) caps `php-stubs/wordpress-stubs` below 7.0, and Composer inline aliases are root-only, so a dependency-declared alias is ignored by the solver. Bump the exact 7.x stubs version as new WordPress 7.x catalogs ship. Drop the alias once a `szepeviktor/phpstan-wordpress` release ships the widened `>=6.6.2` constraint (on `master` since commit `84577e2e`) — unless another dependency still caps the stubs (`php-stubs/woocommerce-stubs` does).
+
+```json
+{
+    "require-dev": {
+        "php-stubs/wordpress-stubs": "7.0.0 as 6.9999.0"
+    }
+}
 ```
 
 Run:
@@ -371,7 +400,7 @@ export default [
 
 #### Stylelint
 
-`node/stylelint.config.base.js` — extends `@wordpress/stylelint-config/scss` with DWS defaults, including `ignoreFiles` for generated/vendored trees. The ignores take effect through the spread pattern shown below (the globs land in your config and resolve against your project); if you load the base via `extends` instead, they are inert — declare your own or use `.stylelintignore`.
+`node/stylelint.config.base.js` — extends `@wordpress/stylelint-config/scss` with DWS defaults, including `ignoreFiles` for generated/vendored trees. Do not load this base via `extends`: Stylelint ignores the `ignoreFiles` property of an extended config entirely. Use the spread pattern shown below; the globs then live in the consumer's root config and resolve against the consumer project.
 
 Create a `stylelint.config.js` in your project:
 
