@@ -84,6 +84,22 @@ final class StubSymbolCollectorTest extends TestCase {
 		self::assertSame( array(), $collector->constants );
 	}
 
+	#[Test]
+	public function collects_class_alias_target_names(): void {
+		// class_alias() registers its second argument as a real, referenceable class name; a stub
+		// that declares one must have the alias excluded, or scoped code referencing it fatals.
+		$collector = $this->collect(
+			<<<'PHP'
+			<?php
+			class_alias( 'Real\Thing', 'Legacy\Alias' );
+			\class_alias( Real\Other::class, 'Global_Alias' );
+			PHP
+		);
+
+		self::assertContains( 'Legacy\\Alias', $collector->classes );
+		self::assertContains( 'Global_Alias', $collector->classes );
+	}
+
 	private function collect( string $code ): StubSymbolCollector {
 		$parsed = new ParserFactory()->createForNewestSupportedVersion()->parse( $code )
 			?? self::fail( 'Fixture source failed to parse.' );

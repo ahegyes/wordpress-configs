@@ -19,7 +19,7 @@ final class StubSymbolCollector extends \PhpParser\NodeVisitorAbstract {
 	private const SYMBOL_NAME_REGEX = '/^\\\\?[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff\\\\]*$/';
 
 	/**
-	 * Fully-qualified class names collected from the parsed stubs.
+	 * Fully-qualified class names collected from the parsed stubs, including `class_alias()` targets.
 	 *
 	 * @var list<string>
 	 */
@@ -69,14 +69,17 @@ final class StubSymbolCollector extends \PhpParser\NodeVisitorAbstract {
 				}
 				break;
 			case \PhpParser\Node\Expr\FuncCall::class:
-				if (
-					$node->name instanceof \PhpParser\Node\Name
-					&& 'define' === $node->name->toString()
-					&& isset( $node->args[0] )
-					&& $node->args[0] instanceof \PhpParser\Node\Arg
-					&& $node->args[0]->value instanceof \PhpParser\Node\Scalar\String_
-				) {
-					$this->collect( $this->constants, $node->args[0]->value->value );
+				if ( ! $node->name instanceof \PhpParser\Node\Name ) {
+					break;
+				}
+				// `define('NAME', ...)` registers a global constant and `class_alias('Real', 'Alias')`
+				// registers `Alias` as a real referenceable class name; both must be excluded so scoped
+				// code that references them is not prefixed into a runtime "not found".
+				$function = $node->name->toString();
+				if ( 'define' === $function ) {
+					$this->collect_string_argument( $this->constants, $node, 0 );
+				} elseif ( 'class_alias' === $function ) {
+					$this->collect_string_argument( $this->classes, $node, 1 );
 				}
 				break;
 		}
@@ -94,6 +97,25 @@ final class StubSymbolCollector extends \PhpParser\NodeVisitorAbstract {
 	private function collect( array &$symbols, string $symbol ): void {
 		if ( 1 === \preg_match( self::SYMBOL_NAME_REGEX, $symbol ) ) {
 			$symbols[] = $symbol;
+		}
+	}
+
+	/**
+	 * Collects the string value of a function-call argument at a given position, when present.
+	 *
+	 * @param list<string>                  $symbols Symbol list to append to.
+	 * @param \PhpParser\Node\Expr\FuncCall $node    Function-call node.
+	 * @param int                           $index   Zero-based argument position to read.
+	 *
+	 * @return void
+	 */
+	private function collect_string_argument( array &$symbols, \PhpParser\Node\Expr\FuncCall $node, int $index ): void {
+		if (
+			isset( $node->args[ $index ] )
+			&& $node->args[ $index ] instanceof \PhpParser\Node\Arg
+			&& $node->args[ $index ]->value instanceof \PhpParser\Node\Scalar\String_
+		) {
+			$this->collect( $symbols, $node->args[ $index ]->value->value );
 		}
 	}
 }
