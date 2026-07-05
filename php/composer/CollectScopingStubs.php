@@ -2,6 +2,7 @@
 
 namespace DeepWebSolutions\Config\Composer;
 
+use DeepWebSolutions\Config\Composer\Internal\PathGuard;
 use DeepWebSolutions\Config\Composer\Internal\StubSymbolCollector;
 
 /**
@@ -334,11 +335,8 @@ final class CollectScopingStubs {
 			return false;
 		}
 
-		// Segment-check on both separators so `..` is caught whichever slash the entry uses.
-		foreach ( \explode( '/', \str_replace( '\\', '/', $path ) ) as $segment ) {
-			if ( '..' === $segment ) {
-				return false;
-			}
+		if ( PathGuard::contains_traversal( $path ) ) {
+			return false;
 		}
 
 		return true;
@@ -491,7 +489,7 @@ final class CollectScopingStubs {
 			return null;
 		}
 
-		if ( ! \str_starts_with( $real_candidate, $real_package . DIRECTORY_SEPARATOR ) ) {
+		if ( ! PathGuard::is_within( $real_candidate, $real_package, false ) ) {
 			return null;
 		}
 

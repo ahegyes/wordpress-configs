@@ -5,6 +5,7 @@ namespace DeepWebSolutions\Config\Composer;
 use Composer\Script\Event;
 use Composer\Util\ProcessExecutor;
 use DeepWebSolutions\Config\Composer\Internal\GenerateScopedAutoload;
+use DeepWebSolutions\Config\Composer\Internal\PathGuard;
 
 /**
  * Composer event handlers for the dependency-scoping pipeline.
@@ -151,15 +152,12 @@ final class ScopePhpDependencies {
 	 * @return  void
 	 */
 	private static function assert_project_relative( string $path ): void {
-		$normalised = \str_replace( '\\', '/', $path );
-		if ( \str_starts_with( $normalised, '/' ) || 1 === \preg_match( '#^[A-Za-z]:/#', $normalised ) ) {
+		if ( PathGuard::is_absolute( $path ) ) {
 			throw new \RuntimeException( \sprintf( 'Refusing absolute autoload path "%s" - must be project-relative.', $path ) );
 		}
 
-		foreach ( \explode( '/', $normalised ) as $segment ) {
-			if ( '..' === $segment ) {
-				throw new \RuntimeException( \sprintf( 'Refusing autoload path "%s" - parent-directory traversal not allowed.', $path ) );
-			}
+		if ( PathGuard::contains_traversal( $path ) ) {
+			throw new \RuntimeException( \sprintf( 'Refusing autoload path "%s" - parent-directory traversal not allowed.', $path ) );
 		}
 	}
 
@@ -455,7 +453,7 @@ final class ScopePhpDependencies {
 		$real_project = \realpath( $project_dir ) ?: $project_dir;
 		if ( \is_dir( $dependencies_dir ) ) {
 			$real_dependencies = \realpath( $dependencies_dir );
-			if ( false === $real_dependencies || $real_dependencies === $real_project || ! \str_starts_with( $real_dependencies, $real_project . DIRECTORY_SEPARATOR ) ) {
+			if ( false === $real_dependencies || ! PathGuard::is_within( $real_dependencies, $real_project, false ) ) {
 				throw new \RuntimeException( \sprintf( 'Refusing scoped-dependencies-dir "%s" - resolved output directory must be a strict descendant of the project root "%s".', $scoped_dir, $real_project ) );
 			}
 
@@ -467,7 +465,7 @@ final class ScopePhpDependencies {
 			$parent_dir = \dirname( $parent_dir );
 		}
 		$real_parent = \realpath( $parent_dir );
-		if ( false === $real_parent || ( $real_parent !== $real_project && ! \str_starts_with( $real_parent, $real_project . DIRECTORY_SEPARATOR ) ) ) {
+		if ( false === $real_parent || ! PathGuard::is_within( $real_parent, $real_project, true ) ) {
 			throw new \RuntimeException( \sprintf( 'Refusing scoped-dependencies-dir "%s" - existing parent directory must be inside the project root "%s".', $scoped_dir, $real_project ) );
 		}
 	}

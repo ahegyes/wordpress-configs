@@ -333,18 +333,15 @@ final class GenerateScopedAutoload {
 	 * @return string Normalised package-relative path.
 	 */
 	private static function assert_package_relative_path( string $package_dir, string $path, string $source ): string {
-		$normalised = \str_replace( '\\', '/', $path );
-		if ( \str_starts_with( $normalised, '/' ) || 1 === \preg_match( '#^[A-Za-z]:/#', $normalised ) ) {
+		if ( PathGuard::is_absolute( $path ) ) {
 			throw new \RuntimeException( \sprintf( 'Scoped package %s declares absolute %s path "%s"; only package-relative paths are supported.', $package_dir, $source, $path ) );
 		}
 
-		foreach ( \explode( '/', $normalised ) as $segment ) {
-			if ( '..' === $segment ) {
-				throw new \RuntimeException( \sprintf( 'Scoped package %s declares %s path "%s" with parent-directory traversal; scoped autoload paths must stay inside the package.', $package_dir, $source, $path ) );
-			}
+		if ( PathGuard::contains_traversal( $path ) ) {
+			throw new \RuntimeException( \sprintf( 'Scoped package %s declares %s path "%s" with parent-directory traversal; scoped autoload paths must stay inside the package.', $package_dir, $source, $path ) );
 		}
 
-		return \trim( $normalised, '/' );
+		return \trim( \str_replace( '\\', '/', $path ), '/' );
 	}
 
 	/**
@@ -364,7 +361,7 @@ final class GenerateScopedAutoload {
 		if (
 			false === $real_package
 			|| false === $real_root
-			|| ( $real_root !== $real_package && ! \str_starts_with( $real_root, $real_package . DIRECTORY_SEPARATOR ) )
+			|| ! PathGuard::is_within( $real_root, $real_package, true )
 		) {
 			throw new \RuntimeException( \sprintf( 'Scoped package %s declares autoload.classmap path "%s" that does not resolve inside the package.', $package_dir, $entry ) );
 		}
