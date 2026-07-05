@@ -17,6 +17,21 @@ on:
         type: string
         required: false
         default: '8.5'
+      requires-scoped-dependencies:
+        description: 'Whether the archive must include scoped dependencies; plugins bundling scoped third-party deps keep the default, set false for plugins without the scoping pipeline'
+        type: boolean
+        required: false
+        default: true
+      plugin-check:
+        description: 'Whether to run WordPress Plugin Check against the built plugin archive'
+        type: boolean
+        required: false
+        default: true
+      pot-domain:
+        description: 'Text domain for release-time POT generation; empty skips wp i18n make-pot'
+        type: string
+        required: false
+        default: ''
 
 # Serialize per plugin slug so concurrent runs don't race the same SVN tag/trunk; different slugs still release in parallel.
 # Don't cancel mid-deploy: a half-pushed SVN tag is worse than queueing.
@@ -98,6 +113,24 @@ jobs:
             echo "No package.json — skipping asset build."
           fi
 
+      - name: Generate POT
+        if: ${{ inputs.pot-domain != '' }}
+        working-directory: ${{ inputs.project-path }}
+        env:
+          POT_DOMAIN: ${{ inputs.pot-domain }}
+          REQUIRES_SCOPED: ${{ inputs.requires-scoped-dependencies }}
+        run: |
+          if ! printf '%s' "$POT_DOMAIN" | grep -Eq '^[a-z0-9-]+$'; then
+            echo "::error::pot-domain must match ^[a-z0-9-]+$ — got '$POT_DOMAIN'."
+            exit 1
+          fi
+          mkdir -p languages
+          wp i18n make-pot . "languages/$POT_DOMAIN.pot" --domain="$POT_DOMAIN"
+          if [ "$REQUIRES_SCOPED" = "true" ] && ! grep -q '^#: dependencies/' "languages/$POT_DOMAIN.pot"; then
+            echo "::error::Generated POT has no dependencies/ source references. The scoped framework text-domain rewrite or scoping pipeline did not feed framework strings into the consumer catalog."
+            exit 1
+          fi
+
       # The tag is the single version source — the shipped metadata must already agree with it.
       - name: Verify version consistency
         working-directory: ${{ inputs.project-path }}
@@ -125,16 +158,23 @@ jobs:
           # The ./ prefix is load-bearing: a bare filename target makes dist-archive write the zip to the PARENT of the source dir.
           wp dist-archive . "./$PLUGIN_SLUG.zip" --plugin-dirname="$PLUGIN_SLUG"
 
-      # A zip that misses the scoped deps activates into a blank notice; one that leaks dev files fails wp.org review.
+      # A zip that misses runtime files activates into a blank notice; one that leaks dev files fails wp.org review.
       - name: Assert archive contents
         working-directory: ${{ inputs.project-path }}
         env:
           PLUGIN_SLUG: ${{ inputs.plugin-slug }}
+          REQUIRES_SCOPED: ${{ inputs.requires-scoped-dependencies }}
         run: |
           entries=$(unzip -Z1 "$PLUGIN_SLUG.zip")
           status=0
+          if [ "$REQUIRES_SCOPED" = "true" ]; then
+            required_scoped="$PLUGIN_SLUG/dependencies/scoper-autoload.php"
+            if ! printf '%s\n' "$entries" | grep -qxF "$required_scoped"; then
+              echo "::error::Archive is missing $required_scoped."
+              status=1
+            fi
+          fi
           for required in \
-            "$PLUGIN_SLUG/dependencies/scoper-autoload.php" \
             "$PLUGIN_SLUG/vendor/autoload.php" \
             "$PLUGIN_SLUG/$PLUGIN_SLUG.php" \
             "$PLUGIN_SLUG/readme.txt"; do
@@ -146,16 +186,18 @@ jobs:
           # Every scoped package the pipeline produced must ship at least one file — a dropped package activates into
           # runtime fatals. Package-level, not per-file: .distignore's gitignore semantics strip nested metadata
           # (e.g. composer.json) at any depth, so file-exact comparison would false-fail.
-          if [ ! -d dependencies ]; then
-            echo "::error::No dependencies/ directory — the scoping pipeline did not run."
-            status=1
-          else
-            while IFS= read -r pkg; do
-              if ! printf '%s\n' "$entries" | grep -qE "^$PLUGIN_SLUG/$pkg/.*[^/]$"; then
-                echo "::error::Archive is missing scoped package $pkg/."
-                status=1
-              fi
-            done < <(find dependencies -mindepth 2 -maxdepth 2 -type d | LC_ALL=C sort)
+          if [ "$REQUIRES_SCOPED" = "true" ]; then
+            if [ ! -d dependencies ]; then
+              echo "::error::No dependencies/ directory — the scoping pipeline did not run."
+              status=1
+            else
+              while IFS= read -r pkg; do
+                if ! printf '%s\n' "$entries" | grep -qE "^$PLUGIN_SLUG/$pkg/.*[^/]$"; then
+                  echo "::error::Archive is missing scoped package $pkg/."
+                  status=1
+                fi
+              done < <(find dependencies -mindepth 2 -maxdepth 2 -type d | LC_ALL=C sort)
+            fi
           fi
           # Anchored to the archive root — an unanchored substring would false-fail on a nested path repeating the slug.
           for forbidden in \
@@ -171,6 +213,22 @@ jobs:
             fi
           done
           exit "$status"
+
+      - name: Prepare Plugin Check build
+        if: ${{ inputs.plugin-check }}
+        working-directory: ${{ inputs.project-path }}
+        env:
+          PLUGIN_SLUG: ${{ inputs.plugin-slug }}
+        run: |
+          rm -rf plugin-check-build
+          unzip -q "$PLUGIN_SLUG.zip" -d ./plugin-check-build
+
+      # The gate runs the same checks wp.org applies at review, against the exact tree that ships.
+      - name: Run Plugin Check
+        if: ${{ inputs.plugin-check }}
+        uses: WordPress/plugin-check-action@98a1788320d0add90df2d8183934ecccbc4e05d2 # v1.1.7
+        with:
+          build-dir: ${{ inputs.project-path }}/plugin-check-build/${{ inputs.plugin-slug }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -266,11 +324,14 @@ jobs:
         env:
           PLUGIN_SLUG: ${{ inputs.plugin-slug }}
           REF_NAME: ${{ github.ref_name }}
+          REQUIRES_SCOPED: ${{ inputs.requires-scoped-dependencies }}
         run: |
           VERSION="${REF_NAME#v}"
           target="wp-content/plugins/$PLUGIN_SLUG"
           run_cli() { npx --yes @wordpress/env@"$WP_ENV_VERSION" run cli "$@"; }
-          run_cli test -f "$target/dependencies/scoper-autoload.php"
+          if [ "$REQUIRES_SCOPED" = "true" ]; then
+            run_cli test -f "$target/dependencies/scoper-autoload.php"
+          fi
           if run_cli test -f "$target/composer.json"; then
             echo "::error::Mounted plugin has composer.json — wp-env is serving the source tree, not the built zip."
             exit 1
