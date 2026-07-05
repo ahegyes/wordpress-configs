@@ -114,7 +114,7 @@ jobs:
           if [ -n "$WP_ENV_XDEBUG" ]; then
             args+=(--xdebug="$WP_ENV_XDEBUG")
           fi
-          npx --yes @wordpress/env@"$WP_ENV_VERSION" "${args[@]}" start
+          npx --yes @wordpress/env@"$WP_ENV_VERSION" start "${args[@]}"
 
       - name: Run tests
         working-directory: ${{ inputs.project-path }}
@@ -132,4 +132,4 @@ jobs:
           if [ -n "$WP_ENV_CONFIG_FILE" ]; then
             args+=(--config "$WP_ENV_CONFIG_FILE")
           fi
-          npx --yes @wordpress/env@"$WP_ENV_VERSION" "${args[@]}" stop
+          npx --yes @wordpress/env@"$WP_ENV_VERSION" stop "${args[@]}"
