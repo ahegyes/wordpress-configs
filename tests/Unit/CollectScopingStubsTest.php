@@ -18,8 +18,6 @@ final class CollectScopingStubsTest extends TestCase {
 	private const FIXTURES_DIR = __DIR__ . '/../fixtures/collect-scoping-stubs';
 	private const ENV_VARS     = array(
 		'COMPOSER',
-		'SCOPING_EXCLUSIONS_OUTPUT_DIR',
-		'SCOPING_EXCLUSIONS_OUTPUT_FILE',
 	);
 
 	private string $project_dir;
@@ -218,21 +216,6 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event() );
 	}
 
-
-	#[Test]
-	public function honors_output_dir_and_file_overrides(): void {
-		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
-		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs' ) );
-		\mkdir( $this->project_dir . '/build' );
-		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR=' . $this->project_dir . '/build' );
-		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_FILE=stubs-dump.json' );
-
-		CollectScopingStubs::postAutoloadDump( $this->event() );
-
-		self::assertFileExists( $this->project_dir . '/build/stubs-dump.json' );
-		self::assertFileDoesNotExist( $this->project_dir . '/scoping-exclusions.json' );
-	}
-
 	#[Test]
 	public function writes_default_output_to_project_root_when_vendor_dir_is_custom(): void {
 		$this->vendor_dir = $this->project_dir . '/build/vendor';
@@ -244,78 +227,6 @@ final class CollectScopingStubsTest extends TestCase {
 
 		self::assertFileExists( $this->project_dir . '/scoping-exclusions.json' );
 		self::assertFileDoesNotExist( $this->project_dir . '/build/scoping-exclusions.json' );
-	}
-
-	#[Test]
-	public function rejects_output_dir_outside_project_root(): void {
-		$this->writeProjectComposer( array() );
-		$outside_dir = \sys_get_temp_dir() . '/dws-wp-configs-escape-' . \uniqid();
-		\mkdir( $outside_dir );
-		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR=' . $outside_dir );
-
-		try {
-			$this->expectException( \RuntimeException::class );
-			$this->expectExceptionMessageMatches( '/must be inside the project root/' );
-			CollectScopingStubs::postAutoloadDump( $this->event() );
-		} finally {
-			\rmdir( $outside_dir );
-		}
-	}
-
-	#[Test]
-	public function rejects_output_dir_that_only_shares_the_project_path_prefix(): void {
-		$this->writeProjectComposer( array() );
-		$outside_dir = $this->project_dir . '-outside';
-		\mkdir( $outside_dir );
-		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR=' . $outside_dir );
-
-		try {
-			$this->expectException( \RuntimeException::class );
-			$this->expectExceptionMessageMatches( '/must be inside the project root/' );
-			CollectScopingStubs::postAutoloadDump( $this->event() );
-		} finally {
-			$this->rrmdir( $outside_dir );
-		}
-	}
-
-	#[Test]
-	public function rejects_output_dir_that_does_not_exist(): void {
-		$this->writeProjectComposer( array() );
-		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR=' . $this->project_dir . '/does-not-exist' );
-
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/does not resolve to an existing directory/' );
-		CollectScopingStubs::postAutoloadDump( $this->event() );
-	}
-
-	#[Test]
-	public function rejects_output_file_containing_forward_slash(): void {
-		$this->writeProjectComposer( array() );
-		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_FILE=../escape.json' );
-
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/must be a filename, not a path/' );
-		CollectScopingStubs::postAutoloadDump( $this->event() );
-	}
-
-	#[Test]
-	public function rejects_output_file_containing_backslash(): void {
-		$this->writeProjectComposer( array() );
-		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_FILE=sub\\escape.json' );
-
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/must be a filename, not a path/' );
-		CollectScopingStubs::postAutoloadDump( $this->event() );
-	}
-
-	#[Test]
-	public function rejects_output_file_dot_segments(): void {
-		$this->writeProjectComposer( array() );
-		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_FILE=..' );
-
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/must be a filename, not a path/' );
-		CollectScopingStubs::postAutoloadDump( $this->event() );
 	}
 
 	#[Test]
@@ -371,27 +282,6 @@ final class CollectScopingStubsTest extends TestCase {
 		CollectScopingStubs::postAutoloadDump( $this->event() );
 
 		self::assertFileExists( $this->project_dir . '/scoping-exclusions.json' );
-	}
-
-	#[Test]
-	public function throws_when_output_directory_is_not_writable(): void {
-		$this->installStubsPackage( 'php-stubs/wordpress-stubs', self::FIXTURES_DIR . '/stubs.php' );
-		$this->writeProjectComposer( array( 'php-stubs/wordpress-stubs' ) );
-
-		$readonly_dir = $this->project_dir . '/readonly';
-		\mkdir( $readonly_dir );
-		\chmod( $readonly_dir, 0500 );
-		\putenv( 'SCOPING_EXCLUSIONS_OUTPUT_DIR=' . $readonly_dir );
-
-		// Suppress the PHP Warning that file_put_contents emits before returning false on permission denied.
-		\set_error_handler( static fn (): bool => true );
-		try {
-			$this->expectException( \RuntimeException::class );
-			CollectScopingStubs::postAutoloadDump( $this->event() );
-		} finally {
-			\restore_error_handler();
-			\chmod( $readonly_dir, 0700 );
-		}
 	}
 
 	#[Test]

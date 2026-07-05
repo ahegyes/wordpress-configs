@@ -212,13 +212,6 @@ The contract is: **whichever package introduces references to external (non-pref
 
 **Trust model:** vendor packages can declare their own `extra.scoping-stubs`, and the helper parses + reads symbol names from those declared files. A malicious vendor could declare custom symbol names that, after merging into `scoping-exclusions.json`, weaken the consumer's scoping (those symbols stay unprefixed and may clash with WP core). This is the standard composer supply-chain trust model — only install vendor packages you trust. The helper does NOT execute anything from the parsed stubs files; it only extracts class, function, and constant declaration names via AST traversal.
 
-**Output overrides (opt-in):** Two environment variables redirect where the exclusion JSON is written. Both are constrained to the project root — they cannot be used to write outside the project tree.
-
-| Env var                            | Default                       | Constraint                                                        |
-|------------------------------------|-------------------------------|-------------------------------------------------------------------|
-| `SCOPING_EXCLUSIONS_OUTPUT_DIR`    | Project root                  | Must resolve to an existing directory **inside** the project root |
-| `SCOPING_EXCLUSIONS_OUTPUT_FILE`   | `scoping-exclusions.json`     | Filename only — `/` and `\` are rejected                          |
-
 #### ScopePhpDependencies
 
 `php/composer/ScopePhpDependencies.php` — Composer hooks for scoping third-party PHP dependencies via [php-scoper](https://github.com/humbug/php-scoper).
