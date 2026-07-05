@@ -15,7 +15,7 @@ wordpress-configs/
 │   │   ├── phpcs.dist.xml           # WPCS + PHPCompatibilityWP, PHP 8.5+ / WP 7.0+
 │   │   └── phpstan.dist.neon        # level 8 + WordPress stubs (auto-discovered via .neon.php)
 │   ├── php-scoper/
-│   │   ├── scoper-base.inc.php      # catalog-agnostic; reads scoping-exclusions.json; excludes as_* by regex; token-aware patcher
+│   │   ├── scoper-base.inc.php      # catalog-agnostic; reads scoping-exclusions.json; excludes as_* by regex
 │   │   └── contrib/
 │   │       ├── php-di.inc.php       # PHP-DI 7 + transitive deps
 │   │       └── wp-framework.inc.php # auto-detect ahegyes/wp-framework-* packages; rewrites reserved wp-framework-* literal domains from extra.text-domain; fails reserved-literal and prefixed as_* residues
@@ -53,6 +53,5 @@ Dogfooding scope: `reusable-php-lint`, `reusable-scripts-styles-lint`, `reusable
 - `lint:php` chains 3 tools: `phpcs` + `phpstan` + `composer-require-checker`. Symbols used from transitive deps are whitelisted in `composer-require-checker.json`, not added to `require`.
 - `--ignore-platform-req=php+` is applied to Composer installs/updates in scripts, this repo's CI, and the reusable workflows — only the PHP upper bound is ignored so future-PHP installs stay possible; extension requirements and PHP floor checks stay live.
 - Self-lint is `phpcs.dist.xml` at root (extends shared with WP-runtime sniff exclusions for this repo's tooling code) — NOT the consumer-facing `php/quality-assurance/phpcs.dist.xml`.
-- The php-scoper patcher in `scoper-base.inc.php` is token-aware — comments containing the prefix pattern are preserved verbatim. Boundary-safe: the token-based restorer (`token_get_all` walk) accepts a name only when the post-prefix remainder exactly matches an excluded symbol, so `Foo` excluded ≠ `FooBar` over-caught.
 - `CollectScopingStubs` writes the exclusion JSON via temp-file + `rename` (atomic on same filesystem) so a concurrent reader can't observe a partial write.
 - Tests use real `Composer\Composer` instances (not mocks).
