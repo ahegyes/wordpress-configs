@@ -202,7 +202,7 @@ The Action Scheduler `as_*` functions need **no consumer declaration at all**: `
 | Dev mode                                                        | Generates `scoping-exclusions.json` at project root   |
 | Non-dev mode                                                    | Skipped                                               |
 | No `extra.scoping-stubs` declarations anywhere in the dep graph | Writes empty exact-symbol exclusion lists (`as_*` stays covered by scoper-base's regex) |
-| Declared stubs package not installed                            | Skipped with a console warning, helper continues      |
+| Declared stubs package not installed                            | Skipped with a console note, helper continues         |
 | Malformed declaration in the PROJECT's own composer.json        | **Throws** — a root typo must not silently shrink the exclusion set |
 | Malformed declaration in an installed package                   | Skipped with a console warning (third-party metadata the consumer cannot fix) |
 
@@ -246,7 +246,7 @@ This is **opt-in**: it only triggers if `humbug/php-scoper` is installed in your
 }
 ```
 
-`extra.scoping-flags` is optional; omit it when no extra php-scoper flags are needed. The pipeline owns `--output-dir`/`-o`, `--prefix`, and `--config`, so those flags are rejected if they appear in `extra.scoping-flags`.
+`extra.scoping-flags` is optional; omit it when no extra php-scoper flags are needed. It is an allow-list, not a passthrough: only ANSI, interaction, and verbosity flags are accepted — `--ansi`, `--no-ansi`, `-n`/`--no-interaction`, `-q`/`--quiet`, `-v`/`-vv`/`-vvv`/`--verbose`. Any other entry throws, including the pipeline-owned `--output-dir`/`-o`, `--prefix`, and `--config` (the pipeline sets the scope target itself) and every other php-scoper flag.
 
 `extra.text-domain` is required when the consumer installs any `ahegyes/wp-framework-*` package; see the framework consumer contract below. Set it to your plugin's own text domain — the same value as your plugin header's `Text Domain` (conventionally the plugin slug) — so the rewritten framework strings resolve against the catalog your plugin actually loads; a value that disagrees with the header leaves those strings untranslatable. Use `"text-domain": false` only for non-plugin consumers with no translation catalog.
 
@@ -261,6 +261,8 @@ PHP_BINARY vendor/bin/php-scoper add-prefix \
   --quiet \
   [extra.scoping-flags...]
 ```
+
+`--quiet` is appended only when `extra.scoping-flags` carries no verbosity flag; a supplied `-v`/`-vv`/`-vvv`/`--verbose` suppresses it so php-scoper's diagnostics reach the operator.
 
 `extra.scoping-prefix` is required whenever scoping runs and must be a non-empty PHP namespace prefix. `scoper.inc.php` must exist at the project root; missing config throws because php-scoper without a config would scope the whole current working directory.
 
@@ -291,7 +293,7 @@ PHP_BINARY vendor/bin/php-scoper add-prefix \
 
 That's it — adding a new scoped package never requires editing the host `composer.json` again. The generator reads each scoped package's `composer.json` and emits the corresponding `addPsr4()` / `addClassMap()` calls and `require_once` statements at the next scoping run. The output is purely a function of the scoped tree.
 
-The generator reads packages from both output layouts php-scoper produces: `dependencies/<vendor>/<pkg>/` (finders spanning several vendor namespaces) and the flattened `dependencies/<pkg>/` (finders covering a single vendor namespace, whose shared `vendor/<vendor>/` segment php-scoper collapses).
+The generator reads packages from the three output layouts php-scoper produces, since it mirrors input paths relative to their common ancestor: a single scoped package lands directly at `dependencies/` (the common ancestor collapses entirely), finders covering one vendor namespace yield the flattened `dependencies/<pkg>/` (the shared `vendor/<vendor>/` segment php-scoper collapses), and finders spanning several vendor namespaces yield the nested `dependencies/<vendor>/<pkg>/`.
 
 | Behavior          | When                                                                                                                                                        |
 |-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -353,7 +355,7 @@ a library that references scoped symbols through runtime strings the scoper cann
 
 ### Distribution Ignore
 
-`.distignore` — copy to your project root and extend with project-specific source-only paths before using `reusable-release.yml`. The release workflow requires the file to exist so `wp dist-archive` has explicit exclusions for tests, package-manager manifests, CI, IDE files, and source-only tooling.
+`.distignore` — copy to your project root and extend with project-specific source-only paths before using `reusable-release.yml`. The release workflow requires the file to exist so `wp dist-archive` has explicit exclusions for tests, package-manager manifests, CI, IDE files, source-only tooling, and secret material (`.env*`, root-anchored `*.pem`/`*.key`, `id_rsa*`, `.npmrc`, `auth.json`).
 
 ### Editor Config
 
@@ -489,7 +491,7 @@ Each workflow's `inputs:` block (every input carries a `description:`) is the au
 
 **`php-versions[]` vs `php-version`:** `reusable-php-syntax-check.yml` accepts an array because matrixing across PHP versions is the whole point of syntax checking. The other reusables run a single PHP version per call — to test multiple versions, wrap the reusable in your own matrix. This asymmetry is intentional; consolidating either direction would force the wrong shape on the side that doesn't want it.
 
-**`reusable-phpunit.yml` + `needs-wp-env`:** Defaults to `true` (the wp-env + npm ci + start/stop steps run). Set `needs-wp-env: false` for pure-unit suites that don't need a WordPress runtime — skips the Node setup and wp-env lifecycle entirely.
+**`reusable-phpunit.yml` + `needs-wp-env`:** Defaults to `true` (the wp-env + npm ci + start/stop steps run; `npm ci` requires a committed `package-lock.json` in the consumer project). Set `needs-wp-env: false` for pure-unit suites that don't need a WordPress runtime — skips the Node setup and wp-env lifecycle entirely.
 
 ### Plugin orchestrators
 

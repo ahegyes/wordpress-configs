@@ -20,7 +20,7 @@ composer test            # PHPUnit unit suite
 
 ## Before opening a PR
 
-CI (`quality.yml`) runs more than `composer test`. Mirror it locally:
+CI runs more than `composer test`: `quality.yml` runs the PHP-lint, PHP-syntax, ESLint, Node-config-smoke, supply-chain, and block.json-schema gates, while `tests.yml` runs the PHPUnit suite. The commands below mirror those with a local equivalent:
 
 ```bash
 composer lint:php        # phpcs + phpstan + composer-require-checker
