@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { ESLint } from 'eslint';
 
 const require = createRequire( import.meta.url );
 const probes = [];
@@ -20,6 +21,28 @@ probes.push( [
 		);
 		if ( ! Array.isArray( base.default ) || 0 === base.default.length ) {
 			throw new Error( 'did not export a non-empty flat-config array' );
+		}
+
+		// Lint one probe per config scope so a broken rule or plugin reference in ANY entry surfaces
+		// here rather than only in a consumer's CI: an ESLint flat-config entry with a `files` glob
+		// is applied (and its rules resolved) only to a matching path, so cover the unscoped
+		// baseline plus the test-unit and test-playwright globs.
+		const eslint = new ESLint( {
+			overrideConfigFile: resolve( 'node/eslint.config.base.mjs' ),
+		} );
+		const scopedProbePaths = [
+			'tests/fixtures/node-config/probe.js', // recommended baseline (unscoped rules)
+			'tests/fixtures/node-config/probe.ts', // TS recommended entries (ts/tsx/mts/cts)
+			'tests/fixtures/node-config/probe.tsx',
+			'tests/fixtures/node-config/probe.mts',
+			'tests/fixtures/node-config/probe.cts',
+			'tests/fixtures/node-config/probe.test.js', // test-unit files glob
+			'tests/e2e/probe.js', // test-playwright files glob
+		];
+		for ( const probePath of scopedProbePaths ) {
+			await eslint.lintText( 'const probe = 42;\n', {
+				filePath: resolve( probePath ),
+			} );
 		}
 	},
 ] );
