@@ -19,6 +19,7 @@ final class PathGuardTest extends TestCase {
 		self::assertFalse( PathGuard::is_absolute( 'src/x' ), 'A bare relative path is not absolute.' );
 		self::assertFalse( PathGuard::is_absolute( './x' ), 'A dot-relative path is not absolute.' );
 		self::assertFalse( PathGuard::is_absolute( 'a/b' ), 'A nested relative path is not absolute.' );
+		self::assertFalse( PathGuard::is_absolute( 'assets/C:/legacy.php' ), 'A mid-string drive-letter substring is not absolute — the drive-letter match is anchored.' );
 	}
 
 	#[Test]

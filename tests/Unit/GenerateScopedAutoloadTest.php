@@ -155,13 +155,19 @@ final class GenerateScopedAutoloadTest extends TestCase {
 
 	#[Test]
 	public function psr4_entries_are_sorted_for_deterministic_diffs(): void {
+		// Two namespaces in ONE package, declared out of alphabetical order, so the sort is exercised
+		// independently of find_scoped_packages()'s package ordering: without render()'s usort the
+		// emitted order would follow the declared Z-before-A order.
 		$this->installScopedPackage(
-			'z/package',
-			array( 'autoload' => array( 'psr-4' => array( 'P\\Z\\' => 'src/' ) ) )
-		);
-		$this->installScopedPackage(
-			'a/package',
-			array( 'autoload' => array( 'psr-4' => array( 'P\\A\\' => 'src/' ) ) )
+			'some/pkg',
+			array(
+				'autoload' => array(
+					'psr-4' => array(
+						'P\\Z\\' => 'z/',
+						'P\\A\\' => 'a/',
+					),
+				),
+			)
 		);
 
 		GenerateScopedAutoload::generate( $this->dependencies_dir );
@@ -171,7 +177,7 @@ final class GenerateScopedAutoloadTest extends TestCase {
 		$pos_z     = \strpos( $generated, 'P\\\\Z\\\\' );
 		self::assertNotFalse( $pos_a );
 		self::assertNotFalse( $pos_z );
-		self::assertLessThan( $pos_z, $pos_a );
+		self::assertLessThan( $pos_z, $pos_a, 'PSR-4 entries must be emitted sorted by namespace, not in declared order.' );
 	}
 
 	#[Test]
@@ -330,17 +336,19 @@ final class GenerateScopedAutoloadTest extends TestCase {
 
 	#[Test]
 	public function classmap_entries_are_sorted_for_deterministic_diffs(): void {
+		// Two single-class packages: the package that sorts FIRST by directory ships the class that
+		// sorts LAST. The scanner walks packages in find_scoped_packages()'s sorted order with one
+		// class per root (no filesystem readdir-order ambiguity), so it meets Zebra before Alpha;
+		// without render()'s usort the classmap emits in that scan order, not sorted by class name.
 		$this->installScopedPackage(
-			'legacy/classmapped',
-			array(
-				'autoload' => array(
-					'classmap' => array( 'src/' ),
-				),
-			),
-			array(
-				'src/Zebra.php' => "<?php\nnamespace P\\Legacy;\nclass Zebra {}\n",
-				'src/Alpha.php' => "<?php\nnamespace P\\Legacy;\nclass Alpha {}\n",
-			)
+			'a/pkg',
+			array( 'autoload' => array( 'classmap' => array( 'src/' ) ) ),
+			array( 'src/C.php' => "<?php\nnamespace P\\Legacy;\nclass Zebra {}\n" )
+		);
+		$this->installScopedPackage(
+			'z/pkg',
+			array( 'autoload' => array( 'classmap' => array( 'src/' ) ) ),
+			array( 'src/C.php' => "<?php\nnamespace P\\Legacy;\nclass Alpha {}\n" )
 		);
 
 		GenerateScopedAutoload::generate( $this->dependencies_dir );
@@ -350,7 +358,27 @@ final class GenerateScopedAutoloadTest extends TestCase {
 		$pos_zebra = \strpos( $generated, 'P\\\\Legacy\\\\Zebra' );
 		self::assertNotFalse( $pos_alpha );
 		self::assertNotFalse( $pos_zebra );
-		self::assertLessThan( $pos_zebra, $pos_alpha );
+		self::assertLessThan( $pos_zebra, $pos_alpha, 'Classmap entries must be emitted sorted by class name, not package scan order.' );
+	}
+
+	#[Test]
+	public function classmap_scan_is_confined_to_the_declared_subdirectory(): void {
+		// The scan root is the declared classmap directory, not the whole package: a class the
+		// package ships outside that directory must not be swept into the generated classmap.
+		$this->installScopedPackage(
+			'legacy/confined',
+			array( 'autoload' => array( 'classmap' => array( 'src/' ) ) ),
+			array(
+				'src/Inside.php' => "<?php\nnamespace P\\Confined;\nclass Inside {}\n",
+				'Outside.php'    => "<?php\nnamespace P\\Confined;\nclass Outside {}\n",
+			)
+		);
+
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
+
+		$generated = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
+		self::assertStringContainsString( 'P\\\\Confined\\\\Inside', $generated );
+		self::assertStringNotContainsString( 'P\\\\Confined\\\\Outside', $generated );
 	}
 
 	#[Test]

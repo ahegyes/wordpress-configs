@@ -152,6 +152,38 @@ final class ScopePhpDependenciesTest extends TestCase {
 	}
 
 	#[Test]
+	public function pre_autoload_dump_creates_a_scoped_entry_declared_after_an_out_of_scope_one(): void {
+		// The out-of-scope entry is declared FIRST, so a later scoped entry must still get its
+		// placeholder — the skip is a `continue`, not an early exit out of the loop.
+		$this->writeComposerJson(
+			array(
+				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
+				'autoload' => array( 'files' => array( 'src/boostrap.php', 'dependencies/scoper-autoload.php' ) ),
+			)
+		);
+
+		ScopePhpDependencies::preAutoloadDump( $this->event() );
+
+		self::assertFileExists( $this->project_dir . '/dependencies/scoper-autoload.php' );
+		self::assertFileDoesNotExist( $this->project_dir . '/src/boostrap.php' );
+	}
+
+	#[Test]
+	public function pre_autoload_dump_creates_dev_scoped_classmap_dir_in_dev_mode(): void {
+		// The dev-mode merge covers autoload-dev.classmap, not only autoload-dev.files.
+		$this->writeComposerJson(
+			array(
+				'extra'        => array( 'scoped-dependencies-dir' => 'dependencies' ),
+				'autoload-dev' => array( 'classmap' => array( 'dependencies/dev-classmap' ) ),
+			)
+		);
+
+		ScopePhpDependencies::preAutoloadDump( $this->event( devMode: true ) );
+
+		self::assertDirectoryExists( $this->project_dir . '/dependencies/dev-classmap' );
+	}
+
+	#[Test]
 	public function pre_autoload_dump_handles_composer_json_without_autoload_dev_section(): void {
 		$this->writeComposerJson(
 			array(
@@ -607,6 +639,20 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 		$generated = (string) \file_get_contents( $this->project_dir . '/dependencies/scoper-autoload.php' );
 		self::assertStringContainsString( 'MyPlugin\\\\Scoped\\\\Acme\\\\Lib', $generated );
+	}
+
+	#[Test]
+	public function run_confines_a_multi_level_nested_scoped_dir_via_the_parent_walk_up(): void {
+		// None of build/, build/scoped/, or build/scoped/deps/ exist when confinement runs, so
+		// assert_scoped_dir_confined() walks up to the nearest existing ancestor (the project root)
+		// to confirm containment before the scope run creates the tree.
+		$this->installFakePhpScoper();
+		$this->writeScoperConfig();
+		$this->writeComposerJson( $this->scopingComposerJson( scopedDir: 'build/scoped/deps' ) );
+
+		ScopePhpDependencies::run( $this->factoryEvent( new BufferIO() ) );
+
+		self::assertFileExists( $this->project_dir . '/build/scoped/deps/scoper-autoload.php' );
 	}
 
 	#[Test]
