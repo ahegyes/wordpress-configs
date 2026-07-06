@@ -9,12 +9,14 @@ use Symfony\Component\Finder\Finder;
  * Framework CI owns source-shape enforcement: WPCS `WordPress.WP.I18n` with `text_domain`
  * pinned to the real package domains accepts plain literal `wp-framework-*` text domains in
  * gettext calls. This partial owns scope-time consequences: every constant string whose raw
- * value exactly matches an installed framework domain is rewritten to the consumer's domain,
- * and any reserved occurrence outside that lint guarantee trips the scope run.
+ * value is shaped like a framework package domain (`wp-framework-` plus a Composer-name slug)
+ * is rewritten to the consumer's domain, and any reserved occurrence outside that lint
+ * guarantee trips the scope run.
  *
- * The rewrite is deliberately position-agnostic. Framework source reserves exact installed
- * `wp-framework-*` package domains for text domains (hooks and options use the `dws_` prefix),
- * so an exact installed-domain literal is a domain wherever it appears in the token stream.
+ * The rewrite is deliberately position-agnostic and shape-based, not installed-basename-based:
+ * framework source reserves `wp-framework-*` package domains for text domains (hooks and options
+ * use the `dws_` prefix), so a plain `wp-framework-<slug>` literal is a domain wherever it appears
+ * in the token stream, and a literal keeps rewriting even after its package is renamed or merged.
  * Comments stay inert; package-name/path literals, heredoc/nowdoc/interpolated fragments,
  * mid-string occurrences, and escape-obfuscated occurrences fail because they sit outside the
  * plain-literal guarantee. A non-plugin consumer opts out explicitly with `"text-domain": false`;
@@ -44,8 +46,6 @@ return static function ( string $vendor_dir, string $project_dir = '' ): array {
 			'patchers' => array(),
 		);
 	}
-
-	$domains = \array_map( 'basename', $packages );
 
 	$finder = Finder::create()
 		->files()
@@ -86,7 +86,12 @@ return static function ( string $vendor_dir, string $project_dir = '' ): array {
 		}
 
 		$framework_domain_prefix = 'wp-framework-';
-		$patchers[]              = static function ( string $file_path, string $prefix, string $content ) use ( $domains, $framework_domain_prefix, $target_text_domain ): string {
+		// A framework text domain is the package name: "wp-framework-" plus a Composer-name slug.
+		// Match by shape, not by installed-package basename, so a plain literal keeps rewriting even
+		// after a package rename/merge (e.g. a "wp-framework-settings" literal shipped by the merged
+		// wp-framework-infrastructure) instead of tripping the reserved-occurrence guard below.
+		$framework_domain_pattern = '/^wp-framework-[a-z0-9_-]+$/';
+		$patchers[]               = static function ( string $file_path, string $prefix, string $content ) use ( $framework_domain_pattern, $framework_domain_prefix, $target_text_domain ): string {
 			$replacement = \var_export( $target_text_domain, true );
 
 			// The raw body of a constant-string token, after the b-prefix and quotes.
@@ -128,7 +133,7 @@ return static function ( string $vendor_dir, string $project_dir = '' ): array {
 
 				if ( T_CONSTANT_ENCAPSED_STRING === $token[0] ) {
 					$raw = $raw_value( $token[1] );
-					if ( \in_array( $raw, $domains, true ) ) {
+					if ( 1 === \preg_match( $framework_domain_pattern, $raw ) ) {
 						$out .= $replacement;
 						continue;
 					}

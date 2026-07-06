@@ -106,12 +106,16 @@ final class TextDomainRewriterTest extends TestCase {
 	}
 
 	#[Test]
-	public function trips_on_framework_prefixed_literal_that_is_not_an_installed_domain(): void {
+	public function rewrites_framework_domain_literal_even_when_its_package_is_not_installed(): void {
+		// Shape-based rewrite: "wp-framework-settings" is rewritten even though no package by that
+		// exact name is installed — a merged-away package's domain literals survive instead of
+		// tripping the reserved-occurrence guard.
 		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
 
-		$this->expectFrameworkLintTripwire( '/not-installed.php' );
-
-		$patcher( '/not-installed.php', 'Prefix', "<?php \$domain = 'wp-framework-notinstalled';" );
+		self::assertSame(
+			"<?php \\__( 'Setting', 'my-plugin' );",
+			$patcher( '/merged-away.php', 'Prefix', "<?php \\__( 'Setting', 'wp-framework-settings' );" )
+		);
 	}
 
 	#[Test]
