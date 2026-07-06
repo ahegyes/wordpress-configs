@@ -107,9 +107,8 @@ final class TextDomainRewriterTest extends TestCase {
 
 	#[Test]
 	public function rewrites_framework_domain_literal_even_when_its_package_is_not_installed(): void {
-		// Shape-based rewrite: "wp-framework-settings" is rewritten even though no package by that
-		// exact name is installed — a merged-away package's domain literals survive instead of
-		// tripping the reserved-occurrence guard.
+		// Shape-based rewrite: a well-formed "wp-framework-<slug>" literal is rewritten even when no
+		// installed package carries that exact name, so the rewrite is not coupled to the installed set.
 		$patcher = $this->getTextDomainPatcher( 'my-plugin' );
 
 		self::assertSame(

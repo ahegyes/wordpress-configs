@@ -16,7 +16,7 @@ use Symfony\Component\Finder\Finder;
  * The rewrite is deliberately position-agnostic and shape-based, not installed-basename-based:
  * framework source reserves `wp-framework-*` package domains for text domains (hooks and options
  * use the `dws_` prefix), so a plain `wp-framework-<slug>` literal is a domain wherever it appears
- * in the token stream, and a literal keeps rewriting even after its package is renamed or merged.
+ * in the token stream, whether or not an installed package currently carries that exact name.
  * Comments stay inert; package-name/path literals, heredoc/nowdoc/interpolated fragments,
  * mid-string occurrences, and escape-obfuscated occurrences fail because they sit outside the
  * plain-literal guarantee. A non-plugin consumer opts out explicitly with `"text-domain": false`;
@@ -87,9 +87,9 @@ return static function ( string $vendor_dir, string $project_dir = '' ): array {
 
 		$framework_domain_prefix = 'wp-framework-';
 		// A framework text domain is the package name: "wp-framework-" plus a Composer-name slug.
-		// Match by shape, not by installed-package basename, so a plain literal keeps rewriting even
-		// after a package rename/merge (e.g. a "wp-framework-settings" literal shipped by the merged
-		// wp-framework-infrastructure) instead of tripping the reserved-occurrence guard below.
+		// Match by shape, not against the set of installed package basenames, so a plain literal is
+		// rewritten — not tripped as a reserved occurrence — even when no installed package currently
+		// carries that exact name.
 		$framework_domain_pattern = '/^wp-framework-[a-z0-9_-]+$/';
 		$patchers[]               = static function ( string $file_path, string $prefix, string $content ) use ( $framework_domain_pattern, $framework_domain_prefix, $target_text_domain ): string {
 			$replacement = \var_export( $target_text_domain, true );
