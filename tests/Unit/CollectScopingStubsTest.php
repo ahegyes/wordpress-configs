@@ -697,7 +697,7 @@ final class CollectScopingStubsTest extends TestCase {
 		$this->writeProjectComposer( array( 'php-stubs/nul' ) );
 		CollectScopingStubs::postAutoloadDump( $this->event() );
 
-		// The hook completed (no ValueError); the legit file resolved and the NUL entry was skipped.
+		// The hook completes without a ValueError; the legit file resolves and the NUL entry is skipped.
 		$result = $this->loadOutput( 'scoping-exclusions.json' );
 		self::assertContains( 'add_action', $result['functions'] );
 	}
