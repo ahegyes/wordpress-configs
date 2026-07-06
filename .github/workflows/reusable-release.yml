@@ -313,7 +313,10 @@ jobs:
                 echo "::error::Archive must not contain $entry."
                 status=1
                 ;;
-              # Bundled CA/cert files under vendor/ or the scoped-dependencies dir are legitimate runtime resources, not secrets.
+              # Bundled CA/cert files under vendor/ or the scoped-dependencies dir are legitimate
+              # runtime resources, not secrets. This exempt arm MUST stay ahead of the broad
+              # *.pem/*.key secret arm below — `case` stops at the first match, so reordering or
+              # merging the two would start flagging bundled certs (or suppress the secret check).
               "$PLUGIN_SLUG/vendor/"*.pem|"$PLUGIN_SLUG/"*"/vendor/"*.pem|"$PLUGIN_SLUG/vendor/"*.key|"$PLUGIN_SLUG/"*"/vendor/"*.key \
                 |"$PLUGIN_SLUG/$SCOPED_DEPENDENCIES_DIR/"*.pem|"$PLUGIN_SLUG/$SCOPED_DEPENDENCIES_DIR/"*.key)
                 ;;

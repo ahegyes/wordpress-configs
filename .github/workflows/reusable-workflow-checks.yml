@@ -42,7 +42,26 @@ jobs:
         env:
           SARIF: ${{ steps.zizmor.outputs.output-file }}
         run: |
-          count=$(jq '[.runs[]?.results[]?] | length' "$SARIF")
+          # Fail closed: only a well-formed SARIF whose runs[].results count is a single integer is
+          # trusted. A missing/empty file, unparseable JSON, parseable-but-non-SARIF JSON ({}, null,
+          # {"runs":{}}), or a multi-document count is an unknown scan result and must not pass — an
+          # empty/non-integer $count would otherwise make `[ -ne 0 ]` error and the `if` fall through.
+          if [ ! -s "$SARIF" ]; then
+            echo "::error::zizmor produced no SARIF at '$SARIF' — cannot confirm a clean scan."
+            exit 1
+          fi
+          if ! count=$(jq 'if (.runs | type) == "array" then reduce .runs[] as $r (0; . + (($r.results // []) | if type == "array" then length else error("run.results is not an array") end)) else error("not a SARIF document") end' "$SARIF"); then
+            echo "::error::zizmor SARIF at '$SARIF' is missing or malformed — cannot confirm a clean scan."
+            exit 1
+          fi
+          # Whole-string integer check (grep is line-oriented, so a multi-document count would slip
+          # through it); anything but a single non-negative integer is an unknown result.
+          case "$count" in
+            '' | *[!0-9]*)
+              echo "::error::unexpected zizmor finding count '$count' — cannot confirm a clean scan."
+              exit 1
+              ;;
+          esac
           echo "zizmor reported $count finding(s)."
           if [ "$count" -ne 0 ]; then
             echo "::error::zizmor reported $count finding(s) — see the Security tab."
