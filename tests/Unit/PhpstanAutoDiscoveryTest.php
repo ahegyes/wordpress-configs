@@ -208,10 +208,12 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 	}
 
 	#[Test]
-	public function returns_empty_paths_for_unknown_layout(): void {
+	public function falls_back_to_project_root_when_layout_is_unknown(): void {
+		// No plugin header, no src/, no style.css: nothing matches, so discovery falls back to the
+		// project root rather than leaving PHPStan with no paths to analyse.
 		$config = require self::CONFIG_FILE;
 
-		self::assertArrayNotHasKey( 'paths', $config['parameters'] );
+		self::assertSame( array( $this->project_dir ), $config['parameters']['paths'] );
 		self::assertSame( '7.0', $config['parameters']['WPCompat']['requiresAtLeast'] );
 	}
 

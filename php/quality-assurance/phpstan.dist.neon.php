@@ -57,6 +57,13 @@ if ( \is_file( $project_dir . '/style.css' ) ) {
 	}
 }
 
+// A repo matching no recognized plugin/theme/library layout discovers no paths, which would abort
+// PHPStan with a generic "no paths specified" error. Fall back to the project root (the shared
+// config excludes vendor/node_modules/dependencies) so analysis still runs.
+if ( ! isset( $config['parameters']['paths'] ) ) {
+	$config['parameters']['paths'][] = $project_dir;
+}
+
 // WPCompat's SinceVersionRule needs a minimum WP version or it throws for every analysed file.
 // Given `pluginFile` it reads that file's `Requires at least:` header itself and hard-throws when
 // the header is absent, aborting the whole run; `requiresAtLeast` is honoured as given and takes
