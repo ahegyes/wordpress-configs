@@ -25,6 +25,7 @@
         "./package.json": "./package.json"
     },
     "peerDependencies": {
+        "@playwright/test": "^1.58.2",
         "@wordpress/scripts": ">=32"
     },
     "devDependencies": {
