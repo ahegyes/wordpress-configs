@@ -1,6 +1,6 @@
 # WordPress Configs
 
-A collection of shared configuration files for WordPress projects. Provides base configs for PHPCS and PHPStan, Composer helpers for dependency scoping, a catalog-agnostic php-scoper base config for the WordPress ecosystem, and a transitive `roave/security-advisories` install that fails `composer install --dev` on any known CVE in the dep graph.
+A collection of shared configuration files for WordPress projects. Provides base configs for PHPCS and PHPStan, Composer helpers for dependency scoping, a catalog-agnostic php-scoper base config for the WordPress ecosystem, and a transitive `roave/security-advisories` install that fails a dev-mode `composer install` on any known CVE in the dep graph.
 
 ## Requirements
 
@@ -388,7 +388,7 @@ The bare `@ahegyes/wordpress-configs/node/...` require resolves through `node_mo
 
 #### TypeScript
 
-`node/tsconfig.base.json` — assumes TypeScript 6+ and states only deltas from its defaults (which already provide strict mode, `bundler` resolution, and a latest-ES target that floats with the compiler): `react-jsx` for blocks plus a few extra checks (`noImplicitReturns`, `noFallthroughCasesInSwitch`, `isolatedModules`, `noEmit`).
+`node/tsconfig.base.json` — assumes TypeScript 6+ and states only deltas from its defaults (which already provide strict mode, `bundler` resolution, and a latest-ES target that floats with the compiler): `react-jsx` for blocks plus a few extra checks (`noImplicitReturns`, `noFallthroughCasesInSwitch`, `isolatedModules`, `resolveJsonModule`, `skipLibCheck`, `noEmit`).
 
 Create a `tsconfig.json` in your project:
 

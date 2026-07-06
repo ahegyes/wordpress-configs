@@ -24,7 +24,8 @@ wordpress-configs/
 │       ├── ScopePhpDependencies.php # full pipeline: builds and runs php-scoper from extra.scoped-dependencies-dir + extra.scoping-prefix + optional extra.scoping-flags; owns --output-dir/-o, --prefix, and --config; requires project-root scoper.inc.php; regenerates scoped autoload after every successful scope
 │       └── Internal/
 │           ├── GenerateScopedAutoload.php # emits dependencies/scoper-autoload.php from the scoped tree (three layouts: single package directly at dependencies/, flattened <pkg>/, nested <vendor>/<pkg>/); throws when the scan finds no packages
-│           └── StubSymbolCollector.php    # AST visitor for scoping-stubs symbol harvesting
+│           ├── StubSymbolCollector.php    # AST visitor for scoping-stubs symbol harvesting
+│           └── PathGuard.php              # shared is_absolute / contains_traversal / is_within path-safety predicates
 ├── node/
 │   ├── tsconfig.base.json
 │   ├── eslint.config.base.mjs
