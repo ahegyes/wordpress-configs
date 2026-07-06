@@ -422,16 +422,29 @@ final class ScopePhpDependencies {
 	private static function normalise_scoped_dir( string $scoped_dir ): string {
 		self::assert_project_relative( $scoped_dir );
 
-		$normalised = \rtrim( self::normalise_for_match( $scoped_dir ), '/\\' );
-		if ( '' === $normalised || '.' === $normalised ) {
+		// Canonicalize each path segment the way a filesystem resolves it before the reserved-name
+		// check, so no alias of a reserved directory slips through while still resolving to it: drop
+		// "." and empty segments (so "src/." and "vendor//" collapse), and strip trailing dots and
+		// spaces (Windows trims those from a path component, so "src." and "src " resolve to "src").
+		// ".." is already rejected by assert_project_relative().
+		$segments = array();
+		foreach ( \explode( '/', self::normalise_for_match( $scoped_dir ) ) as $segment ) {
+			$segment = \rtrim( $segment, '. ' );
+			if ( '' !== $segment ) {
+				$segments[] = $segment;
+			}
+		}
+		$normalised = \implode( '/', $segments );
+		if ( '' === $normalised ) {
 			throw new \RuntimeException( \sprintf( 'Refusing scoped-dependencies-dir "%s" - must be a project-relative subdirectory, not the project root.', $scoped_dir ) );
 		}
 
-		// A scope run always passes --force, which makes php-scoper delete the whole output
-		// directory before regenerating it. Refuse a directory that normally holds real source or
-		// dependencies, so a typo like "vendor" or "src" cannot wipe the working tree; a dedicated
-		// subdirectory (e.g. "dependencies") is the intended target.
-		if ( \in_array( $normalised, array( 'vendor', 'src', 'tests', 'node_modules', '.git' ), true ) ) {
+		// A --force scope run deletes the whole output directory before regenerating it, so refuse a
+		// directory that normally holds real source or dependencies — a typo like "vendor"/"src" must
+		// not wipe the working tree; a dedicated subdirectory (e.g. "dependencies") is the intended
+		// target. Case-fold the already-canonicalized value so a capitalization typo on a
+		// case-insensitive filesystem (APFS, NTFS) is caught too; the reserved names are ASCII.
+		if ( \in_array( \strtolower( $normalised ), array( 'vendor', 'src', 'tests', 'node_modules', '.git' ), true ) ) {
 			throw new \RuntimeException( \sprintf( 'Refusing scoped-dependencies-dir "%s" - "%s" is a reserved directory a forced scope run would delete; use a dedicated subdirectory such as "dependencies".', $scoped_dir, $normalised ) );
 		}
 

@@ -508,11 +508,15 @@ final class ScopePhpDependenciesTest extends TestCase {
 			'dot'       => array( '.' ),
 			'dot slash' => array( './' ),
 			'empty'     => array( '' ),
+			// Collapse to nothing once "." / empty segments and trailing dots/spaces are stripped.
+			'dot space' => array( '. ' ),
+			'dots'      => array( '...' ),
 		);
 	}
 
 	#[Test]
 	#[DataProvider( 'reservedScopedDirs' )]
+	#[DataProvider( 'reservedScopedDirTrailingChars' )]
 	public function post_autoload_dump_rejects_scoped_dependencies_dir_naming_a_reserved_directory( string $scoped_dir ): void {
 		$this->installFakePhpScoper();
 		$this->writeScoperConfig();
@@ -537,6 +541,37 @@ final class ScopePhpDependenciesTest extends TestCase {
 			'tests'        => array( 'tests' ),
 			'node_modules' => array( 'node_modules' ),
 			'git'          => array( '.git' ),
+			// Capitalization variants resolve to the same directory on a case-insensitive
+			// filesystem (APFS, NTFS), so the guard rejects them too.
+			'Vendor'       => array( 'Vendor' ),
+			'SRC'          => array( 'SRC' ),
+			'Src'          => array( 'Src' ),
+			'Tests'        => array( 'Tests' ),
+			'.GIT'         => array( '.GIT' ),
+			'node_MODULES' => array( 'node_MODULES' ),
+			// Dot-segment aliases resolve to a reserved directory once "." and empty
+			// segments collapse, so they are rejected too.
+			'src dot'      => array( 'src/.' ),
+			'Src dot'      => array( 'Src/.' ),
+			'vendor dot'   => array( 'vendor/.' ),
+			'src slashes'  => array( 'src//' ),
+			'git dots'     => array( '.git/./' ),
+		);
+	}
+
+	/**
+	 * Windows trims trailing dots and spaces from a path component, so these resolve to a reserved
+	 * directory on Windows; the guard canonicalizes them the same way and rejects them everywhere.
+	 *
+	 * @return array<string, array{string}>
+	 */
+	public static function reservedScopedDirTrailingChars(): array {
+		return array(
+			'src trailing dot'    => array( 'src.' ),
+			'vendor trailing dot' => array( 'vendor.' ),
+			'.git trailing dot'   => array( '.git.' ),
+			'src trailing space'  => array( 'src ' ),
+			'Src trailing dot'    => array( 'Src.' ),
 		);
 	}
 

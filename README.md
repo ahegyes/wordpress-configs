@@ -266,6 +266,8 @@ PHP_BINARY vendor/bin/php-scoper add-prefix \
 
 `extra.scoping-prefix` is required whenever scoping runs and must be a non-empty PHP namespace prefix. `scoper.inc.php` must exist at the project root; missing config throws because php-scoper without a config would scope the whole current working directory.
 
+`extra.scoped-dependencies-dir` must be a dedicated subdirectory. The pipeline refuses `vendor`, `src`, `tests`, `node_modules`, and `.git` — matched case-insensitively, because a `--force` scope run deletes the output directory before regenerating it, and on a case-insensitive filesystem `Src`/`Vendor` would take real source or dependencies with them. `dependencies` is the conventional choice.
+
 | Hook / script                | What It Does                                                                                                              |
 |------------------------------|---------------------------------------------------------------------------------------------------------------------------|
 | `preAutoloadDump`            | Ensures scoped directories/files exist before autoloader runs                                                             |
