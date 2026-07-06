@@ -65,6 +65,13 @@ return static function ( array $overrides = array() ): array {
 			'constants' => array(),
 		);
 	}
+	// json_decode does not throw on valid scalar JSON ("foo", 42, true), which would then fatal on
+	// the array access below with a confusing engine error rather than the documented RuntimeException.
+	if ( ! \is_array( $exclusions ) ) {
+		throw new \RuntimeException(
+			sprintf( 'scoping-exclusions.json must decode to a JSON object; got %s.', \get_debug_type( $exclusions ) )
+		);
+	}
 	$exclusions['classes']   ??= array();
 	$exclusions['functions'] ??= array();
 	$exclusions['constants'] ??= array();

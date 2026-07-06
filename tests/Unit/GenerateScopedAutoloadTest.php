@@ -473,6 +473,25 @@ final class GenerateScopedAutoloadTest extends TestCase {
 	}
 
 	#[Test]
+	public function throws_when_an_autoload_path_contains_a_nul_byte(): void {
+		// A NUL byte reaches realpath(), which throws a ValueError; generation must fail loud with a
+		// RuntimeException instead, like the traversal/absolute guards.
+		$this->installScopedPackage(
+			'bad/nul',
+			array(
+				'autoload' => array(
+					'classmap' => array( "src\0evil" ),
+				),
+			)
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/NUL byte/' );
+
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
+	}
+
+	#[Test]
 	public function throws_when_classmap_entry_escapes_the_package(): void {
 		$this->installScopedPackage(
 			'bad/classmap',

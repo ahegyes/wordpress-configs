@@ -482,6 +482,12 @@ final class CollectScopingStubs {
 	 * @return string|null The resolved, confined file path, or null if it cannot be safely resolved.
 	 */
 	private static function confine_to_package( string $candidate, string $package_dir ): ?string {
+		// A bare-package autoload.files entry reaches realpath() without is_safe_relative_path()'s
+		// NUL guard, and realpath() throws a ValueError (not false) on a NUL byte — which would abort
+		// the whole hook. Reject the candidate here so a malformed dependency's metadata skips it.
+		if ( \str_contains( $candidate, "\0" ) ) {
+			return null;
+		}
 		$real_candidate = \realpath( $candidate );
 		$real_package   = \realpath( $package_dir );
 

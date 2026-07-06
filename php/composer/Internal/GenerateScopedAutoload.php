@@ -334,6 +334,13 @@ final class GenerateScopedAutoload {
 	 * @return string Normalised package-relative path.
 	 */
 	private static function assert_package_relative_path( string $package_dir, string $path, string $source ): string {
+		// realpath() throws a ValueError (not false) on a NUL byte; reject it here with the same
+		// fail-loud contract as the traversal/absolute checks so a downstream realpath() cannot abort
+		// generation with an uncaught engine error.
+		if ( \str_contains( $path, "\0" ) ) {
+			throw new \RuntimeException( \sprintf( 'Scoped package %s declares a %s path containing a NUL byte.', $package_dir, $source ) );
+		}
+
 		if ( PathGuard::is_absolute( $path ) ) {
 			throw new \RuntimeException( \sprintf( 'Scoped package %s declares absolute %s path "%s"; only package-relative paths are supported.', $package_dir, $source, $path ) );
 		}

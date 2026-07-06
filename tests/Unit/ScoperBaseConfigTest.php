@@ -84,6 +84,21 @@ final class ScoperBaseConfigTest extends TestCase {
 	}
 
 	#[Test]
+	public function throws_runtime_exception_when_scoping_exclusions_file_decodes_to_a_scalar(): void {
+		// Valid JSON, but not an object: json_decode returns a scalar, which would fatal on the
+		// array access with a confusing engine error instead of a clear RuntimeException.
+		\file_put_contents(
+			$this->project_dir . '/scoping-exclusions.json',
+			'"not-an-object"'
+		);
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '/must decode to a JSON object/' );
+
+		( $this->build_config )( array( 'project_dir' => $this->project_dir ) );
+	}
+
+	#[Test]
 	public function returns_empty_excludes_when_scoping_exclusions_file_is_missing(): void {
 		$config = ( $this->build_config )( array( 'project_dir' => $this->project_dir ) );
 

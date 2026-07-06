@@ -675,6 +675,34 @@ final class CollectScopingStubsTest extends TestCase {
 	}
 
 	#[Test]
+	public function bare_package_with_nul_byte_autoload_files_entry_skips_it_without_fatal(): void {
+		// realpath() throws a ValueError (not false) on a NUL byte, and a bare-package autoload.files
+		// entry reaches it without is_safe_relative_path()'s NUL guard. The malformed entry must be
+		// skipped, not abort the whole post-autoload-dump hook.
+		$package_dir = $this->vendor_dir . '/php-stubs/nul';
+		\mkdir( $package_dir, 0755, true );
+		\copy( self::FIXTURES_DIR . '/stubs.php', $package_dir . '/in-package.php' );
+		\file_put_contents(
+			$package_dir . '/composer.json',
+			\json_encode(
+				array(
+					'name'     => 'php-stubs/nul',
+					'autoload' => array( 'files' => array( 'in-package.php', "bad\0entry.php" ) ),
+				),
+				JSON_THROW_ON_ERROR
+			)
+		);
+		$this->registerPackage( 'php-stubs/nul', autoload: array( 'files' => array( 'in-package.php', "bad\0entry.php" ) ) );
+
+		$this->writeProjectComposer( array( 'php-stubs/nul' ) );
+		CollectScopingStubs::postAutoloadDump( $this->event() );
+
+		// The hook completed (no ValueError); the legit file resolved and the NUL entry was skipped.
+		$result = $this->loadOutput( 'scoping-exclusions.json' );
+		self::assertContains( 'add_action', $result['functions'] );
+	}
+
+	#[Test]
 	public function bare_package_does_not_read_sibling_directory_that_shares_the_package_prefix(): void {
 		$package_dir = $this->vendor_dir . '/php-stubs/prefix';
 		$sibling_dir = $this->vendor_dir . '/php-stubs/prefix-evil';
