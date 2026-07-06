@@ -8,9 +8,10 @@ namespace DeepWebSolutions\Config\Composer\Internal;
  * reference this one file via their root `autoload.files`; new scoped packages
  * flow in automatically without root composer.json edits.
  *
- * Deterministic: no `class_alias` / `expose-*`, and every entry is sorted before
- * emission. The generated file is purely a function of the scoped tree, so it
- * regenerates byte-identical.
+ * Deterministic: no `class_alias` / `expose-*`; psr-4 and classmap entries are sorted,
+ * and `autoload.files` keeps each package's declared order over the deterministically
+ * ordered package list. The generated file is purely a function of the scoped tree, so
+ * it regenerates byte-identical.
  *
  * @internal
  */
@@ -370,7 +371,8 @@ final class GenerateScopedAutoload {
 	}
 
 	/**
-	 * Renders the generated PHP source. Entries are sorted for deterministic diffs.
+	 * Renders the generated PHP source. psr-4 and classmap entries are sorted for deterministic
+	 * diffs; autoload.files keeps its accumulation order because it is load-order-sensitive.
 	 *
 	 * @param   array<int, array{namespace: string, path: string}> $psr4     PSR-4 entries to emit.
 	 * @param   array<int, string>                                 $files    Files to require at bootstrap.
@@ -387,11 +389,14 @@ final class GenerateScopedAutoload {
 			$classmap,
 			static fn( array $a, array $b ): int => \strcmp( $a['class'], $b['class'] ) ?: \strcmp( $a['path'], $b['path'] )
 		);
-		// Files are sorted for byte-identical regeneration. This does NOT preserve Composer's
-		// dependency-load order, so a scoped package whose autoload.files relies on another scoped
-		// package's files loading first is unsupported — no framework package has such a
-		// cross-package file dependency; revisit if a consumer ever needs explicit ordering.
-		\sort( $files );
+		// $files is deliberately NOT sorted. Unlike psr-4/classmap (order-independent maps),
+		// autoload.files has load-order semantics, so it keeps the order generate() built it in:
+		// packages in find_scoped_packages()'s sorted order, each package's files in its declared
+		// composer.json order. That is deterministic (byte-identical regeneration) AND preserves each
+		// package's own declared file order — a lexical sort would scramble a package that declares
+		// interdependent files. It does NOT reorder across packages by dependency weight (Composer
+		// loads a dependency's files before its dependents'); no scoped framework package has such a
+		// cross-package file dependency — revisit with a topological sort if a consumer ever needs it.
 
 		$psr4_lines     = array();
 		$classmap_lines = array();

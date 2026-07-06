@@ -90,6 +90,29 @@ final class GenerateScopedAutoloadTest extends TestCase {
 	}
 
 	#[Test]
+	public function preserves_declared_autoload_files_order_within_a_package(): void {
+		// Declared out of alphabetical order on purpose: autoload.files is load-order-sensitive, so
+		// the generator must keep the package's declared order — a lexical sort would swap them.
+		$this->installScopedPackage(
+			'acme/ordered',
+			array(
+				'autoload' => array(
+					'files' => array( 'z-init.php', 'a-core.php' ),
+				),
+			)
+		);
+
+		GenerateScopedAutoload::generate( $this->dependencies_dir );
+
+		$generated  = (string) \file_get_contents( $this->dependencies_dir . '/scoper-autoload.php' );
+		$z_position = \strpos( $generated, "'/acme/ordered/z-init.php'" );
+		$a_position = \strpos( $generated, "'/acme/ordered/a-core.php'" );
+		self::assertNotFalse( $z_position );
+		self::assertNotFalse( $a_position );
+		self::assertLessThan( $a_position, $z_position, 'Generator must preserve declared autoload.files order, not sort it.' );
+	}
+
+	#[Test]
 	public function throws_when_an_autoload_files_entry_is_missing(): void {
 		$this->installScopedPackage(
 			'acme/broken',
