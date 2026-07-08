@@ -57,12 +57,10 @@ if ( \is_file( $project_dir . '/style.css' ) ) {
 	}
 }
 
-// A repo matching no recognized plugin/theme/library layout discovers no paths, which would abort
-// PHPStan with a generic "no paths specified" error. Fall back to the project root (the shared
-// config excludes vendor/node_modules/dependencies) so analysis still runs.
-if ( ! isset( $config['parameters']['paths'] ) ) {
-	$config['parameters']['paths'][] = $project_dir;
-}
+// A repo matching no recognized layout deliberately yields no paths: unless the consumer config
+// declares its own, PHPStan aborts loudly ("at least one path must be specified"). Discovery is
+// anchored on getcwd(), so a root fallback would make a monorepo-root invocation sweeping
+// per-package configs analyse the entire monorepo — fixture vendor trees included — in every run.
 
 // WPCompat's SinceVersionRule needs a minimum WP version or it throws for every analysed file.
 // Given `pluginFile` it reads that file's `Requires at least:` header itself and hard-throws when

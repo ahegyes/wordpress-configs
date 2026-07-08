@@ -142,7 +142,7 @@ The bundled `phpstan.dist.neon.php` auto-discovers paths by layout:
 | Plugin (`Plugin Name:` header) or library (`src/`) | `src/`, `includes/`, `models/`, `blocks/`, `templates/`, `config/`, `tests/` | `{plugin-name}.php`, `functions.php`, `uninstall.php` |
 | Theme (`style.css`)                                | `inc/`, `template-parts/`, `parts/`, `patterns/`, `blocks/`, `tests/`        | `functions.php`, `index.php`                          |
 
-When no layout is recognized, discovery falls back to analysing the project root (with `vendor/`, `node_modules/`, and `dependencies/` excluded) rather than failing with a "no paths" error. Code in extra directories a recognized layout doesn't cover is added with `parameters.paths` in your own `.phpstan.neon` — a plain `parameters.paths` *merges* (appends) with the discovered set; to replace the discovered or fallback set entirely, use the NEON `parameters.paths!` override operator.
+When no layout is recognized, discovery contributes no paths and PHPStan aborts loudly ("at least one path must be specified") unless your own config declares `parameters.paths` — discovery is anchored on the working directory, so a repo-root fallback would make a monorepo-root invocation sweeping per-package configs analyse the entire monorepo in every run. Code in extra directories a recognized layout doesn't cover is added with `parameters.paths` in your own `.phpstan.neon` — a plain `parameters.paths` *merges* (appends) with the discovered set; to replace the discovered set entirely, use the NEON `parameters.paths!` override operator.
 
 **Included PHPStan extensions** (auto-installed):
 

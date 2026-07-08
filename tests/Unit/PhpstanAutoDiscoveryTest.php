@@ -208,12 +208,13 @@ final class PhpstanAutoDiscoveryTest extends TestCase {
 	}
 
 	#[Test]
-	public function falls_back_to_project_root_when_layout_is_unknown(): void {
-		// No plugin header, no src/, no style.css: nothing matches, so discovery falls back to the
-		// project root rather than leaving PHPStan with no paths to analyse.
+	public function yields_no_paths_when_layout_is_unknown(): void {
+		// No plugin header, no src/, no style.css: nothing matches and discovery contributes no
+		// paths — PHPStan aborts loudly unless the consumer config declares its own, instead of
+		// analysing an unrecognized tree wholesale (a monorepo root, for instance).
 		$config = require self::CONFIG_FILE;
 
-		self::assertSame( array( $this->project_dir ), $config['parameters']['paths'] );
+		self::assertArrayNotHasKey( 'paths', $config['parameters'] );
 		self::assertSame( '7.0', $config['parameters']['WPCompat']['requiresAtLeast'] );
 	}
 
