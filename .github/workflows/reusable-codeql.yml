@@ -16,6 +16,7 @@ jobs:
   validate-inputs:
     name: Validate inputs
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       # An empty JSON array expands to zero matrix jobs and reports success — a silent skip of the security scan.
       - name: Reject an empty languages array
