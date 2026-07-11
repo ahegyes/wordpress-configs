@@ -591,6 +591,41 @@ This repo's own `lint:php` adds a third tool, `composer-require-checker` (declar
 
 Release regenerates the POT on every tag build; the script stays useful for local catalog refreshes.
 
+## Scripts Contract
+
+The reusable workflows above name these composer/npm scripts as their interface. A consumer's
+`composer.json` / `package.json` scripts must use these names for the corresponding workflow to
+find and run them.
+
+### Fixed names
+
+Hardcoded in the reusable workflow; not configurable via a `workflow_call` input.
+
+| Script | Ecosystem | Workflow | Condition |
+| --- | --- | --- | --- |
+| `lint:scripts` | npm | `reusable-scripts-styles-lint.yml` | Runs when `lint-scripts` is `true` (default). |
+| `lint:styles` | npm | `reusable-scripts-styles-lint.yml` | Runs when `lint-styles` is `true` (default). |
+
+### Default names (input-overridable)
+
+The default value of a `workflow_call` input; matching it avoids an unnecessary `with:` entry.
+
+| Script | Ecosystem | Workflow | Input |
+| --- | --- | --- | --- |
+| `test` | composer | `reusable-phpunit.yml` | `composer-script` |
+| `build` | npm | `reusable-playwright-e2e.yml`; also run directly (`npm run build --if-present`) by `reusable-release.yml` | `build-script` |
+| `test:e2e` | npm | `reusable-playwright-e2e.yml` | `playwright-script` |
+
+### Convention (consumer-declared, not enforced by the workflow)
+
+`reusable-php-lint.yml` takes a required `scripts[]` array of composer script names and runs each
+as its own matrix job; the workflow names none of them itself. The established convention — see
+[Typical Composer Scripts](#typical-composer-scripts) above — is `lint:php:phpcs` +
+`lint:php:phpstan`, passed as `'["lint:php:phpcs", "lint:php:phpstan"]'`.
+
+`reusable-release.yml` regenerates the POT and builds the archive; it names no composer or npm
+changelog script, so no changelog script is part of this contract.
+
 ## Development
 
 This repository is itself tested with PHPUnit. To work on it:
