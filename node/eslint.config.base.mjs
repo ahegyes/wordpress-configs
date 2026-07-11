@@ -1,5 +1,6 @@
 /**
  * Shared flat ESLint baseline for WordPress projects; append project overrides after this array.
+ * Ignores cover dependencies and build output.
  */
 
 import wordpress from '@wordpress/eslint-plugin';
@@ -21,11 +22,10 @@ export default [
 	},
 	{
 		ignores: [
-			'assets/**',
-			'build/**',
 			'vendor/**',
 			'node_modules/**',
-			'*.min.js',
+			'**/build/**',
+			'**/*.min.js',
 		],
 	},
 ];
