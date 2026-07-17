@@ -42,7 +42,7 @@ The root package must also allow `dealerdirect/phpcodesniffer-composer-installer
 }
 ```
 
-Reusable CI workflows are referenced directly from GitHub (see [Reusable CI Workflows](#reusable-ci-workflows) below). The DWS repos pin every reusable, including `reusable-release.yml`, to a commit SHA and dependabot proposes bumps; `@trunk` in this README's examples is shorthand for "replace this with a commit SHA pin."
+Reusable CI workflows are referenced directly from GitHub (see [Reusable CI Workflows](#reusable-ci-workflows) below). The DWS repos pin every reusable, including `reusable-release.yml`, to a commit SHA and dependabot proposes bumps; replace `<sha>` in this README's examples with a full commit SHA.
 
 ## What's Included
 
@@ -476,7 +476,7 @@ Net result: your bundled deps are scoped under your prefix, while declared exter
 
 ## Reusable CI Workflows
 
-Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Plugins call them via `workflow_call` and compose them into their own pipelines. They only trigger on `workflow_call` — this repo's own CI exercises `reusable-workflow-checks` and `reusable-codeql` through its `workflow-checks` / `codeql` thin callers. The DWS repos pin every reusable, including `reusable-release.yml`, to a commit SHA and dependabot proposes bumps; the `@trunk` refs in the examples below are shorthand for "replace this with a commit SHA pin."
+Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Plugins call them via `workflow_call` and compose them into their own pipelines. They only trigger on `workflow_call` — this repo's own CI exercises `reusable-workflow-checks` and `reusable-codeql` through its `workflow-checks` / `codeql` thin callers. The DWS repos pin every reusable, including `reusable-release.yml`, to a commit SHA and dependabot proposes bumps; replace `<sha>` in the examples below with a full commit SHA.
 
 | Workflow                              | Purpose                                          | Key Inputs                                                   |
 |---------------------------------------|--------------------------------------------------|--------------------------------------------------------------|
@@ -499,7 +499,7 @@ Each workflow's `inputs:` block (every input carries a `description:`) is the au
 
 ### Plugin orchestrators
 
-Plugins typically split their CI into three concern-focused workflows that call the reusables.
+Plugins typically split their CI into concern-focused workflows that call the reusables.
 
 **`.github/workflows/quality.yml`** — runs on every push/PR:
 
@@ -509,17 +509,17 @@ on: [push, pull_request]
 
 jobs:
   syntax:
-    uses: ahegyes/wordpress-configs/.github/workflows/reusable-php-syntax-check.yml@trunk
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-php-syntax-check.yml@<sha>
     with:
       php-versions: '["8.5","8.6"]'
   lint-php:
-    uses: ahegyes/wordpress-configs/.github/workflows/reusable-php-lint.yml@trunk
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-php-lint.yml@<sha>
     with:
       scripts: '["lint:php:phpcs", "lint:php:phpstan"]'
   block-json:
-    uses: ahegyes/wordpress-configs/.github/workflows/reusable-block-json-check.yml@trunk
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-block-json-check.yml@<sha>
   lint-scripts-styles:
-    uses: ahegyes/wordpress-configs/.github/workflows/reusable-scripts-styles-lint.yml@trunk
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-scripts-styles-lint.yml@<sha>
 ```
 
 **`.github/workflows/tests.yml`** — runs on every push/PR:
@@ -530,11 +530,40 @@ on: [push, pull_request]
 
 jobs:
   phpunit:
-    uses: ahegyes/wordpress-configs/.github/workflows/reusable-phpunit.yml@trunk
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-phpunit.yml@<sha>
   e2e:
-    uses: ahegyes/wordpress-configs/.github/workflows/reusable-playwright-e2e.yml@trunk
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-playwright-e2e.yml@<sha>
     with:
       artifact-slug: your-artifact-slug
+```
+
+**`.github/workflows/workflow-checks.yml`** — lints and security-scans the workflows themselves:
+
+```yaml
+name: Workflow Checks
+on:
+  push:
+    branches: [trunk]
+  pull_request:
+    paths: ['.github/workflows/**']
+
+jobs:
+  checks:
+    # A reusable workflow can't elevate above the caller's token — granting less than the called
+    # jobs declare fails the call at startup (a startup_failure, invisible in PR checks).
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-workflow-checks.yml@<sha>
+  codeql:
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-codeql.yml@<sha>
+    with:
+      languages: '["actions", "javascript-typescript"]'
 ```
 
 **`.github/workflows/release.yml`** — runs on version tags:
