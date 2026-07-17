@@ -16,6 +16,7 @@ jobs:
   validate-inputs:
     name: Validate inputs
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions: {}
     steps:
       # An empty JSON array expands to zero matrix jobs and reports success — a silent skip of the security scan.
@@ -32,6 +33,7 @@ jobs:
     name: Analyze (${{ matrix.language }})
     needs: validate-inputs
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       actions: read
       contents: read

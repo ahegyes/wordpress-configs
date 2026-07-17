@@ -9,6 +9,7 @@ jobs:
   actionlint:
     name: Actionlint
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -23,6 +24,7 @@ jobs:
   detect-ghas:
     name: Detect GHAS availability
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       security-events: read
     outputs:
@@ -81,6 +83,7 @@ jobs:
     name: Zizmor
     needs: detect-ghas
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       security-events: write
       contents: read

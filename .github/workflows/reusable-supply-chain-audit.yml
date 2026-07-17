@@ -56,6 +56,7 @@ jobs:
   validate-inputs:
     name: Validate inputs
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       # Both audits off leaves no job to run, so the workflow succeeds having audited nothing.
       - name: Require at least one audit enabled
@@ -68,6 +69,7 @@ jobs:
     if: ${{ inputs.composer-audit }}
     name: composer audit
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -126,6 +128,7 @@ jobs:
     if: ${{ inputs.npm-audit }}
     name: npm audit
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:

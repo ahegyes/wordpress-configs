@@ -58,6 +58,7 @@ jobs:
   build:
     name: Build artifact
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     outputs:
@@ -384,6 +385,7 @@ jobs:
     name: Test built artifact
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
     steps:
@@ -507,6 +509,7 @@ jobs:
     name: Deploy verified artifact
     needs: [build, test]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: github.ref_type == 'tag'
     environment: wp-org-release
     permissions:

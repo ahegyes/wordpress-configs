@@ -21,6 +21,7 @@ jobs:
   validate-inputs:
     name: Validate inputs
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       # An empty JSON array expands to zero matrix jobs and reports success — a silent skip of the syntax check.
       - name: Reject an empty php-versions array
@@ -36,6 +37,7 @@ jobs:
     name: Syntax (PHP ${{ matrix.php-version }})
     needs: validate-inputs
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
