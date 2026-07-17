@@ -41,7 +41,9 @@ Mutation tests run via Infection on a weekly schedule (manually triggerable too)
 
 ## Reusable workflows are public API
 
-Anything in `.github/workflows/reusable-*.yml` is consumed by external repositories via SHA-pinned refs such as `uses: ahegyes/wordpress-configs/.github/workflows/X.yml@<sha>`, with dependabot tracking new `trunk` commits. Changes to inputs, outputs, or behavior are breaking. Build-side reusable bumps may be automerged by consumer policy; changes to the credentialed `deploy` path in `reusable-release.yml` are reviewed, never automerged in consumers. Give every input a `description:` in the workflow's `inputs:` block — that's the authoritative reference; add it to the README table only if it's commonly set.
+Anything in `.github/workflows/reusable-*.yml` is consumed by external repositories via SHA-pinned refs such as `uses: ahegyes/wordpress-configs/.github/workflows/X.yml@<sha>`, with dependabot tracking new `trunk` commits. Build-side reusable bumps may be automerged by consumer policy; changes to the credentialed `deploy` path in `reusable-release.yml` are reviewed, never automerged in consumers. Give every input a `description:` in the workflow's `inputs:` block — that's the authoritative reference; add it to the README table only if it's commonly set.
+
+The safe-evolution rule: shipped `workflow_call` input names, types, and semantics are frozen. Adding an input is compatible only when it is optional and its default preserves current behavior. Renaming, removing, or re-typing a shipped input — or changing a default in a behavior-visible way — is a coordinated migration: land the change and bump every consumer's pin in the same window, and never let that bump automerge. A caller passing an input the workflow no longer declares fails at startup, which GitHub does not surface as a failed check on the PR that took the bump.
 
 ## composer-require-checker.json
 
