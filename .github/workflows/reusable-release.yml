@@ -485,6 +485,14 @@ jobs:
           # shellcheck disable=SC2016
           run_cli bash -c 'got=$(wp plugin get "$1" --field=version); echo "Active plugin version: $got (expected $2)"; test "$got" = "$2"' -- "$PLUGIN_SLUG" "$VERSION"
 
+      - name: Assert the site serves
+        working-directory: ${{ inputs.project-path }}
+        run: |
+          # A boot-path fatal that survives activation surfaces on the next request. The consumer's
+          # .wp-env.json governs the development port — the override file never touches it.
+          port=$(jq -r '.env.development.port // .port // 8888' .wp-env.json)
+          curl --fail --silent --show-error --output /dev/null "http://localhost:${port}/"
+
       - name: Run E2E tests against built artifact
         working-directory: ${{ inputs.project-path }}
         run: |
