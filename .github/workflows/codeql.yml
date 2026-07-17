@@ -6,7 +6,8 @@ on:
   pull_request:
     branches: [trunk]
   schedule:
-    - cron: '0 6 * * 1'
+    # Off the top of the hour and staggered against the other weekly crons.
+    - cron: '29 6 * * 1'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

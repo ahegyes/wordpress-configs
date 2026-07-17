@@ -7,9 +7,10 @@ on:
   pull_request:
     paths: ['.github/workflows/**']
   schedule:
-    # Weekly Monday 06:00 UTC. Keeps zizmor's online audits (e.g.
+    # Weekly Monday 06:17 UTC — off the top of the hour, where GitHub sheds scheduled runs, and
+    # staggered against the other weekly crons. Keeps zizmor's online audits (e.g.
     # known-vulnerable-actions) fresh between workflow changes.
-    - cron: '0 6 * * 1'
+    - cron: '17 6 * * 1'
   workflow_dispatch:
 
 concurrency:
