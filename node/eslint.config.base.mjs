@@ -7,20 +7,25 @@ import wordpress from '@wordpress/eslint-plugin';
 
 export default [
 	...wordpress.configs.recommended,
-	...wordpress.configs['test-unit'].map((config) => ({
+	...wordpress.configs[ 'test-unit' ].map( ( config ) => ( {
 		...config,
-		files: ['**/test/**', '**/*.test.*'],
-	})),
-	...wordpress.configs['test-playwright'].map((config) => ({
+		files: [ '**/test/**', '**/*.test.*' ],
+	} ) ),
+	...wordpress.configs[ 'test-playwright' ].map( ( config ) => ( {
 		...config,
-		files: ['tests/e2e/**'],
-	})),
+		files: [ 'tests/e2e/**' ],
+	} ) ),
 	{
 		rules: {
-			'no-console': ['warn', { allow: ['warn', 'error'] }],
+			'no-console': [ 'warn', { allow: [ 'warn', 'error' ] } ],
 		},
 	},
 	{
-		ignores: ['vendor/**', 'node_modules/**', '**/build/**', '**/*.min.js'],
+		ignores: [
+			'vendor/**',
+			'node_modules/**',
+			'**/build/**',
+			'**/*.min.js',
+		],
 	},
 ];
