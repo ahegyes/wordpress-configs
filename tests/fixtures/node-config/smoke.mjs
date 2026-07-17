@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+// eslint-disable-next-line import/no-extraneous-dependencies -- provided transitively by @wordpress/scripts; used here only to load-smoke the shared ESLint baseline.
 import { ESLint } from 'eslint';
 
 const require = createRequire( import.meta.url );

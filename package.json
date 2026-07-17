@@ -50,7 +50,7 @@
         "format:scripts": "wp-scripts format ./node --no-error-on-unmatched-pattern",
         "format:all": "composer format:php && npm run format:scripts",
 
-        "lint:scripts": "wp-scripts lint-js ./node --no-error-on-unmatched-pattern",
+        "lint:scripts": "wp-scripts lint-js ./node tests/fixtures/node-config/smoke.mjs --no-error-on-unmatched-pattern",
         "lint:config": "node tests/fixtures/node-config/smoke.mjs",
         "lint:all": "composer lint:php && npm run lint:scripts && npm run lint:config",
 
