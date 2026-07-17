@@ -8,6 +8,8 @@
          displayDetailsOnTestsThatTriggerDeprecations="true"
          failOnWarning="true"
          failOnNotice="true"
+         failOnRisky="true"
+         beStrictAboutOutputDuringTests="true"
          cacheDirectory="tests/.cache/phpunit">
     <testsuites>
         <testsuite name="Unit">
