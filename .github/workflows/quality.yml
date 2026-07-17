@@ -26,6 +26,46 @@ jobs:
     with:
       project-path: php
 
+  phpcs-smoke:
+    name: PHPCS dist-file smoke
+    # Self-lint runs the shared baseline only through the root profile, which strips the WP-runtime
+    # sniffs consumers get — this job scans a plugin-shaped fixture with the raw consumer profile.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.5'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install Composer dependencies
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
+        with:
+          composer-options: '--prefer-dist --ignore-platform-req=php+'
+
+      # phpcs -e loads the ruleset and lists its sniffs without scanning any file — the cheapest
+      # possible proof that the XML parses and every <rule ref> still resolves.
+      - name: Explain php/quality-assurance/phpcs.dist.xml
+        run: vendor/bin/phpcs -e --standard=php/quality-assurance/phpcs.dist.xml
+
+      - name: Scan fixture with php/quality-assurance/phpcs.dist.xml
+        shell: bash
+        run: |
+          set -e -o pipefail
+          # The shared profile relaxes rules under */tests/*, so a temp copy is scanned outside that
+          # path — the fixture must face the full production profile consumers get.
+          cp -R tests/fixtures/plugin-stub "$RUNNER_TEMP/plugin-stub"
+          vendor/bin/phpcs -v --standard=php/quality-assurance/phpcs.dist.xml "$RUNNER_TEMP/plugin-stub" | tee phpcs-scan.log
+          # The ruleset's own exclude-patterns can silently empty the file list, and an empty scan proves nothing.
+          ! grep -qF '(0 files in queue)' phpcs-scan.log
+
   lint-scripts:
     name: Lint scripts (ESLint)
     # Reuse the standard scripts/styles workflow with lint-styles disabled (no CSS in this repo).
