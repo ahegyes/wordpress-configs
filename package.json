@@ -27,17 +27,17 @@
     "peerDependencies": {
         "@playwright/test": "^1.58.2",
         "@wordpress/scripts": ">=32",
-        "@wordpress/eslint-plugin": "^25.6.0",
-        "@wordpress/stylelint-config": "^23.42.0"
+        "@wordpress/eslint-plugin": "^25.8.0",
+        "@wordpress/stylelint-config": "^24.1.0"
     },
     "dependencies": {
         "prettier": "npm:wp-prettier@^3.0.3"
     },
     "devDependencies": {
-        "@wordpress/e2e-test-utils-playwright": "^1.50.0",
-        "@wordpress/eslint-plugin": "^25.6.0",
-        "@wordpress/scripts": "^32.6.0",
-        "@wordpress/stylelint-config": "^23.42.0"
+        "@wordpress/e2e-test-utils-playwright": "^1.52.0",
+        "@wordpress/eslint-plugin": "^25.8.0",
+        "@wordpress/scripts": "^34.0.0",
+        "@wordpress/stylelint-config": "^24.1.0"
     },
     "scripts": {
         "packages-install:all": "composer packages-install && npm run packages-install",
