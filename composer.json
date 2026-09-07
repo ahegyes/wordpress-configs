@@ -25,7 +25,7 @@
     "phpstan/extension-installer": "^1",
     "phpstan/phpstan-deprecation-rules": "^2",
     "phpstan/phpstan-strict-rules": "^2",
-    "johnbillion/wp-compat": "^1",
+    "johnbillion/wp-compat": "^1 || ^2",
     "szepeviktor/phpstan-wordpress": "2.x-dev",
     "swissspidy/phpstan-no-private": "^1",
 
@@ -34,7 +34,7 @@
   "require-dev": {
     "composer/composer": "^2",
     "humbug/php-scoper": "^0.18",
-    "infection/infection": "^0.34",
+    "infection/infection": "^0.34 || ^0.35",
     "maglnet/composer-require-checker": "^4",
     "phpunit/phpunit": "^13"
   },
