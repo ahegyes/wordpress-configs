@@ -2,7 +2,7 @@
 
 namespace Acme\Library;
 
-class Client {
+final class Client {
 	public function name(): string {
 		return 'library';
 	}

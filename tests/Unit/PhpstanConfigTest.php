@@ -16,7 +16,7 @@ final class PhpstanConfigTest extends TestCase {
 		self::assertSame( array( 'method.missingOverride', 'return.type' ), $this->analyse( 'shared-rules.php' ) );
 	}
 
-	public function test_nested_vendor_directories_are_scanned_but_not_analysed(): void {
+	public function test_nested_vendor_directories_are_scanned_but_not_analyzed(): void {
 		self::assertSame( array(), $this->analyse( 'nested' ) );
 	}
 

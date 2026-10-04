@@ -10,5 +10,5 @@ parameters:
         - php
         - tests
     excludePaths:
-        # Test fixtures carry deliberate errors and minimal stubs for the tests that analyse them.
+        # Test fixtures carry deliberate errors and minimal stubs for the tests that analyze them.
         - tests/fixtures/*
