@@ -46,6 +46,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 	#[DataProvider( 'provide_single_vendor_closures' )]
 	public function test_a_single_vendor_closure_still_nests_under_its_vendor_directory( array $packages, string|false $text_domain ): void {
 		$project = self::make_project( $packages, array(), array( 'text-domain' => $text_domain ) );
+		self::copy( self::VENDOR_DIR . '/psr/log', $project . '/vendor-prefixed/psr/log' );
 
 		ScopePhpDependencies::scope( $project );
 
@@ -65,18 +66,19 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 	public function test_scoped_autoload_loads_prefixed_classes_and_files(): void {
 		$script = \sprintf(
-			'namespace Automattic\WooCommerce\Admin\Settings { abstract class SettingsSection {} } namespace { require %s; require %s; echo \json_encode( array( \interface_exists( %s ), \class_exists( %s ), \class_exists( %s ), \function_exists( %s ) ) ); }',
+			'namespace Automattic\WooCommerce\Admin\Settings { abstract class SettingsSection {} } namespace { require %s; require %s; echo \json_encode( array( \interface_exists( %s ), \class_exists( %s ), \class_exists( %s ), \class_exists( %s ), \function_exists( %s ) ) ); }',
 			\var_export( self::VENDOR_DIR . '/composer/ClassLoader.php', true ),
 			\var_export( self::scoped_project() . '/vendor-prefixed/scoper-autoload.php', true ),
 			\var_export( 'Acme\Scoped\Psr\Log\LoggerInterface', true ),
 			\var_export( 'Acme\Scoped\DeepWebSolutions\Framework\Commerce\SettingsSection', true ),
+			\var_export( 'Acme\Scoped\LegacyRenderer', true ),
 			\var_export( 'Acme\Scoped\DI\ContainerBuilder', true ),
 			\var_export( 'Acme\Scoped\DI\create', true )
 		);
 		\exec( \escapeshellarg( \PHP_BINARY ) . ' -r ' . \escapeshellarg( $script ) . ' 2>&1', $output, $exit_code );
 
 		self::assertSame( 0, $exit_code, \implode( "\n", $output ) );
-		self::assertSame( '[true,true,true,true]', \implode( "\n", $output ) );
+		self::assertSame( '[true,true,true,true,true]', \implode( "\n", $output ) );
 	}
 
 	public function test_php_di_compares_prefixed_class_names(): void {
@@ -198,7 +200,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 	 * @param array<string, mixed> $extra
 	 */
 	protected static function make_project( array $packages, array $third_party_packages = array(), array $extra = array() ): string {
-		$project          = ( \realpath( \sys_get_temp_dir() ) ?: \sys_get_temp_dir() ) . '/dws-wp-configs-scoping-' . \uniqid();
+		$project          = ( \realpath( \sys_get_temp_dir() ) ?: \sys_get_temp_dir() ) . '/dws wp-configs scoping ' . \uniqid();
 		self::$projects[] = $project;
 		\mkdir( $project . '/vendor', 0777, true );
 		\copy( self::FIXTURE_DIR . '/scoper.inc.php', $project . '/scoper.inc.php' );
