@@ -47,14 +47,11 @@ final class ScopePhpDependencies {
 	 * @throws  \RuntimeException Thrown when the project or php-scoper is missing, vendor-prefixed is a symbolic link, or php-scoper fails.
 	 */
 	public static function scope( string $project_dir ): void {
-		$project_dir = \realpath( $project_dir );
-		if ( false === $project_dir ) {
-			throw new \RuntimeException( 'The project directory does not exist.' );
-		}
+		$project_dir = \realpath( $project_dir ) ?: throw new \RuntimeException( "The project directory '$project_dir' does not exist." );
 
 		$output_dir = $project_dir . '/vendor-prefixed';
 		if ( \is_link( $output_dir ) ) {
-			throw new \RuntimeException( "Refusing to replace $output_dir, which is a symbolic link." );
+			throw new \RuntimeException( "Refusing to replace '$output_dir', which is a symbolic link." );
 		}
 		if ( ! InstalledVersions::isInstalled( 'humbug/php-scoper' ) ) {
 			throw new \RuntimeException( 'Install humbug/php-scoper to scope dependencies.' );
@@ -62,7 +59,7 @@ final class ScopePhpDependencies {
 
 		$filesystem = new Filesystem();
 		$filesystem->remove( $output_dir );
-		$filesystem->dumpFile( $output_dir . '/scoper-autoload.php', "<?php\n" ); // php-scoper boots through the project's autoloader, which requires this file.
+		$filesystem->dumpFile( $output_dir . '/scoper-autoload.php', "<?php\n" ); // The project's autoloader requires this file, and php-scoper boots through that autoloader.
 
 		$command = array( \PHP_BINARY, ( InstalledVersions::getInstallPath( 'humbug/php-scoper' ) ?? '' ) . '/bin/php-scoper', 'add-prefix', '--working-dir=' . $project_dir, '--config=' . $project_dir . '/scoper.inc.php', '--force', '--no-interaction' );
 		\exec( \implode( ' ', \array_map( 'escapeshellarg', $command ) ) . ' 2>&1', $output, $exit_code ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_exec -- Runs in Composer, never on a WordPress server.
@@ -89,7 +86,7 @@ final class ScopePhpDependencies {
 	protected static function autoload( string $output_dir ): string {
 		$manifests = \glob( $output_dir . '/*/*/composer.json' );
 		if ( false === $manifests || array() === $manifests ) {
-			throw new \RuntimeException( "No scoped package exists in $output_dir." );
+			throw new \RuntimeException( "No scoped package exists in '$output_dir'." );
 		}
 
 		$psr4     = '';
@@ -100,7 +97,7 @@ final class ScopePhpDependencies {
 			$relative    = \substr( $package_dir, \strlen( $output_dir ) );
 			$contents    = \file_get_contents( $manifest );
 			if ( false === $contents ) {
-				throw new \RuntimeException( "Could not read $manifest." );
+				throw new \RuntimeException( "Could not read '$manifest'." );
 			}
 			$decoded  = \json_decode( $contents, true, flags: \JSON_THROW_ON_ERROR );
 			$autoload = \is_array( $decoded ) && isset( $decoded['autoload'] ) && \is_array( $decoded['autoload'] ) ? $decoded['autoload'] : array();

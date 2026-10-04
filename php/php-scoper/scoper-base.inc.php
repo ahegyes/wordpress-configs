@@ -12,7 +12,7 @@ use Symfony\Component\Finder\Finder;
  * Returns the php-scoper config for a project.
  *
  * @param   string $project_dir The root directory of the project, which holds composer.json and vendor/.
- * @param   string ...$packages   Optional. More installed packages to scope, such as dompdf/dompdf. Default is none.
+ * @param   string ...$packages Optional. More installed packages to scope, such as dompdf/dompdf. Default is none.
  *
  * @throws  RuntimeException Thrown when composer.json declares no scoping prefix or text domain, or when no package to scope is installed.
  *
@@ -24,10 +24,10 @@ return static function ( string $project_dir, string ...$packages ): array {
 	$prefix      = $extra['scoping-prefix'] ?? null;
 	$text_domain = $extra['text-domain'] ?? null;
 	if ( ! is_string( $prefix ) || '' === $prefix ) {
-		throw new RuntimeException( "$project_dir/composer.json declares no extra.scoping-prefix." );
+		throw new RuntimeException( "'$project_dir/composer.json' declares no extra.scoping-prefix." );
 	}
 	if ( false !== $text_domain && ( ! is_string( $text_domain ) || '' === $text_domain ) ) {
-		throw new RuntimeException( "$project_dir/composer.json declares no extra.text-domain. Set it to the plugin's text domain, or to false when no framework string ships." );
+		throw new RuntimeException( "'$project_dir/composer.json' declares no extra.text-domain. Set it to the plugin's text domain, or to false when no framework string ships." );
 	}
 
 	$vendor_dir   = "$project_dir/vendor";
@@ -35,16 +35,16 @@ return static function ( string $project_dir, string ...$packages ): array {
 	foreach ( array( 'ahegyes/wp-framework-*', 'php-di/*', 'laravel/serializable-closure', 'psr/container', 'psr/log', ...$packages ) as $pattern ) {
 		$matches = glob( "$vendor_dir/$pattern", GLOB_ONLYDIR );
 		if ( false === $matches ) {
-			throw new RuntimeException( "Could not list $vendor_dir/$pattern." );
+			throw new RuntimeException( "Could not list '$vendor_dir/$pattern'." );
 		}
 		$package_dirs = array_merge( $package_dirs, $matches );
 	}
 	$package_dirs = array_values( array_unique( $package_dirs ) );
 	if ( array() === $package_dirs ) {
-		throw new RuntimeException( "No package to scope is installed in $vendor_dir." ); // Without finders, php-scoper scopes the whole working directory.
+		throw new RuntimeException( "No package to scope is installed in '$vendor_dir'." ); // Without finders, php-scoper scopes the whole working directory.
 	}
 
-	// php-scoper writes every file below the deepest directory its inputs share, which drops the vendor directory of a single-vendor closure.
+	// A single-vendor closure needs its vendor directory set here, because php-scoper writes every file below the deepest directory its inputs share.
 	$vendors    = array_unique( array_map( static fn ( string $dir ): string => basename( dirname( $dir ) ), $package_dirs ) );
 	$output_dir = "$project_dir/vendor-prefixed";
 	if ( 1 === count( $vendors ) ) {
@@ -82,8 +82,8 @@ return static function ( string $project_dir, string ...$packages ): array {
 				if ( false !== $text_domain ) {
 					$contents = str_replace( array( "'wp-framework'", '"wp-framework"' ), var_export( $text_domain, true ), $contents );
 				}
-				if ( 1 === preg_match( '/' . preg_quote( "$prefix\\", '/' ) . '(?:WC_|wc_|WC\(|woocommerce_|as_|Automattic\\\\WooCommerce\\\\)[\w\\\\]*|\'wp-framework\'/', $contents, $residue ) ) {
-					throw new RuntimeException( sprintf( 'Scoping left %s in %s: a host symbol the stubs do not declare took the prefix, or a framework string kept the reserved text domain.', $residue[0], $file_path ) );
+				if ( 1 === preg_match( '/' . preg_quote( "$prefix\\", '/' ) . '(?:WC_|wc_|WC\(|woocommerce_|as_|Automattic\\\\WooCommerce\\\\)[\w\\\\]*|(?<=\')wp-framework(?=\')/', $contents, $residue ) ) {
+					throw new RuntimeException( sprintf( "'%s' still contains '%s' after scoping: a host symbol the stubs do not declare has the prefix, or a framework string has the reserved text domain.", $file_path, $residue[0] ) );
 				}
 
 				return $contents;

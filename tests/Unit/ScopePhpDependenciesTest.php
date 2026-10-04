@@ -73,7 +73,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 	public function test_scoped_autoload_loads_prefixed_classes_and_files(): void {
 		$script = \sprintf(
-			'namespace Automattic\WooCommerce\Admin\Settings { abstract class SettingsSection {} } namespace { require %s; require %s; echo \json_encode( array( \interface_exists( %s ), \class_exists( %s ), \class_exists( %s ), \class_exists( %s ), \function_exists( %s ) ) ); }',
+			'namespace Automattic\WooCommerce\Admin\Settings { abstract class SettingsSection {} } namespace { require %s; require %s; echo json_encode( array( interface_exists( %s ), class_exists( %s ), class_exists( %s ), class_exists( %s ), function_exists( %s ) ) ); }',
 			\var_export( self::VENDOR_DIR . '/composer/ClassLoader.php', true ),
 			\var_export( self::scoped_project() . '/vendor-prefixed/scoper-autoload.php', true ),
 			\var_export( 'Acme\Scoped\Psr\Log\LoggerInterface', true ),

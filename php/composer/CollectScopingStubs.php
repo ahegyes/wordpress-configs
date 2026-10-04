@@ -71,7 +71,7 @@ final class CollectScopingStubs {
 			$install = InstalledVersions::isInstalled( $package ) ? InstalledVersions::getInstallPath( $package ) : null;
 			$path    = \is_null( $install ) ? '' : $install . '/' . $file;
 			if ( ! \is_file( $path ) ) {
-				throw new \RuntimeException( \sprintf( '%s/composer.json declares the scoping stubs %s, which are not installed.', $package_dir, \var_export( $entry, true ) ) );
+				throw new \RuntimeException( \sprintf( "'%s/composer.json' declares the scoping stubs %s, which are not installed.", $package_dir, \var_export( $entry, true ) ) );
 			}
 			$stubs_files[] = $path;
 		}
@@ -91,7 +91,7 @@ final class CollectScopingStubs {
 	protected static function read_list( string $file ): array {
 		$list = \json_decode( self::read( $file ), true, flags: \JSON_THROW_ON_ERROR );
 		if ( ! \is_array( $list ) ) {
-			throw new \RuntimeException( "$file holds no list." );
+			throw new \RuntimeException( "'$file' holds no list." );
 		}
 
 		return \array_values( \array_filter( $list, 'is_string' ) );
@@ -109,7 +109,7 @@ final class CollectScopingStubs {
 	protected static function read( string $file ): string {
 		$contents = \file_get_contents( $file );
 		if ( false === $contents ) {
-			throw new \RuntimeException( "Could not read $file." );
+			throw new \RuntimeException( "Could not read '$file'." );
 		}
 
 		return $contents;

@@ -217,9 +217,9 @@ Require php-scoper in the plugin itself, because Composer does not install this 
 
 ```json
 {
-    "require-dev": {
-        "humbug/php-scoper": "^0.18"
-    }
+  "require-dev": {
+    "humbug/php-scoper": "^0.18"
+  }
 }
 ```
 
@@ -227,21 +227,21 @@ Declare the scoping prefix and the plugin's text domain, load the generated auto
 
 ```json
 {
-    "autoload": {
-        "files": [
-            "vendor-prefixed/scoper-autoload.php"
-        ]
-    },
-    "scripts": {
-        "post-autoload-dump": [
-            "DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::postAutoloadDump"
-        ],
-        "scope-php-dependencies": "DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::run"
-    },
-    "extra": {
-        "scoping-prefix": "DeepWebSolutions\\YourPlugin\\Scoped",
-        "text-domain": "your-text-domain"
-    }
+  "autoload": {
+    "files": [
+      "vendor-prefixed/scoper-autoload.php"
+    ]
+  },
+  "scripts": {
+    "post-autoload-dump": [
+      "DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::postAutoloadDump"
+    ],
+    "scope-php-dependencies": "DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::run"
+  },
+  "extra": {
+    "scoping-prefix": "DeepWebSolutions\\YourPlugin\\Scoped",
+    "text-domain": "your-text-domain"
+  }
 }
 ```
 
@@ -270,12 +270,12 @@ A package declares the stubs files that cover the host symbols it calls, each as
 
 ```json
 {
-    "extra": {
-        "scoping-stubs": [
-            "php-stubs/woocommerce-stubs",
-            "php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php"
-        ]
-    }
+  "extra": {
+    "scoping-stubs": [
+      "php-stubs/woocommerce-stubs",
+      "php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php"
+    ]
+  }
 }
 ```
 

@@ -3,17 +3,13 @@
 namespace DeepWebSolutions\Framework\Commerce;
 
 /**
- * Extends a WooCommerce settings section and calls WooCommerce and Action Scheduler functions.
- *
- * @since   2.0.0
- * @version 2.0.0
+ * Labels a WooCommerce settings section through WooCommerce and Action Scheduler calls.
  */
-class SettingsSection extends \Automattic\WooCommerce\Admin\Settings\SettingsSection {
+final class SettingsSection extends \Automattic\WooCommerce\Admin\Settings\SettingsSection {
+	// region GETTERS
+
 	/**
 	 * Returns the section label.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
 	 *
 	 * @return  string
 	 */
@@ -23,4 +19,6 @@ class SettingsSection extends \Automattic\WooCommerce\Admin\Settings\SettingsSec
 
 		return \__( 'Commerce', 'wp-framework' );
 	}
+
+	// endregion
 }

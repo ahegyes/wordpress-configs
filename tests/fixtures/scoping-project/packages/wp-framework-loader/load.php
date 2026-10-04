@@ -1,9 +1,6 @@
 <?php declare( strict_types=1 );
 /**
- * A file plugins load by path, outside every autoload key.
- *
- * @since   2.0.0
- * @version 2.0.0
+ * Declares a function plugins load by path, outside every autoload key.
  *
  * @package DeepWebSolutions\Config\Tests
  */
@@ -12,9 +9,6 @@ namespace DeepWebSolutions\Framework\Loader;
 
 /**
  * Returns whether the loader ran.
- *
- * @since   2.0.0
- * @version 2.0.0
  *
  * @return  bool
  */
