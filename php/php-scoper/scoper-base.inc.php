@@ -56,7 +56,7 @@ return static function ( string $project_dir, string ...$packages ): array {
 	return array(
 		'prefix'            => $prefix,
 		'output-dir'        => $output_dir,
-		'finders'           => array( Finder::create()->files()->in( $package_dirs )->name( array( '*.php', 'composer.json', 'LICENSE*' ) ) ),
+		'finders'           => array( Finder::create()->files()->in( $package_dirs ) ),
 		// PHP-DI renders this file as a raw template, which a prefixed namespace declaration would break.
 		'exclude-files'     => array_filter( array( "$vendor_dir/php-di/php-di/src/Compiler/Template.php" ), 'is_file' ),
 		'exclude-classes'   => $symbols['classes'],

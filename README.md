@@ -253,7 +253,7 @@ Create `scoper.inc.php` at the project root:
 return ( require __DIR__ . '/vendor/ahegyes/wordpress-configs/php/php-scoper/scoper-base.inc.php' )( __DIR__ );
 ```
 
-To scope another installed library, such as dompdf, pass its package and each package it requires after `__DIR__`.
+To scope another installed library, such as dompdf, pass its package and each package it requires after `__DIR__`. A library that builds class names in strings also needs patchers of its own, appended to the returned config's `patchers`.
 
 A scope run:
 

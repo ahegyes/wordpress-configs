@@ -64,6 +64,13 @@ final class ScopePhpDependenciesTest extends TestCase {
 		);
 	}
 
+	public function test_non_php_files_ship_with_their_package(): void {
+		self::assertFileEquals(
+			self::FIXTURE_DIR . '/packages/wp-framework-commerce/resources/notice.css',
+			self::scoped_project() . '/vendor-prefixed/ahegyes/wp-framework-commerce/resources/notice.css'
+		);
+	}
+
 	public function test_scoped_autoload_loads_prefixed_classes_and_files(): void {
 		$script = \sprintf(
 			'namespace Automattic\WooCommerce\Admin\Settings { abstract class SettingsSection {} } namespace { require %s; require %s; echo \json_encode( array( \interface_exists( %s ), \class_exists( %s ), \class_exists( %s ), \class_exists( %s ), \function_exists( %s ) ) ); }',
