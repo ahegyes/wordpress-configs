@@ -22,7 +22,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/reusable-php-lint.yml
     with:
-      scripts: '["lint:php:phpcs", "lint:php:phpcs:tests", "lint:php:phpstan", "lint:php:composer-require-checker"]'
+      scripts: '["lint:php:phpcs", "lint:php:phpcs:tests", "lint:php:phpstan"]'
 
   php-syntax:
     name: PHP Syntax

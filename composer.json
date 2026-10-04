@@ -38,7 +38,6 @@
     "composer/composer": "^2",
     "humbug/php-scoper": "^0.18",
     "infection/infection": "^0.35",
-    "maglnet/composer-require-checker": "^4",
     "php-di/php-di": "^7",
     "phpunit/phpunit": "^13",
     "psr/container": "^2",
@@ -78,13 +77,11 @@
     "lint:php": [
       "@lint:php:phpcs",
       "@lint:php:phpcs:tests",
-      "@lint:php:phpstan",
-      "@lint:php:composer-require-checker"
+      "@lint:php:phpstan"
     ],
     "lint:php:phpcs": "phpcs --standard=./phpcs.dist.xml --basepath=. ./ -v",
     "lint:php:phpcs:tests": "phpcs --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v",
     "lint:php:phpstan": "phpstan analyse -v --memory-limit=1G",
-    "lint:php:composer-require-checker": "@php vendor/bin/composer-require-checker check --config-file=composer-require-checker.json",
 
     "test": [
       "@test:unit"

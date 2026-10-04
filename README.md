@@ -544,8 +544,6 @@ Add these to your project's `composer.json` for a consistent dev workflow. Compo
 }
 ```
 
-This repo's own `lint:php` adds a third tool, `composer-require-checker` (declared-dependency completeness, gated on a `composer-require-checker.json`) — add it if your package wants that check.
-
 Release regenerates the POT on every tag build; the script stays useful for local catalog refreshes.
 
 ## Scripts Contract
