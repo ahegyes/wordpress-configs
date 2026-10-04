@@ -1,0 +1,15 @@
+{
+  "name": "acme/scoping-project",
+  "description": "A plugin-shaped project the scoping test copies and scopes.",
+  "type": "project",
+  "license": "MIT",
+  "autoload": {
+    "files": [
+      "vendor-prefixed/scoper-autoload.php"
+    ]
+  },
+  "extra": {
+    "scoping-prefix": "Acme\\Scoped",
+    "text-domain": "acme-text-domain"
+  }
+}

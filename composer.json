@@ -38,7 +38,10 @@
     "humbug/php-scoper": "^0.18",
     "infection/infection": "^0.35",
     "maglnet/composer-require-checker": "^4",
-    "phpunit/phpunit": "^13"
+    "php-di/php-di": "^7",
+    "phpunit/phpunit": "^13",
+    "psr/container": "^2",
+    "psr/log": "^3"
   },
   "suggest": {
     "humbug/php-scoper": "Required for the dependency-scoping pipeline (ScopePhpDependencies + the scoper-base config)."

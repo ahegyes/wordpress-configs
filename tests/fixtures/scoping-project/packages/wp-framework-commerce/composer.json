@@ -1,0 +1,16 @@
+{
+  "name": "ahegyes/wp-framework-commerce",
+  "description": "A WooCommerce-shaped package that calls host symbols.",
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "DeepWebSolutions\\Framework\\Commerce\\": "src/"
+    }
+  },
+  "extra": {
+    "scoping-stubs": [
+      "php-stubs/woocommerce-stubs",
+      "php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php"
+    ]
+  }
+}

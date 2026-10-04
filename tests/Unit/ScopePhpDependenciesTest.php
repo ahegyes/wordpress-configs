@@ -2,834 +2,290 @@
 
 namespace DeepWebSolutions\Config\Tests\Unit;
 
-use Composer\Composer;
-use Composer\Config;
-use Composer\IO\BufferIO;
-use Composer\Script\Event;
 use DeepWebSolutions\Config\Composer\ScopePhpDependencies;
-use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
-#[CoversClass( ScopePhpDependencies::class )]
 final class ScopePhpDependenciesTest extends TestCase {
 
-	private string $project_dir;
-	private string $vendor_dir;
+	protected const string FIXTURE_DIR = __DIR__ . '/../fixtures/scoping-project';
 
-	protected function setUp(): void {
-		$this->project_dir = \sys_get_temp_dir() . '/dws-wp-configs-scope-' . \uniqid();
-		$this->vendor_dir  = $this->project_dir . '/vendor';
-		\mkdir( $this->vendor_dir, 0755, true );
+	protected const string VENDOR_DIR = __DIR__ . '/../../vendor';
 
-		\putenv( 'COMPOSER=' . $this->project_dir . '/composer.json' );
+	protected const array THIRD_PARTY_PACKAGES = array( 'laravel/serializable-closure', 'php-di/invoker', 'php-di/php-di', 'psr/container', 'psr/log' );
+
+	/**
+	 * @var list<string>
+	 */
+	protected static array $projects = array();
+
+	protected static ?string $scoped_project = null;
+
+	#[\Override]
+	public static function tearDownAfterClass(): void {
+		foreach ( self::$projects as $project ) {
+			self::remove( $project );
+		}
+		self::$projects       = array();
+		self::$scoped_project = null;
 	}
 
-	protected function tearDown(): void {
-		\putenv( 'COMPOSER' );
-		$this->rrmdir( $this->project_dir );
-	}
+	public function test_every_package_nests_under_its_vendor_directory(): void {
+		$output_dir = self::scoped_project() . '/vendor-prefixed';
 
-	#[Test]
-	public function pre_autoload_dump_creates_missing_scoped_paths(): void {
-		$this->writeComposerJson(
-			array(
-				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-				'autoload' => array( 'files' => array( 'dependencies/scoper-autoload.php' ) ),
-			)
-		);
-
-		ScopePhpDependencies::preAutoloadDump( $this->event() );
-
-		self::assertFileExists( $this->project_dir . '/dependencies/scoper-autoload.php' );
-	}
-
-	#[Test]
-	public function pre_autoload_dump_does_not_create_paths_outside_the_scoped_dir(): void {
-		// A typo'd real autoload path must stay visible to Composer's own autoload validation.
-		$this->writeComposerJson(
-			array(
-				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-				'autoload' => array( 'files' => array( 'dependencies/scoper-autoload.php', 'src/boostrap.php' ) ),
-			)
-		);
-
-		ScopePhpDependencies::preAutoloadDump( $this->event() );
-
-		self::assertFileExists( $this->project_dir . '/dependencies/scoper-autoload.php' );
-		self::assertFileDoesNotExist( $this->project_dir . '/src/boostrap.php' );
-	}
-
-	#[Test]
-	public function pre_autoload_dump_does_not_create_paths_under_a_sibling_prefix_dir(): void {
-		$this->writeComposerJson(
-			array(
-				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-				'autoload' => array( 'files' => array( 'dependencies-old/file.php' ) ),
-			)
-		);
-
-		ScopePhpDependencies::preAutoloadDump( $this->event() );
-
-		self::assertFileDoesNotExist( $this->project_dir . '/dependencies-old/file.php' );
-	}
-
-	#[Test]
-	public function pre_autoload_dump_is_a_noop_without_a_scoped_dependencies_dir(): void {
-		$this->writeComposerJson(
-			array(
-				'autoload' => array( 'files' => array( 'src/missing.php' ) ),
-			)
-		);
-
-		ScopePhpDependencies::preAutoloadDump( $this->event() );
-
-		self::assertFileDoesNotExist( $this->project_dir . '/src/missing.php' );
-	}
-
-	#[Test]
-	public function pre_autoload_dump_creates_missing_scoped_classmap_directories(): void {
-		$this->writeComposerJson(
-			array(
-				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-				'autoload' => array( 'classmap' => array( 'dependencies/scoped-pkg' ) ),
-			)
-		);
-
-		ScopePhpDependencies::preAutoloadDump( $this->event() );
-
-		self::assertDirectoryExists( $this->project_dir . '/dependencies/scoped-pkg' );
-	}
-
-	#[Test]
-	public function pre_autoload_dump_is_idempotent_for_existing_scoped_paths(): void {
-		\mkdir( $this->project_dir . '/dependencies', 0755, true );
-		\file_put_contents( $this->project_dir . '/dependencies/scoper-autoload.php', "<?php\n// keep this content\n" );
-
-		$this->writeComposerJson(
-			array(
-				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-				'autoload' => array( 'files' => array( 'dependencies/scoper-autoload.php' ) ),
-			)
-		);
-
-		ScopePhpDependencies::preAutoloadDump( $this->event() );
-
-		self::assertSame( "<?php\n// keep this content\n", \file_get_contents( $this->project_dir . '/dependencies/scoper-autoload.php' ) );
-	}
-
-	#[Test]
-	public function pre_autoload_dump_omits_dev_scoped_entries_in_non_dev_mode(): void {
-		$this->writeComposerJson(
-			array(
-				'extra'        => array( 'scoped-dependencies-dir' => 'dependencies' ),
-				'autoload'     => array( 'files' => array( 'dependencies/prod.php' ) ),
-				'autoload-dev' => array( 'files' => array( 'dependencies/dev-only.php' ) ),
-			)
-		);
-
-		ScopePhpDependencies::preAutoloadDump( $this->event( devMode: false ) );
-
-		self::assertFileExists( $this->project_dir . '/dependencies/prod.php' );
-		self::assertFileDoesNotExist( $this->project_dir . '/dependencies/dev-only.php' );
-	}
-
-	#[Test]
-	public function pre_autoload_dump_includes_dev_scoped_entries_in_dev_mode(): void {
-		$this->writeComposerJson(
-			array(
-				'extra'        => array( 'scoped-dependencies-dir' => 'dependencies' ),
-				'autoload'     => array( 'files' => array( 'dependencies/prod.php' ) ),
-				'autoload-dev' => array( 'files' => array( 'dependencies/dev.php' ) ),
-			)
-		);
-
-		ScopePhpDependencies::preAutoloadDump( $this->event( devMode: true ) );
-
-		self::assertFileExists( $this->project_dir . '/dependencies/prod.php' );
-		self::assertFileExists( $this->project_dir . '/dependencies/dev.php' );
-	}
-
-	#[Test]
-	public function pre_autoload_dump_creates_a_scoped_entry_declared_after_an_out_of_scope_one(): void {
-		// The out-of-scope entry is declared FIRST, so a later scoped entry must still get its
-		// placeholder — the skip is a `continue`, not an early exit out of the loop.
-		$this->writeComposerJson(
-			array(
-				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-				'autoload' => array( 'files' => array( 'src/boostrap.php', 'dependencies/scoper-autoload.php' ) ),
-			)
-		);
-
-		ScopePhpDependencies::preAutoloadDump( $this->event() );
-
-		self::assertFileExists( $this->project_dir . '/dependencies/scoper-autoload.php' );
-		self::assertFileDoesNotExist( $this->project_dir . '/src/boostrap.php' );
-	}
-
-	#[Test]
-	public function pre_autoload_dump_creates_dev_scoped_classmap_dir_in_dev_mode(): void {
-		// The dev-mode merge covers autoload-dev.classmap, not only autoload-dev.files.
-		$this->writeComposerJson(
-			array(
-				'extra'        => array( 'scoped-dependencies-dir' => 'dependencies' ),
-				'autoload-dev' => array( 'classmap' => array( 'dependencies/dev-classmap' ) ),
-			)
-		);
-
-		ScopePhpDependencies::preAutoloadDump( $this->event( devMode: true ) );
-
-		self::assertDirectoryExists( $this->project_dir . '/dependencies/dev-classmap' );
-	}
-
-	#[Test]
-	public function pre_autoload_dump_handles_composer_json_without_autoload_dev_section(): void {
-		$this->writeComposerJson(
-			array(
-				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-				'autoload' => array( 'files' => array( 'dependencies/only-prod.php' ) ),
-			)
-		);
-
-		ScopePhpDependencies::preAutoloadDump( $this->event( devMode: true ) );
-
-		self::assertFileExists( $this->project_dir . '/dependencies/only-prod.php' );
-	}
-
-	#[Test]
-	public function pre_autoload_dump_rejects_scoped_dependencies_dir_with_traversal(): void {
-		$this->writeComposerJson(
-			array(
-				'extra' => array( 'scoped-dependencies-dir' => '../escape' ),
-			)
-		);
-
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/parent-directory traversal/' );
-		ScopePhpDependencies::preAutoloadDump( $this->event() );
-	}
-
-	#[Test]
-	public function pre_autoload_dump_rejects_absolute_scoped_dependencies_dir(): void {
-		$this->writeComposerJson(
-			array(
-				'extra' => array( 'scoped-dependencies-dir' => '/etc/escape' ),
-			)
-		);
-
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/absolute autoload path/' );
-		ScopePhpDependencies::preAutoloadDump( $this->event() );
-	}
-
-	#[Test]
-	public function pre_autoload_dump_rejects_scoped_path_with_parent_traversal(): void {
-		$this->writeComposerJson(
-			array(
-				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-				'autoload' => array( 'files' => array( 'dependencies/../../escape.php' ) ),
-			)
-		);
-
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/parent-directory traversal/' );
-		ScopePhpDependencies::preAutoloadDump( $this->event() );
-	}
-
-	#[Test]
-	public function pre_autoload_dump_rejects_scoped_classmap_path_with_parent_traversal(): void {
-		$this->writeComposerJson(
-			array(
-				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-				'autoload' => array( 'classmap' => array( 'dependencies/../../escape' ) ),
-			)
-		);
-
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/parent-directory traversal/' );
-		ScopePhpDependencies::preAutoloadDump( $this->event() );
-	}
-
-	#[Test]
-	public function pre_autoload_dump_creates_scoped_path_with_leading_dot_slash(): void {
-		$this->writeComposerJson(
-			array(
-				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-				'autoload' => array( 'files' => array( './dependencies/scoper-autoload.php' ) ),
-			)
-		);
-
-		ScopePhpDependencies::preAutoloadDump( $this->event() );
-
-		self::assertFileExists( $this->project_dir . '/dependencies/scoper-autoload.php' );
-	}
-
-	#[Test]
-	public function pre_autoload_dump_creates_classmap_dir_equal_to_the_scoped_dir(): void {
-		$this->writeComposerJson(
-			array(
-				'extra'    => array( 'scoped-dependencies-dir' => 'dependencies' ),
-				'autoload' => array( 'classmap' => array( 'dependencies' ) ),
-			)
-		);
-
-		ScopePhpDependencies::preAutoloadDump( $this->event() );
-
-		self::assertDirectoryExists( $this->project_dir . '/dependencies' );
-	}
-
-	#[Test]
-	public function post_autoload_dump_skips_in_non_dev_mode(): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson() );
-
-		$io = new BufferIO();
-		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( $io, devMode: false ) );
-
-		self::assertFileDoesNotExist( $this->project_dir . '/dependencies/scoper-autoload.php' );
-		self::assertNotSame( '', $io->getOutput() );
-	}
-
-	#[Test]
-	public function post_autoload_dump_skips_when_php_scoper_is_not_installed(): void {
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson() );
-
-		$io = new BufferIO();
-		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( $io ) );
-
-		self::assertFileDoesNotExist( $this->project_dir . '/dependencies/scoper-autoload.php' );
-		self::assertNotSame( '', $io->getOutput() );
-	}
-
-	#[Test]
-	public function post_autoload_dump_skips_when_scoped_dependencies_dir_is_not_declared(): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson(
-			array(
-				'extra' => array( 'scoping-prefix' => 'MyPlugin\\Scoped' ),
-			)
-		);
-
-		$io = new BufferIO();
-		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( $io ) );
-
-		self::assertFileDoesNotExist( $this->project_dir . '/dependencies/scoper-autoload.php' );
-		self::assertNotSame( '', $io->getOutput() );
-	}
-
-	#[Test]
-	public function post_autoload_dump_runs_php_scoper_command_then_generates_autoload(): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson(
-			$this->scopingComposerJson(
-				scopedDir: 'custom dependencies/',
-				flags: array( '--ansi', '-vvv' )
-			)
-		);
-
-		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
-
-		$recorded = $this->readRecordedCommand();
-		self::assertSame( \realpath( $this->project_dir ), $recorded['cwd'] );
-		// -vvv in extra.scoping-flags suppresses the otherwise-default --quiet.
 		self::assertSame(
-			array(
-				$this->vendor_dir . '/bin/php-scoper',
-				'add-prefix',
-				'--prefix=MyPlugin\\Scoped',
-				'--config=' . $this->project_dir . '/scoper.inc.php',
-				'--output-dir=' . $this->project_dir . '/custom dependencies',
-				'--force',
-				'--ansi',
-				'-vvv',
-			),
-			$recorded['argv']
+			array( 'ahegyes/wp-framework-commerce', 'ahegyes/wp-framework-loader', 'laravel/serializable-closure', 'php-di/invoker', 'php-di/php-di', 'psr/container', 'psr/log' ),
+			self::package_dirs( $output_dir )
 		);
-
-		$generated = (string) \file_get_contents( $this->project_dir . '/custom dependencies/scoper-autoload.php' );
-		self::assertStringContainsString( 'MyPlugin\\\\Scoped\\\\Acme\\\\Lib', $generated );
-	}
-
-	#[Test]
-	public function post_autoload_dump_keeps_quiet_when_no_verbosity_flag_is_supplied(): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson( scopedDir: 'dependencies', flags: array( '--ansi' ) ) );
-
-		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
-
-		$recorded = $this->readRecordedCommand();
-		self::assertContains( '--quiet', $recorded['argv'] );
-		self::assertContains( '--ansi', $recorded['argv'] );
-	}
-
-	#[Test]
-	public function post_autoload_dump_throws_when_scoper_config_is_missing(): void {
-		$this->installFakePhpScoper();
-		$this->writeComposerJson( $this->scopingComposerJson() );
-
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/scoper\.inc\.php/' );
-		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
-	}
-
-	#[Test]
-	public function post_autoload_dump_throws_when_scoped_dir_has_no_prefix(): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson(
-			array(
-				'extra' => array( 'scoped-dependencies-dir' => 'dependencies' ),
-			)
-		);
-
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/extra\.scoping-prefix/' );
-		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
-	}
-
-	#[Test]
-	public function post_autoload_dump_throws_when_scoping_prefix_is_invalid(): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson( prefix: '9Bad\\Prefix' ) );
-
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/valid PHP namespace prefix/' );
-		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
-	}
-
-	#[Test]
-	#[DataProvider( 'forbiddenScopingFlags' )]
-	public function post_autoload_dump_rejects_scoping_flags_outside_the_allow_list( string $flag ): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson( flags: array( $flag ) ) );
-
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/Allowed entries/' );
-		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+		self::assertStringContainsString( 'namespace Acme\Scoped\DeepWebSolutions\Framework\Loader;', self::read( $output_dir . '/ahegyes/wp-framework-loader/load.php' ) );
 	}
 
 	/**
-	 * @return array<string, array{string}>
+	 * @param list<string> $packages
 	 */
-	public static function forbiddenScopingFlags(): array {
+	#[DataProvider( 'provide_single_vendor_closures' )]
+	public function test_a_single_vendor_closure_still_nests_under_its_vendor_directory( array $packages, string|false $text_domain ): void {
+		$project = self::make_project( $packages, array(), array( 'text-domain' => $text_domain ) );
+
+		ScopePhpDependencies::scope( $project );
+
+		self::assertSame( array( 'ahegyes', 'scoper-autoload.php' ), self::entries( $project . '/vendor-prefixed' ) );
+		self::assertSame( \array_map( static fn ( string $package ): string => 'ahegyes/' . $package, $packages ), self::package_dirs( $project . '/vendor-prefixed' ) );
+	}
+
+	/**
+	 * @return array<string, array{list<string>, string|false}>
+	 */
+	public static function provide_single_vendor_closures(): array {
 		return array(
-			'no config'        => array( '--no-config' ),
-			'short cluster'    => array( '-qc/x' ),
-			'working dir long' => array( '--working-dir=/x' ),
-			'bare path'        => array( 'some/path' ),
-			'prefix long'      => array( '--prefix=X' ),
+			'one-package' => array( array( 'wp-framework-loader' ), false ),
+			'one-vendor'  => array( array( 'wp-framework-commerce', 'wp-framework-loader' ), 'acme-text-domain' ),
 		);
 	}
 
-	#[Test]
-	public function post_autoload_dump_rejects_non_list_scoping_flags(): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson(
-			$this->scopingComposerJson(
-				flags: array( 'named' => '--ansi' )
-			)
+	public function test_scoped_autoload_loads_prefixed_classes_and_files(): void {
+		$script = \sprintf(
+			'namespace Automattic\WooCommerce\Admin\Settings { abstract class SettingsSection {} } namespace { require %s; require %s; echo \json_encode( array( \interface_exists( %s ), \class_exists( %s ), \class_exists( %s ), \function_exists( %s ) ) ); }',
+			\var_export( self::VENDOR_DIR . '/composer/ClassLoader.php', true ),
+			\var_export( self::scoped_project() . '/vendor-prefixed/scoper-autoload.php', true ),
+			\var_export( 'Acme\Scoped\Psr\Log\LoggerInterface', true ),
+			\var_export( 'Acme\Scoped\DeepWebSolutions\Framework\Commerce\SettingsSection', true ),
+			\var_export( 'Acme\Scoped\DI\ContainerBuilder', true ),
+			\var_export( 'Acme\Scoped\DI\create', true )
 		);
+		\exec( \escapeshellarg( \PHP_BINARY ) . ' -r ' . \escapeshellarg( $script ) . ' 2>&1', $output, $exit_code );
 
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/must be a list/' );
-		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+		self::assertSame( 0, $exit_code, \implode( "\n", $output ) );
+		self::assertSame( '[true,true,true,true]', \implode( "\n", $output ) );
 	}
 
-	#[Test]
-	public function post_autoload_dump_rejects_non_string_scoping_flags(): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson( flags: array( true ) ) );
+	public function test_php_di_compares_prefixed_class_names(): void {
+		$resolver = self::read( self::scoped_project() . '/vendor-prefixed/php-di/php-di/src/Invoker/FactoryParameterResolver.php' );
 
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/must contain only strings/' );
-		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+		self::assertStringContainsString( "'Acme\\Scoped\\Psr\\Container\\ContainerInterface'", $resolver );
+		self::assertStringContainsString( "'Acme\\Scoped\\DI\\Factory\\RequestedEntry'", $resolver );
 	}
 
-	#[Test]
-	public function post_autoload_dump_throws_when_php_scoper_fails_and_includes_stderr(): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson() );
-		\file_put_contents( $this->project_dir . '/fail-scoper', '1' );
+	public function test_host_symbols_stay_global_and_strings_take_the_text_domain(): void {
+		$section = self::read( self::scoped_project() . '/vendor-prefixed/ahegyes/wp-framework-commerce/src/SettingsSection.php' );
+
+		self::assertStringContainsString( 'extends \Automattic\WooCommerce\Admin\Settings\SettingsSection', $section );
+		self::assertStringContainsString( '\wc_get_logger()', $section );
+		self::assertStringContainsString( '\as_enqueue_async_action(', $section );
+		self::assertStringContainsString( "'acme-text-domain'", $section );
+		foreach ( self::php_files( self::scoped_project() . '/vendor-prefixed/ahegyes' ) as $file ) {
+			self::assertDoesNotMatchRegularExpression( '/Acme\\\\Scoped\\\\(WC_|wc_|WC\(|woocommerce_|as_|Automattic\\\\WooCommerce\\\\)/', self::read( $file ) );
+			self::assertStringNotContainsString( "'wp-framework'", self::read( $file ) );
+		}
+	}
+
+	/**
+	 * @param array<string, mixed> $extra
+	 */
+	#[DataProvider( 'provide_incomplete_text_domains' )]
+	public function test_scope_run_fails_without_a_text_domain( array $extra ): void {
+		$project = self::make_project( array( 'wp-framework-loader' ), array(), $extra );
 
 		try {
-			ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
-			self::fail( 'Expected php-scoper failure to throw.' );
+			ScopePhpDependencies::scope( $project );
+			self::fail( 'The scope run did not fail.' );
 		} catch ( \RuntimeException $exception ) {
-			self::assertStringContainsString( 'php-scoper failed with exit code 37', $exception->getMessage() );
-			self::assertStringContainsString( 'intentional scoper failure', $exception->getMessage() );
+			self::assertStringContainsString( 'extra.text-domain', $exception->getMessage() );
 		}
+		self::assertFileExists( $project . '/vendor-prefixed/scoper-autoload.php' );
 	}
 
-	#[Test]
-	public function post_autoload_dump_propagates_generator_failure(): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson() );
-		\file_put_contents( $this->project_dir . '/empty-output', '1' );
+	/**
+	 * @return array<string, array{array<string, mixed>}>
+	 */
+	public static function provide_incomplete_text_domains(): array {
+		return array(
+			'missing' => array( array( 'text-domain' => null ) ),
+			'empty'   => array( array( 'text-domain' => '' ) ),
+		);
+	}
+
+	public function test_scope_run_fails_when_declared_stubs_are_not_installed(): void {
+		$project  = self::make_project( array( 'wp-framework-commerce' ) );
+		$manifest = $project . '/vendor/ahegyes/wp-framework-commerce/composer.json';
+		\file_put_contents( $manifest, \str_replace( '"php-stubs/woocommerce-stubs",', '"acme/absent-stubs",', self::read( $manifest ) ) );
 
 		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/No scoped packages found/' );
-		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+		$this->expectExceptionMessage( 'acme/absent-stubs' );
+
+		ScopePhpDependencies::scope( $project );
 	}
 
-	#[Test]
-	public function post_autoload_dump_rejects_scoped_dependencies_dir_with_traversal(): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson( scopedDir: '../escape' ) );
+	#[DataProvider( 'provide_residues' )]
+	public function test_scope_run_fails_on_a_prefixed_host_symbol_or_an_unrewritten_text_domain( string $call, string|false $text_domain, string $residue ): void {
+		$project = self::make_project( array( 'wp-framework-commerce' ), array(), array( 'text-domain' => $text_domain ) );
+		$section = $project . '/vendor/ahegyes/wp-framework-commerce/src/SettingsSection.php';
+		\file_put_contents( $section, \str_replace( 'return \__(', $call . ' return \__(', self::read( $section ) ) );
 
 		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/parent-directory traversal/' );
-		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+		$this->expectExceptionMessage( $residue );
+
+		ScopePhpDependencies::scope( $project );
 	}
 
-	#[Test]
-	public function post_autoload_dump_rejects_absolute_scoped_dependencies_dir(): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson( scopedDir: '/etc/escape' ) );
-
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/absolute autoload path/' );
-		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
+	/**
+	 * @return array<string, array{string, string|false, string}>
+	 */
+	public static function provide_residues(): array {
+		return array(
+			'function-newer-than-the-stubs' => array( '\wc_get_future_feature();', 'acme-text-domain', 'Acme\Scoped\wc_get_future_feature' ),
+			'text-domain-opted-out'         => array( '', false, "'wp-framework'" ),
+		);
 	}
 
-	#[Test]
-	public function post_autoload_dump_rejects_empty_scoped_dependencies_dir(): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson( scopedDir: '' ) );
-
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/scoped-dependencies-dir/' );
-		ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
-	}
-
-	#[Test]
-	#[DataProvider( 'projectRootScopedDirs' )]
-	public function post_autoload_dump_rejects_scoped_dependencies_dir_pointing_at_project_root( string $scoped_dir ): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson( scopedDir: $scoped_dir ) );
+	public function test_scope_run_refuses_an_output_directory_that_resolves_elsewhere(): void {
+		$project = self::make_project( array( 'wp-framework-loader' ) );
+		\mkdir( $project . '/src' );
+		\file_put_contents( $project . '/src/Plugin.php', "<?php\n" );
+		\symlink( $project . '/src', $project . '/vendor-prefixed' );
 
 		try {
-			ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
-			self::fail( 'Expected scoped-dependencies-dir validation to throw.' );
+			ScopePhpDependencies::scope( $project );
+			self::fail( 'The scope run did not fail.' );
 		} catch ( \RuntimeException $exception ) {
-			self::assertStringContainsString( 'scoped-dependencies-dir', $exception->getMessage() );
-			self::assertFileDoesNotExist( $this->project_dir . '/recorded-command.json' );
+			self::assertStringContainsString( 'vendor-prefixed', $exception->getMessage() );
 		}
+		self::assertFileExists( $project . '/src/Plugin.php' );
 	}
 
-	/**
-	 * @return array<string, array{string}>
-	 */
-	public static function projectRootScopedDirs(): array {
-		return array(
-			'dot'       => array( '.' ),
-			'dot slash' => array( './' ),
-			'empty'     => array( '' ),
-			// Collapse to nothing once "." / empty segments and trailing dots/spaces are stripped.
-			'dot space' => array( '. ' ),
-			'dots'      => array( '...' ),
-		);
-	}
-
-	#[Test]
-	#[DataProvider( 'reservedScopedDirs' )]
-	#[DataProvider( 'reservedScopedDirTrailingChars' )]
-	public function post_autoload_dump_rejects_scoped_dependencies_dir_naming_a_reserved_directory( string $scoped_dir ): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson( scopedDir: $scoped_dir ) );
-
-		try {
-			ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
-			self::fail( 'Expected scoped-dependencies-dir validation to throw.' );
-		} catch ( \RuntimeException $exception ) {
-			self::assertStringContainsString( 'reserved directory', $exception->getMessage() );
-			self::assertFileDoesNotExist( $this->project_dir . '/recorded-command.json' );
-		}
-	}
-
-	/**
-	 * @return array<string, array{string}>
-	 */
-	public static function reservedScopedDirs(): array {
-		return array(
-			'vendor'       => array( 'vendor' ),
-			'src'          => array( 'src' ),
-			'tests'        => array( 'tests' ),
-			'node_modules' => array( 'node_modules' ),
-			'git'          => array( '.git' ),
-			// Capitalization variants resolve to the same directory on a case-insensitive
-			// filesystem (APFS, NTFS), so the guard rejects them too.
-			'Vendor'       => array( 'Vendor' ),
-			'SRC'          => array( 'SRC' ),
-			'Src'          => array( 'Src' ),
-			'Tests'        => array( 'Tests' ),
-			'.GIT'         => array( '.GIT' ),
-			'node_MODULES' => array( 'node_MODULES' ),
-			// Dot-segment aliases resolve to a reserved directory once "." and empty
-			// segments collapse, so they are rejected too.
-			'src dot'      => array( 'src/.' ),
-			'Src dot'      => array( 'Src/.' ),
-			'vendor dot'   => array( 'vendor/.' ),
-			'src slashes'  => array( 'src//' ),
-			'git dots'     => array( '.git/./' ),
-		);
-	}
-
-	/**
-	 * Windows trims trailing dots and spaces from a path component, so these resolve to a reserved
-	 * directory on Windows; the guard canonicalizes them the same way and rejects them everywhere.
-	 *
-	 * @return array<string, array{string}>
-	 */
-	public static function reservedScopedDirTrailingChars(): array {
-		return array(
-			'src trailing dot'    => array( 'src.' ),
-			'vendor trailing dot' => array( 'vendor.' ),
-			'.git trailing dot'   => array( '.git.' ),
-			'src trailing space'  => array( 'src ' ),
-			'Src trailing dot'    => array( 'Src.' ),
-		);
-	}
-
-	#[Test]
-	public function post_autoload_dump_rejects_scoped_dependencies_dir_under_symlinked_outside_parent(): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson( scopedDir: 'outside-link/dependencies' ) );
-
-		$outside_dir = \sys_get_temp_dir() . '/dws-wp-configs-scope-outside-' . \uniqid();
-		\mkdir( $outside_dir );
-		if ( ! @\symlink( $outside_dir, $this->project_dir . '/outside-link' ) ) {
-			\rmdir( $outside_dir );
-			self::markTestSkipped( 'Environment cannot create symlinks.' );
-		}
-
-		try {
-			$this->expectException( \RuntimeException::class );
-			$this->expectExceptionMessageMatches( '/inside the project root/' );
-			ScopePhpDependencies::postAutoloadDump( $this->factoryEvent( new BufferIO() ) );
-		} finally {
-			\rmdir( $outside_dir );
-		}
-	}
-
-	#[Test]
-	public function run_executes_the_full_pipeline(): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson() );
-
-		ScopePhpDependencies::run( $this->factoryEvent( new BufferIO() ) );
-
-		$generated = (string) \file_get_contents( $this->project_dir . '/dependencies/scoper-autoload.php' );
-		self::assertStringContainsString( 'MyPlugin\\\\Scoped\\\\Acme\\\\Lib', $generated );
-	}
-
-	#[Test]
-	public function run_confines_a_multi_level_nested_scoped_dir_via_the_parent_walk_up(): void {
-		// None of build/, build/scoped/, or build/scoped/deps/ exist when confinement runs, so
-		// assert_scoped_dir_confined() walks up to the nearest existing ancestor (the project root)
-		// to confirm containment before the scope run creates the tree.
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson( scopedDir: 'build/scoped/deps' ) );
-
-		ScopePhpDependencies::run( $this->factoryEvent( new BufferIO() ) );
-
-		self::assertFileExists( $this->project_dir . '/build/scoped/deps/scoper-autoload.php' );
-	}
-
-	#[Test]
-	public function run_throws_when_php_scoper_is_not_installed(): void {
-		$this->writeScoperConfig();
-		$this->writeComposerJson( $this->scopingComposerJson() );
+	public function test_scope_run_fails_when_no_package_is_installed(): void {
+		$project = self::make_project( array() );
 
 		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/php-scoper is not installed/' );
-		ScopePhpDependencies::run( $this->factoryEvent( new BufferIO() ) );
+		$this->expectExceptionMessage( 'No package to scope' );
+
+		ScopePhpDependencies::scope( $project );
 	}
 
-	#[Test]
-	public function run_throws_when_scoped_dependencies_dir_is_not_declared(): void {
-		$this->installFakePhpScoper();
-		$this->writeScoperConfig();
-		$this->writeComposerJson(
-			array(
-				'extra' => array( 'scoping-prefix' => 'MyPlugin\\Scoped' ),
-			)
-		);
-
-		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageMatches( '/extra\.scoped-dependencies-dir/' );
-		ScopePhpDependencies::run( $this->factoryEvent( new BufferIO() ) );
-	}
-
-	/**
-	 * @param array<string, mixed> $contents
-	 */
-	private function writeComposerJson( array $contents ): void {
-		\file_put_contents(
-			$this->project_dir . '/composer.json',
-			\json_encode( $contents, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT )
-		);
-	}
-
-	private function writeScoperConfig(): void {
-		\file_put_contents( $this->project_dir . '/scoper.inc.php', "<?php\nreturn array();\n" );
-	}
-
-	/**
-	 * @param  list<mixed>|array<string, mixed> $flags
-	 *
-	 * @return array<string, mixed>
-	 */
-	private function scopingComposerJson( string $scopedDir = 'dependencies', string $prefix = 'MyPlugin\\Scoped', array $flags = array() ): array {
-		$extra = array(
-			'scoped-dependencies-dir' => $scopedDir,
-			'scoping-prefix'          => $prefix,
-		);
-		if ( array() !== $flags ) {
-			$extra['scoping-flags'] = $flags;
+	protected static function scoped_project(): string {
+		if ( \is_null( self::$scoped_project ) ) {
+			$project = self::make_project( array( 'wp-framework-commerce', 'wp-framework-loader' ), self::THIRD_PARTY_PACKAGES );
+			ScopePhpDependencies::scope( $project );
+			self::$scoped_project = $project;
 		}
 
-		return array(
-			'extra' => $extra,
-		);
-	}
-
-	private function event( bool $devMode = true, ?BufferIO $io = null ): Event {
-		$composer = new Composer();
-		$config   = new Config();
-		$config->merge( array( 'config' => array( 'vendor-dir' => $this->vendor_dir ) ) );
-		$composer->setConfig( $config );
-
-		return new Event( 'post-autoload-dump', $composer, $io ?? new BufferIO(), $devMode );
-	}
-
-	private function installFakePhpScoper(): void {
-		\mkdir( $this->vendor_dir . '/bin', 0755, true );
-		\file_put_contents(
-			$this->vendor_dir . '/bin/php-scoper',
-			<<<'PHP'
-			<?php declare(strict_types=1);
-
-			$project = getcwd();
-			file_put_contents(
-				$project . '/recorded-command.json',
-				json_encode(
-					array(
-						'cwd'  => $project,
-						'argv' => $argv,
-					),
-					JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT
-				)
-			);
-
-			if ( file_exists( $project . '/fail-scoper' ) ) {
-				fwrite( STDERR, "intentional scoper failure\n" );
-				exit( 37 );
-			}
-
-			$output_dir = null;
-			$prefix     = null;
-			foreach ( $argv as $arg ) {
-				if ( str_starts_with( $arg, '--output-dir=' ) ) {
-					$output_dir = substr( $arg, strlen( '--output-dir=' ) );
-				}
-				if ( str_starts_with( $arg, '--prefix=' ) ) {
-					$prefix = substr( $arg, strlen( '--prefix=' ) );
-				}
-			}
-
-			if ( null === $output_dir ) {
-				fwrite( STDERR, "missing output dir\n" );
-				exit( 2 );
-			}
-			if ( null === $prefix ) {
-				fwrite( STDERR, "missing prefix\n" );
-				exit( 2 );
-			}
-
-			mkdir( $output_dir, 0755, true );
-			if ( file_exists( $project . '/empty-output' ) ) {
-				exit( 0 );
-			}
-
-			$pkg_dir = $output_dir . '/acme/lib';
-			mkdir( $pkg_dir, 0755, true );
-			file_put_contents(
-				$pkg_dir . '/composer.json',
-				json_encode(
-					array(
-						'name'     => 'acme/lib',
-						'autoload' => array(
-							'psr-4' => array( $prefix . '\\Acme\\Lib\\' => 'src/' ),
-						),
-					),
-					JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT
-				)
-			);
-			PHP
-		);
+		return self::$scoped_project;
 	}
 
 	/**
-	 * Builds an event from a real Composer the Factory assembles from the test composer.json.
+	 * @param list<string>         $packages
+	 * @param list<string>         $third_party_packages
+	 * @param array<string, mixed> $extra
 	 */
-	private function factoryEvent( BufferIO $io, bool $devMode = true ): Event {
-		$composer = \Composer\Factory::create( $io, $this->project_dir . '/composer.json', true );
+	protected static function make_project( array $packages, array $third_party_packages = array(), array $extra = array() ): string {
+		$project          = ( \realpath( \sys_get_temp_dir() ) ?: \sys_get_temp_dir() ) . '/dws-wp-configs-scoping-' . \uniqid();
+		self::$projects[] = $project;
+		\mkdir( $project . '/vendor', 0777, true );
+		\copy( self::FIXTURE_DIR . '/scoper.inc.php', $project . '/scoper.inc.php' );
 
-		return new Event( 'post-autoload-dump', $composer, $io, $devMode );
+		$manifest = \json_decode( self::read( self::FIXTURE_DIR . '/composer.json' ), true, flags: \JSON_THROW_ON_ERROR );
+		self::assertIsArray( $manifest );
+		self::assertIsArray( $manifest['extra'] );
+		$manifest['extra'] = \array_filter( \array_merge( $manifest['extra'], $extra ), static fn ( mixed $value ): bool => ! \is_null( $value ) );
+		\file_put_contents( $project . '/composer.json', \json_encode( $manifest, \JSON_THROW_ON_ERROR | \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES ) );
+
+		foreach ( $packages as $package ) {
+			self::copy( self::FIXTURE_DIR . '/packages/' . $package, $project . '/vendor/ahegyes/' . $package );
+		}
+		foreach ( $third_party_packages as $package ) {
+			self::copy( self::VENDOR_DIR . '/' . $package, $project . '/vendor/' . $package );
+		}
+
+		return $project;
 	}
 
 	/**
-	 * @return array{cwd: string, argv: list<string>}
+	 * @return list<string>
 	 */
-	private function readRecordedCommand(): array {
-		$contents = \file_get_contents( $this->project_dir . '/recorded-command.json' );
+	protected static function package_dirs( string $output_dir ): array {
+		$package_dirs = \glob( $output_dir . '/*/*', \GLOB_ONLYDIR );
+		self::assertIsArray( $package_dirs );
+
+		return \array_map( static fn ( string $dir ): string => \substr( $dir, \strlen( $output_dir ) + 1 ), $package_dirs );
+	}
+
+	/**
+	 * @return list<string>
+	 */
+	protected static function entries( string $dir ): array {
+		$entries = \scandir( $dir );
+		self::assertIsArray( $entries );
+
+		return \array_values( \array_diff( $entries, array( '.', '..' ) ) );
+	}
+
+	/**
+	 * @return list<string>
+	 */
+	protected static function php_files( string $dir ): array {
+		$files = array();
+		foreach ( new \RecursiveIteratorIterator( new \RecursiveDirectoryIterator( $dir, \FilesystemIterator::SKIP_DOTS ) ) as $file ) {
+			self::assertInstanceOf( \SplFileInfo::class, $file );
+			if ( 'php' === $file->getExtension() ) {
+				$files[] = $file->getPathname();
+			}
+		}
+		self::assertNotSame( array(), $files );
+
+		return $files;
+	}
+
+	protected static function read( string $file ): string {
+		$contents = \file_get_contents( $file );
 		self::assertIsString( $contents );
 
-		return \json_decode( $contents, true, flags: JSON_THROW_ON_ERROR );
+		return $contents;
 	}
 
-	private function rrmdir( string $dir ): void {
-		// SAFETY: never follow symlinks because is_dir() returns true for symlink-to-dir.
-		if ( \is_link( $dir ) ) {
-			\unlink( $dir );
+	protected static function copy( string $from, string $to ): void {
+		\mkdir( $to, 0777, true );
+		$items = new \RecursiveIteratorIterator( new \RecursiveDirectoryIterator( $from, \FilesystemIterator::SKIP_DOTS ), \RecursiveIteratorIterator::SELF_FIRST );
+		foreach ( $items as $item ) {
+			self::assertInstanceOf( \SplFileInfo::class, $item );
+			$target = $to . \substr( $item->getPathname(), \strlen( $from ) );
+			$item->isDir() ? \mkdir( $target ) : \copy( $item->getPathname(), $target );
+		}
+	}
+
+	protected static function remove( string $path ): void {
+		if ( \is_link( $path ) || \is_file( $path ) ) {
+			\unlink( $path );
 			return;
 		}
-		if ( ! \is_dir( $dir ) ) {
+		if ( ! \is_dir( $path ) ) {
 			return;
 		}
-		foreach ( \scandir( $dir ) as $entry ) {
-			if ( '.' === $entry || '..' === $entry ) {
-				continue;
-			}
-			$path = $dir . '/' . $entry;
-			if ( \is_link( $path ) ) {
-				\unlink( $path );
-			} elseif ( \is_dir( $path ) ) {
-				$this->rrmdir( $path );
-			} else {
-				\unlink( $path );
-			}
+
+		$entries = \scandir( $path );
+		self::assertIsArray( $entries );
+		foreach ( \array_diff( $entries, array( '.', '..' ) ) as $entry ) {
+			self::remove( $path . '/' . $entry );
 		}
-		\rmdir( $dir );
+		\rmdir( $path );
 	}
 }
