@@ -25,7 +25,7 @@ final class PhpstanConfigTest extends TestCase {
 	 */
 	protected function analyse( string $path ): array {
 		$command = \sprintf(
-			'cd %s && %s vendor/bin/phpstan analyse -c php/quality-assurance/phpstan.dist.neon --error-format=raw --no-progress --memory-limit=1G %s 2>&1',
+			'cd %s && %s vendor/bin/phpstan analyse -c php/quality-assurance/phpstan.dist.neon -v --error-format=raw --no-progress --memory-limit=1G %s 2>&1',
 			\escapeshellarg( \dirname( __DIR__, 2 ) ),
 			\escapeshellarg( \PHP_BINARY ),
 			\escapeshellarg( self::FIXTURE_DIR . '/' . $path )
