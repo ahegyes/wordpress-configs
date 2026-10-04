@@ -26,12 +26,9 @@ jobs:
 
   php-syntax:
     name: PHP Syntax
-    # Scoped to php/ — tests/fixtures/ holds intentional php -l failures (duplicate stub declarations).
     permissions:
       contents: read
     uses: ./.github/workflows/reusable-php-syntax-check.yml
-    with:
-      project-path: php
 
   php-syntax-legacy:
     name: PHP 7.4 syntax

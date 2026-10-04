@@ -16,7 +16,7 @@ on:
         description: 'Project-relative php-scoper output directory that contains scoper-autoload.php'
         type: string
         required: false
-        default: 'dependencies'
+        default: 'vendor-prefixed'
       php-version:
         description: 'PHP version for build steps'
         type: string
