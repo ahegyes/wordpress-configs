@@ -22,11 +22,21 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 	protected static ?string $scoped_project = null;
 
+	protected static string|false $columns = false;
+
+	#[\Override]
+	public static function setUpBeforeClass(): void {
+		// A narrow terminal, the default on a CI runner, makes php-scoper wrap the failure messages it prints.
+		self::$columns = \getenv( 'COLUMNS' );
+		\putenv( 'COLUMNS=40' );
+	}
+
 	#[\Override]
 	public static function tearDownAfterClass(): void {
 		new Filesystem()->remove( self::$projects );
 		self::$projects       = array();
 		self::$scoped_project = null;
+		\putenv( false === self::$columns ? 'COLUMNS' : 'COLUMNS=' . self::$columns );
 	}
 
 	public function test_every_package_nests_under_its_vendor_directory(): void {
