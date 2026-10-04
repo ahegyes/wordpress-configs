@@ -137,6 +137,12 @@ Fix production code automatically:
 vendor/bin/phpcbf --standard=./phpcs.dist.xml --basepath=. ./ -v
 ```
 
+Fix the tests automatically:
+
+```sh
+vendor/bin/phpcbf --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v
+```
+
 #### PHPStan (Static Analysis)
 
 `php/quality-assurance/phpstan.dist.neon` — level 8, WordPress stubs, auto-discovered paths.
@@ -648,6 +654,7 @@ Add these to your project's `composer.json` for a consistent dev workflow. Compo
 {
     "scripts": {
         "format:php": "phpcbf --standard=./phpcs.dist.xml --basepath=. ./ -v",
+        "format:php:tests": "phpcbf --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v",
         "i18n:make-pot": "wp i18n make-pot . languages/your-text-domain.pot",
         "lint:php": ["@lint:php:phpcs", "@lint:php:phpcs:tests", "@lint:php:phpstan"],
         "lint:php:phpcs": "phpcs --standard=./phpcs.dist.xml --basepath=. ./ -v",

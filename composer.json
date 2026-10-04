@@ -69,6 +69,7 @@
     ],
 
     "format:php": "phpcbf --standard=./phpcs.dist.xml --basepath=. ./ -v",
+    "format:php:tests": "phpcbf --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v",
     "lint:php": [
       "@lint:php:phpcs",
       "@lint:php:phpcs:tests",
