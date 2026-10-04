@@ -61,7 +61,8 @@ final class ScopePhpDependencies {
 		$filesystem->remove( $output_dir );
 		$filesystem->dumpFile( $output_dir . '/scoper-autoload.php', "<?php\n" ); // The project's autoloader requires this file, and php-scoper boots through that autoloader.
 
-		$command = array( \PHP_BINARY, ( InstalledVersions::getInstallPath( 'humbug/php-scoper' ) ?? '' ) . '/bin/php-scoper', 'add-prefix', '--working-dir=' . $project_dir, '--config=' . $project_dir . '/scoper.inc.php', '--force', '--no-interaction' );
+		// Loading the config parses the WooCommerce stubs, which comes close to PHP's default memory limit.
+		$command = array( \PHP_BINARY, '-d', 'memory_limit=1G', ( InstalledVersions::getInstallPath( 'humbug/php-scoper' ) ?? '' ) . '/bin/php-scoper', 'add-prefix', '--working-dir=' . $project_dir, '--config=' . $project_dir . '/scoper.inc.php', '--force', '--no-interaction' );
 		\exec( \implode( ' ', \array_map( 'escapeshellarg', $command ) ) . ' 2>&1', $output, $exit_code ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_exec -- Runs in Composer, never on a WordPress server.
 		if ( 0 !== $exit_code ) {
 			throw new \RuntimeException( "php-scoper failed:\n" . \implode( "\n", $output ) );

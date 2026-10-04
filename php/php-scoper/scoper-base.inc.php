@@ -14,7 +14,7 @@ use Symfony\Component\Finder\Finder;
  * @param   string $project_dir The root directory of the project, which holds composer.json and vendor/.
  * @param   string ...$packages Optional. More installed packages to scope, such as dompdf/dompdf. Default is none.
  *
- * @throws  RuntimeException Thrown when composer.json declares no scoping prefix or text domain, or when no package to scope is installed.
+ * @throws  RuntimeException Thrown when composer.json declares no scoping prefix or text domain, or when no package to scope is installed or one is a symbolic link.
  *
  * @return  array<string, mixed>
  */
@@ -23,7 +23,7 @@ return static function ( string $project_dir, string ...$packages ): array {
 	$extra       = is_array( $manifest ) && isset( $manifest['extra'] ) && is_array( $manifest['extra'] ) ? $manifest['extra'] : array();
 	$prefix      = $extra['scoping-prefix'] ?? null;
 	$text_domain = $extra['text-domain'] ?? null;
-	if ( ! is_string( $prefix ) || '' === $prefix ) {
+	if ( ! is_string( $prefix ) || '' === trim( $prefix, '\\' ) ) {
 		throw new RuntimeException( "'$project_dir/composer.json' declares no extra.scoping-prefix." );
 	}
 	if ( false !== $text_domain && ( ! is_string( $text_domain ) || '' === $text_domain ) ) {
@@ -38,6 +38,11 @@ return static function ( string $project_dir, string ...$packages ): array {
 			throw new RuntimeException( "Could not list '$vendor_dir/$pattern'." );
 		}
 		$package_dirs = array_merge( $package_dirs, $matches );
+	}
+	foreach ( $package_dirs as $package_dir ) {
+		if ( realpath( $package_dir ) !== $package_dir ) { // php-scoper reads files by their real path, which would put them outside vendor/.
+			throw new RuntimeException( "'$package_dir' is a symbolic link. Install path repositories with the symlink option set to false." );
+		}
 	}
 	$package_dirs = array_values( array_unique( $package_dirs ) );
 	if ( array() === $package_dirs ) {
@@ -54,7 +59,7 @@ return static function ( string $project_dir, string ...$packages ): array {
 	$symbols = CollectScopingStubs::collect( $package_dirs );
 
 	return array(
-		'prefix'            => $prefix,
+		'prefix'            => trim( $prefix, '\\' ),
 		'output-dir'        => $output_dir,
 		'finders'           => array( Finder::create()->files()->in( $package_dirs ) ),
 		// PHP-DI renders this file as a raw template, which a prefixed namespace declaration would break.

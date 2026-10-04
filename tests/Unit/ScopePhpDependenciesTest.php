@@ -164,6 +164,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		return array(
 			'function-newer-than-the-stubs' => array( '\wc_get_future_feature();', 'acme-text-domain', 'Acme\Scoped\wc_get_future_feature' ),
 			'text-domain-opted-out'         => array( '', false, "'wp-framework'" ),
+			'class-newer-than-the-stubs'    => array( "\\class_exists( 'WC_Future_Feature' );", 'acme-text-domain', 'WC_Future_Feature' ),
 		);
 	}
 
@@ -180,6 +181,17 @@ final class ScopePhpDependenciesTest extends TestCase {
 			self::assertStringContainsString( 'vendor-prefixed', $exception->getMessage() );
 		}
 		self::assertFileExists( $project . '/src/Plugin.php' );
+	}
+
+	public function test_scope_run_refuses_a_symlinked_package(): void {
+		$project = self::make_project( array() );
+		\mkdir( $project . '/vendor/ahegyes' );
+		\symlink( self::FIXTURE_DIR . '/packages/wp-framework-loader', $project . '/vendor/ahegyes/wp-framework-loader' );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageIsOrContains( 'symbolic link' );
+
+		ScopePhpDependencies::scope( $project );
 	}
 
 	public function test_scope_run_fails_when_no_package_is_installed(): void {
