@@ -18,7 +18,7 @@
 
     "nikic/php-parser": "^5",
 
-    "wp-coding-standards/wpcs": "^3",
+    "wp-coding-standards/wpcs": "^3.4.1",
     "phpcompatibility/phpcompatibility-wp": "^3@alpha",
 
     "phpstan/phpstan": "^2",
