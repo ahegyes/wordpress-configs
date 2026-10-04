@@ -149,11 +149,11 @@ vendor/bin/phpcbf --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v
 
 | File | Holds |
 | --- | --- |
-| `phpstan.base.dist.neon` | The rules that need no WordPress: the level, the missing `#[\Override]` check, the strict-rules settings, the PSR-11 container stub and the nested vendor exclusions |
+| `phpstan.base.dist.neon` | The rules that need no WordPress: the level, the missing `#[\Override]` check, the strict-rules settings and the nested vendor exclusions |
 | `phpstan.dist.neon` | The base, plus the minimum WordPress version |
 | `phpstan.dist.neon.php` | Opt-in discovery of a plugin's conventional paths |
 
-Code under a nested `vendor/` or `vendor-prefixed/` directory is scanned but not analyzed, so the code that uses it still resolves. The container stub types `ContainerInterface::get()` by its argument: a class-string returns an instance of that class, and any other string returns `mixed`. This package requires `php-stubs/wordpress-stubs` and `php-stubs/woocommerce-stubs`, so a consumer does not require them itself.
+Code under a nested `vendor/` or `vendor-prefixed/` directory is scanned but not analyzed, so the code that uses it still resolves. This package requires `php-stubs/wordpress-stubs` and `php-stubs/woocommerce-stubs`, so a consumer does not require them itself.
 
 Create a `phpstan.dist.neon` in your project:
 

@@ -15,10 +15,9 @@ wordpress-configs/
 │   │   ├── phpcs.base.dist.xml      # shared rules: full WordPress standard and PHPCompatibilityWP, with the PHP and WordPress floors
 │   │   ├── phpcs.dist.xml           # production profile: the base with tests/ excluded
 │   │   ├── phpcs.tests.dist.xml     # tests profile: base minus docblock and WP-runtime sniffs
-│   │   ├── phpstan.base.dist.neon   # shared rules that need no WordPress, the container stub and the nested-vendor exclusions
+│   │   ├── phpstan.base.dist.neon   # shared rules that need no WordPress and the nested-vendor exclusions
 │   │   ├── phpstan.dist.neon        # PHPStan profile: the base plus the minimum WordPress version
-│   │   ├── phpstan.dist.neon.php    # opt-in discovery of a plugin's conventional paths
-│   │   └── stubs/container.stub     # types PSR-11 ContainerInterface::get() by its class-string argument
+│   │   └── phpstan.dist.neon.php    # opt-in discovery of a plugin's conventional paths
 │   ├── php-scoper/
 │   │   ├── scoper-base.inc.php      # catalog-agnostic; reads scoping-exclusions.json; excludes as_* by regex
 │   │   └── contrib/

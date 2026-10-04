@@ -8,10 +8,6 @@ final class PhpstanConfigTest extends TestCase {
 
 	protected const string FIXTURE_DIR = __DIR__ . '/../fixtures/phpstan';
 
-	public function test_container_get_returns_the_requested_class(): void {
-		self::assertSame( array(), $this->analyse( 'container.php' ) );
-	}
-
 	public function test_shared_rules_report_implicit_mixed_and_missing_overrides(): void {
 		self::assertSame( array( 'method.missingOverride', 'return.type' ), $this->analyse( 'shared-rules.php' ) );
 	}
