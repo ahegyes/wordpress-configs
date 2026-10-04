@@ -27,6 +27,16 @@ jobs:
     with:
       project-path: php
 
+  php-syntax-legacy:
+    name: PHP 7.4 syntax
+    # The fixture stands in for a consumer's by-path files, which must still parse on PHP 7.4.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-php-syntax-check.yml
+    with:
+      php-versions: '["7.4"]'
+      paths: '["tests/fixtures/dws-build-fixture"]'
+
   phpcs-smoke:
     name: PHPCS dist-file smoke
     # Self-lint runs the shared profiles only through the root rulesets, which strip the WP-runtime
@@ -111,3 +121,32 @@ jobs:
     uses: ./.github/workflows/reusable-block-json-check.yml
     with:
       project-path: tests/fixtures/block-json
+
+  plugin-check-build:
+    name: Plugin Check fixture build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Upload the fixture build
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dws-build-fixture
+          path: tests/fixtures/dws-build-fixture
+          retention-days: 1
+
+  plugin-check:
+    name: Plugin Check
+    needs: plugin-check-build
+    # The fixture fails Plugin Check unless the GitHub profile skips its Update URI and absent readme.txt and the scan skips vendor-prefixed/.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-plugin-check.yml
+    with:
+      artifact: dws-build-fixture
+      plugin-slug: dws-build-fixture

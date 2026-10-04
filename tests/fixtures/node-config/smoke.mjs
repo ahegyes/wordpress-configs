@@ -1,5 +1,5 @@
 /**
- * Load-smokes the four shared Node baselines against the installed toolchain —
+ * Load-smokes the five shared Node baselines against the installed toolchain —
  * the only behavioral check these exports get before a consumer's CI does.
  * Run from the repo root (`npm run lint:config`).
  */
@@ -8,10 +8,13 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-// eslint-disable-next-line import/no-extraneous-dependencies -- provided transitively by @wordpress/scripts; used here only to load-smoke the shared ESLint baseline.
-import { ESLint } from 'eslint';
 
 const require = createRequire( import.meta.url );
+// Consumers lint through `wp-scripts lint-js`, which runs the ESLint @wordpress/scripts depends on; a
+// bare `eslint` import resolves the older copy npm hoists for the ESLint plugins' peer ranges.
+const { ESLint } = createRequire(
+	require.resolve( '@wordpress/scripts/package.json' )
+)( 'eslint' );
 const probes = [];
 
 probes.push( [
@@ -45,22 +48,91 @@ probes.push( [
 				filePath: resolve( probePath ),
 			} );
 		}
+
+		// The test-unit glob is extension-scoped, so every script extension the base lints must
+		// still get the test-unit rules, while a test snapshot or a JSON fixture must not be linted at all.
+		for ( const extension of [
+			'js',
+			'jsx',
+			'ts',
+			'tsx',
+			'mjs',
+			'cjs',
+			'mts',
+			'cts',
+		] ) {
+			const config = await eslint.calculateConfigForFile(
+				resolve(
+					`tests/fixtures/node-config/probe.test.${ extension }`
+				)
+			);
+			if ( ! config?.rules?.[ 'vitest/expect-expect' ] ) {
+				throw new Error(
+					`probe.test.${ extension } does not get the test-unit rules`
+				);
+			}
+		}
+		for ( const name of [ 'probe.test.js.snap', 'probe.test.json' ] ) {
+			const config = await eslint.calculateConfigForFile(
+				resolve( `tests/fixtures/node-config/${ name }` )
+			);
+			if ( undefined !== config ) {
+				throw new Error( `${ name } is linted as a script` );
+			}
+		}
 	},
 ] );
 
 probes.push( [
 	'stylelint.config.base.js',
-	() =>
-		execFileSync(
-			'./node_modules/.bin/stylelint',
-			[
-				'--print-config',
-				'tests/fixtures/node-config/probe.css',
-				'--config',
-				'node/stylelint.config.base.js',
-			],
-			{ stdio: 'pipe' }
-		),
+	() => {
+		const config = JSON.parse(
+			execFileSync(
+				'./node_modules/.bin/stylelint',
+				[
+					'--print-config',
+					'tests/fixtures/node-config/probe.css',
+					'--config',
+					'node/stylelint.config.base.js',
+				],
+				{ stdio: 'pipe' }
+			)
+		);
+		for ( const flag of [
+			'reportDescriptionlessDisables',
+			'reportInvalidScopeDisables',
+			'reportNeedlessDisables',
+		] ) {
+			if ( true !== config[ flag ] ) {
+				throw new Error( `${ flag } is not enabled` );
+			}
+		}
+		if ( config.rules[ 'selector-class-pattern' ] ) {
+			throw new Error( 'selector-class-pattern is not turned off' );
+		}
+	},
+] );
+
+probes.push( [
+	'postcss.config.base.js',
+	() => {
+		const factory = require( resolve( 'node/postcss.config.base.js' ) );
+		const scss = factory( {
+			env: 'development',
+			file: { extname: '.scss' },
+		} );
+		if ( 0 === scss.plugins.length ) {
+			throw new Error(
+				'.scss context did not yield a non-empty plugin chain'
+			);
+		}
+		const css = factory( { env: 'production', file: { extname: '.css' } } );
+		if ( 0 === css.plugins.length ) {
+			throw new Error(
+				'.css context did not yield a non-empty plugin chain'
+			);
+		}
+	},
 ] );
 
 probes.push( [
@@ -75,7 +147,35 @@ probes.push( [
 
 probes.push( [
 	'playwright.config.base.js',
-	() => require( resolve( 'node/playwright.config.base.js' ) ),
+	() => {
+		// The @wordpress/scripts base reads WP_BASE_URL and WP_ARTIFACTS_PATH once, while it is
+		// being required, so the factory sets them first. Asserting the derived values holds that
+		// ordering in place: a require at module scope silently pins every consumer to port 8889.
+		const config = require( resolve( 'node/playwright.config.base.js' ) )( {
+			port: 9999,
+		} );
+		if ( ! config.use.baseURL.includes( '9999' ) ) {
+			throw new Error(
+				`port did not reach use.baseURL (got ${ config.use.baseURL })`
+			);
+		}
+		if ( '9999' !== config.webServer.port ) {
+			throw new Error(
+				`port did not reach webServer.port (got ${ config.webServer.port })`
+			);
+		}
+		if ( 'npm run wp-env:start' !== config.webServer.command ) {
+			throw new Error(
+				`webServer.command is ${ config.webServer.command }`
+			);
+		}
+		if ( ! config.outputDir.startsWith( 'tests/.cache/artifacts' ) ) {
+			throw new Error( `outputDir is ${ config.outputDir }` );
+		}
+		if ( 'tests/e2e' !== config.testDir ) {
+			throw new Error( `testDir is ${ config.testDir }` );
+		}
+	},
 ] );
 
 let failed = false;
