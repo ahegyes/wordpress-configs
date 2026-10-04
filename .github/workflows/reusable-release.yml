@@ -8,7 +8,7 @@ on:
         type: string
         required: true
       project-path:
-        description: 'Path to the project (relative to repo root). When package.json is present, npm ci runs here and a package-lock.json is required.'
+        description: 'Path to the project (relative to repo root). npm ci runs here, so package.json and package-lock.json are required and must declare @wordpress/env, whose locked version runs the built-artifact test.'
         type: string
         required: false
         default: '.'
@@ -48,10 +48,6 @@ concurrency:
   cancel-in-progress: false
 
 permissions: {}
-
-env:
-  # WP_ENV_VERSION is pinned identically in reusable-release.yml, reusable-phpunit.yml, and reusable-playwright-e2e.yml and must stay in sync — npx-inline @wordpress/env versions are invisible to dependabot, so nothing bumps them together automatically.
-  WP_ENV_VERSION: '11.9.0'
 
 jobs:
   build:
@@ -435,10 +431,10 @@ jobs:
       - name: Install npm dependencies (E2E runner)
         working-directory: ${{ inputs.project-path }}
         run: |
-          if [ -f package.json ]; then
-            npm ci
-          else
-            echo "No package.json — skipping npm install."
+          npm ci
+          if [ ! -x ./node_modules/.bin/wp-env ]; then
+            echo "::error::@wordpress/env is not installed in this project — add it to devDependencies. This workflow runs the version the project's lockfile pins."
+            exit 1
           fi
 
       - name: Redirect wp-env at built artifact
@@ -459,7 +455,7 @@ jobs:
 
       - name: Start wp-env
         working-directory: ${{ inputs.project-path }}
-        run: npx --yes @wordpress/env@"$WP_ENV_VERSION" start
+        run: ./node_modules/.bin/wp-env start
 
       - name: Assert the mounted plugin is the built artifact
         working-directory: ${{ inputs.project-path }}
@@ -470,7 +466,7 @@ jobs:
           VERSION: ${{ needs.build.outputs.version }}
         run: |
           target="wp-content/plugins/$PLUGIN_SLUG"
-          run_cli() { npx --yes @wordpress/env@"$WP_ENV_VERSION" run cli "$@"; }
+          run_cli() { ./node_modules/.bin/wp-env run cli "$@"; }
           if [ "$REQUIRES_SCOPED" = "true" ]; then
             run_cli test -f "$target/$SCOPED_DEPENDENCIES_DIR/scoper-autoload.php"
           fi

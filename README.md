@@ -548,7 +548,7 @@ Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Pl
 | `reusable-php-syntax-check.yml`       | `php -l` matrix across PHP versions              | `project-path`, `php-versions[]`                             |
 | `reusable-php-lint.yml`               | Named composer scripts as parallel jobs          | `project-path`, `php-version`, `scripts[]`                   |
 | `reusable-scripts-styles-lint.yml`    | ESLint + Stylelint via npm scripts               | `project-path`, `node-version`                               |
-| `reusable-phpunit.yml`                | PHPUnit; wp-env startup gated by `needs-wp-env`  | `project-path`, `php-version`, `wp-version`, `needs-wp-env`  |
+| `reusable-phpunit.yml`                | PHPUnit; wp-env startup gated by `needs-wp-env`  | `project-path`, `php-version`, `wp-version`, `needs-wp-env`, `multisite` |
 | `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `project-path`, `artifact-slug`, `php-version`               |
 | `reusable-block-json-check.yml`       | Validates block.json against wp.org schema       | `project-path`, `node-version`                              |
 | `reusable-supply-chain-audit.yml`     | `composer audit` + `npm audit` (parallel jobs)   | `project-path`, `composer-audit`, `npm-audit`, plus `*-flags` |
@@ -560,7 +560,7 @@ Each workflow's `inputs:` block (every input carries a `description:`) is the au
 
 **`php-versions[]` vs `php-version`:** `reusable-php-syntax-check.yml` accepts an array because matrixing across PHP versions is the whole point of syntax checking. The other reusables run a single PHP version per call — to test multiple versions, wrap the reusable in your own matrix. This asymmetry is intentional; consolidating either direction would force the wrong shape on the side that doesn't want it.
 
-**`reusable-phpunit.yml` + `needs-wp-env`:** Defaults to `true` (the wp-env + npm ci + start/stop steps run; `npm ci` requires a committed `package-lock.json` in the consumer project). Set `needs-wp-env: false` for pure-unit suites that don't need a WordPress runtime — skips the Node setup and wp-env lifecycle entirely.
+**`reusable-phpunit.yml` + `needs-wp-env`:** Defaults to `true`: the workflow runs `npm ci` and starts and stops the project's own `@wordpress/env`, so the consumer commits a `package-lock.json` that declares it, and the locked version is the one that runs. `reusable-playwright-e2e.yml` and the release test do the same. Set `needs-wp-env: false` for pure-unit suites that don't need a WordPress runtime — skips the Node setup and wp-env lifecycle entirely. `multisite: true` starts the environment as a network by merging `"multisite": true` into the config's override file, because wp-env reads that setting only from a config file.
 
 ### Plugin orchestrators
 
