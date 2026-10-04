@@ -18,7 +18,7 @@ jobs:
     name: PHP Lint
     uses: ./.github/workflows/reusable-php-lint.yml
     with:
-      scripts: '["lint:php:phpcs", "lint:php:phpstan", "lint:php:composer-require-checker"]'
+      scripts: '["lint:php:phpcs", "lint:php:phpcs:tests", "lint:php:phpstan", "lint:php:composer-require-checker"]'
 
   php-syntax:
     name: PHP Syntax
@@ -29,8 +29,8 @@ jobs:
 
   phpcs-smoke:
     name: PHPCS dist-file smoke
-    # Self-lint runs the shared baseline only through the root profile, which strips the WP-runtime
-    # sniffs consumers get — this job scans a plugin-shaped fixture with the raw consumer profile.
+    # Self-lint runs the shared profiles only through the root rulesets, which strip the WP-runtime
+    # sniffs consumers get — this job scans a plugin-shaped fixture with the raw production profile.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -61,8 +61,7 @@ jobs:
         shell: bash
         run: |
           set -e -o pipefail
-          # The shared profile relaxes rules under */tests/*, so a temp copy is scanned outside that
-          # path — the fixture must face the full production profile consumers get.
+          # The production profile skips */tests/*, so a temp copy is scanned outside that path.
           cp -R tests/fixtures/plugin-stub "$RUNNER_TEMP/plugin-stub"
           vendor/bin/phpcs -v --standard=php/quality-assurance/phpcs.dist.xml "$RUNNER_TEMP/plugin-stub" | tee phpcs-scan.log
           # The ruleset's own exclude-patterns can silently empty the file list, and an empty scan proves nothing.

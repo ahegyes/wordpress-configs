@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<!-- Tests PHPCS profile: every consumer repo's phpcs.tests.dist.xml extends this, so test code follows the shared rules minus the relaxations below. -->
+<ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../vendor/squizlabs/php_codesniffer/phpcs.xsd">
+	<rule ref="./phpcs.base.dist.xml">
+		<!-- Test classes, methods and properties carry no docblocks. -->
+		<exclude name="Squiz.Commenting.ClassComment"/>
+		<exclude name="Squiz.Commenting.VariableComment"/>
+		<exclude name="Squiz.Commenting.FunctionComment"/>
+		<exclude name="Squiz.Commenting.FunctionCommentThrowTag"/>
+		<exclude name="Generic.Commenting.DocComment"/>
+		<!-- Fixtures legitimately override globals. -->
+		<exclude name="WordPress.WP.GlobalVariablesOverride"/>
+		<!-- Test doubles and recorders must match the signature they stand in for. -->
+		<exclude name="Generic.CodeAnalysis.UnusedFunctionParameter"/>
+		<!-- Fixture classes co-locate with the test that owns them. -->
+		<exclude name="Generic.Files.OneObjectStructurePerFile"/>
+		<!-- Test exceptions surface in CLI output, not HTML. -->
+		<exclude name="WordPress.Security.EscapeOutput.ExceptionNotEscaped"/>
+		<!-- Tests fire deliberately malformed hook names at validators. -->
+		<exclude name="WordPress.NamingConventions.ValidHookName.UseUnderscores"/>
+		<!-- Tests that run without WordPress use native filesystem functions. -->
+		<exclude name="WordPress.WP.AlternativeFunctions"/>
+		<!-- Smoke fixtures trap warnings via set_error_handler and dump diagnostics on failure. -->
+		<exclude name="WordPress.PHP.DevelopmentFunctions"/>
+		<!-- Tests build fake meta rows and query by meta key to assert stored state. -->
+		<exclude name="WordPress.DB.SlowDBQuery"/>
+		<!-- Tests change ini values to exercise the code that reads them. -->
+		<exclude name="WordPress.PHP.IniSet"/>
+	</rule>
+</ruleset>

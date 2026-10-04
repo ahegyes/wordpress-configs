@@ -52,21 +52,22 @@ Base configuration files that your project extends. Create thin project-level co
 
 #### PHPCS (WordPress Coding Standards)
 
-`php/quality-assurance/phpcs.dist.xml` — WordPress-Extra + WordPress-Docs + PHPCompatibilityWP.
+Two profiles share `php/quality-assurance/phpcs.base.dist.xml`, which runs the full `WordPress` standard and PHPCompatibilityWP:
 
-| Setting              | Value |
-|----------------------|-------|
-| PHP compatibility    | 8.5+  |
-| WordPress minimum    | 7.0   |
-| Parallel workers     | 8     |
+| Profile | File | Lints |
+| --- | --- | --- |
+| Production | `php/quality-assurance/phpcs.dist.xml` | Everything except `tests/` |
+| Tests | `php/quality-assurance/phpcs.tests.dist.xml` | `tests/`, without the docblock and WordPress-runtime sniffs |
 
-Create a `.phpcs.xml` in your project:
+Both profiles skip `bin/`, `vendor/`, `vendor-prefixed/`, `node_modules/`, `index.php` placeholders and generated files. The patterns match case-sensitively, so a `src/Vendor/` source directory is still linted.
+
+Create a `phpcs.dist.xml` in your project:
 
 ```xml
 <?xml version="1.0"?>
 <ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/squizlabs/php_codesniffer/phpcs.xsd">
-    <!-- Extend the shared ruleset. -->
+    <!-- Extend the shared production profile. -->
     <rule ref="./vendor/ahegyes/wordpress-configs/php/quality-assurance/phpcs.dist.xml"/>
 
     <!-- Check that the proper text domain(s) is used everywhere. -->
@@ -90,11 +91,56 @@ Create a `.phpcs.xml` in your project:
 </ruleset>
 ```
 
-Run:
+Create a `phpcs.tests.dist.xml` beside it for `tests/`:
 
-```bash
-vendor/bin/phpcs --standard=./.phpcs.xml --basepath=. ./ -v       # Check
-vendor/bin/phpcbf --standard=./.phpcs.xml --basepath=. ./ -v      # Auto-fix
+```xml
+<?xml version="1.0"?>
+<ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/squizlabs/php_codesniffer/phpcs.xsd">
+    <!-- Extend the shared tests profile. -->
+    <rule ref="./vendor/ahegyes/wordpress-configs/php/quality-assurance/phpcs.tests.dist.xml"/>
+
+    <!-- Check that the proper text domain(s) is used everywhere. -->
+    <rule ref="WordPress.WP.I18n">
+        <properties>
+            <property name="text_domain" type="array">
+                <element value="your-text-domain"/>
+            </property>
+        </properties>
+    </rule>
+</ruleset>
+```
+
+Keep the leading `./` in each `ref`. PHPCS does not treat a bare `vendor/…` reference as a path, so any exclude pattern, severity or property inside that `<rule>` element is silently ignored.
+
+The profiles set the PHP and WordPress floors, and an included ruleset's `<config>` wins over the including ruleset's own. A project with lower floors passes them on the command line instead:
+
+```sh
+vendor/bin/phpcs --standard=./phpcs.dist.xml --runtime-set testVersion 8.3- --runtime-set minimum_wp_version 6.8 --basepath=. ./ -v
+```
+
+Lint production code:
+
+```sh
+vendor/bin/phpcs --standard=./phpcs.dist.xml --basepath=. ./ -v
+```
+
+Lint the tests:
+
+```sh
+vendor/bin/phpcs --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v
+```
+
+Fix production code automatically:
+
+```sh
+vendor/bin/phpcbf --standard=./phpcs.dist.xml --basepath=. ./ -v
+```
+
+Fix the tests automatically:
+
+```sh
+vendor/bin/phpcbf --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v
 ```
 
 #### PHPStan (Static Analysis)
@@ -515,7 +561,7 @@ jobs:
   lint-php:
     uses: ahegyes/wordpress-configs/.github/workflows/reusable-php-lint.yml@<sha>
     with:
-      scripts: '["lint:php:phpcs", "lint:php:phpstan"]'
+      scripts: '["lint:php:phpcs", "lint:php:phpcs:tests", "lint:php:phpstan"]'
   block-json:
     uses: ahegyes/wordpress-configs/.github/workflows/reusable-block-json-check.yml@<sha>
   lint-scripts-styles:
@@ -607,10 +653,12 @@ Add these to your project's `composer.json` for a consistent dev workflow. Compo
 ```json
 {
     "scripts": {
-        "format:php": "phpcbf --standard=./.phpcs.xml --basepath=. ./ -v",
+        "format:php": "phpcbf --standard=./phpcs.dist.xml --basepath=. ./ -v",
+        "format:php:tests": "phpcbf --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v",
         "i18n:make-pot": "wp i18n make-pot . languages/your-text-domain.pot",
-        "lint:php": ["@lint:php:phpcs", "@lint:php:phpstan"],
-        "lint:php:phpcs": "phpcs --standard=./.phpcs.xml --basepath=. ./ -v",
+        "lint:php": ["@lint:php:phpcs", "@lint:php:phpcs:tests", "@lint:php:phpstan"],
+        "lint:php:phpcs": "phpcs --standard=./phpcs.dist.xml --basepath=. ./ -v",
+        "lint:php:phpcs:tests": "phpcs --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v",
         "lint:php:phpstan": "phpstan analyse -c ./.phpstan.neon -v --memory-limit=1G"
     }
 }
@@ -649,8 +697,9 @@ The default value of a `workflow_call` input; matching it avoids an unnecessary 
 
 `reusable-php-lint.yml` takes a required `scripts[]` array of composer script names and runs each
 as its own matrix job; the workflow names none of them itself. The established convention — see
-[Typical Composer Scripts](#typical-composer-scripts) above — is `lint:php:phpcs` +
-`lint:php:phpstan`, passed as `'["lint:php:phpcs", "lint:php:phpstan"]'`.
+[Typical Composer Scripts](#typical-composer-scripts) above — is `lint:php:phpcs`,
+`lint:php:phpcs:tests` and `lint:php:phpstan`, passed as
+`'["lint:php:phpcs", "lint:php:phpcs:tests", "lint:php:phpstan"]'`.
 
 `reusable-release.yml` regenerates the POT and builds the archive; it names no composer or npm
 changelog script, so no changelog script is part of this contract.

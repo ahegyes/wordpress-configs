@@ -18,7 +18,7 @@
 
     "nikic/php-parser": "^5",
 
-    "wp-coding-standards/wpcs": "^3",
+    "wp-coding-standards/wpcs": "^3.4.1",
     "phpcompatibility/phpcompatibility-wp": "^3@alpha",
 
     "phpstan/phpstan": "^2",
@@ -69,12 +69,15 @@
     ],
 
     "format:php": "phpcbf --standard=./phpcs.dist.xml --basepath=. ./ -v",
+    "format:php:tests": "phpcbf --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v",
     "lint:php": [
       "@lint:php:phpcs",
+      "@lint:php:phpcs:tests",
       "@lint:php:phpstan",
       "@lint:php:composer-require-checker"
     ],
     "lint:php:phpcs": "phpcs --standard=./phpcs.dist.xml --basepath=. ./ -v",
+    "lint:php:phpcs:tests": "phpcs --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v",
     "lint:php:phpstan": "phpstan analyse -v --memory-limit=1G",
     "lint:php:composer-require-checker": "@php vendor/bin/composer-require-checker check --config-file=composer-require-checker.json",
 
