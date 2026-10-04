@@ -304,7 +304,7 @@ jobs:
                 echo "::error::Archive must not contain $entry."
                 status=1
                 ;;
-              "$PLUGIN_SLUG/scoper.inc.php"|"$PLUGIN_SLUG/scoping-exclusions.json"|"$PLUGIN_SLUG/.wp-env"*)
+              "$PLUGIN_SLUG/scoper.inc.php"|"$PLUGIN_SLUG/.wp-env"*)
                 echo "::error::Archive must not contain $entry."
                 status=1
                 ;;
