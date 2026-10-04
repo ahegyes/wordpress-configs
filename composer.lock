@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5c3a6c773cca553cce79b85e1beb012f",
+    "content-hash": "0f5296db0866808f4a4b6a56d6ed9ef4",
     "packages": [
         {
             "name": "dealerdirect/phpcodesniffer-composer-installer",
@@ -104,35 +104,32 @@
         },
         {
             "name": "johnbillion/wp-compat",
-            "version": "1.5.0",
+            "version": "2.0.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/johnbillion/wp-compat.git",
-                "reference": "2ccebedbbbc6b6eec3fba4a568cff0a4ec05bf6e"
+                "reference": "b2e32bd91716a98bc6fc527c525b979652a4a567"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/johnbillion/wp-compat/zipball/2ccebedbbbc6b6eec3fba4a568cff0a4ec05bf6e",
-                "reference": "2ccebedbbbc6b6eec3fba4a568cff0a4ec05bf6e",
+                "url": "https://api.github.com/repos/johnbillion/wp-compat/zipball/b2e32bd91716a98bc6fc527c525b979652a4a567",
+                "reference": "b2e32bd91716a98bc6fc527c525b979652a4a567",
                 "shasum": ""
             },
             "require": {
-                "php": ">= 7.4",
-                "phpstan/phpstan": "^2.0",
-                "wp-hooks/wordpress-core": "^1.12"
+                "php": ">= 7.2.24",
+                "phpstan/phpstan": "^1.12 || ^2.0",
+                "wp-hooks/wordpress-core": "^1.13"
             },
             "require-dev": {
                 "dealerdirect/phpcodesniffer-composer-installer": "^0.7.0",
-                "johnbillion/plugin-infrastructure": "dev-trunk",
-                "nikic/php-parser": "^5.1",
-                "php-stubs/wordpress-stubs": "~7.0.0",
-                "phpstan/phpstan-deprecation-rules": "2.0.0",
-                "phpstan/phpstan-phpunit": "2.0.1",
-                "phpstan/phpstan-strict-rules": "2.0.0",
-                "phpunit/phpunit": "^9.0",
-                "roots/wordpress-core-installer": "1.100.0",
-                "roots/wordpress-full": "~7.0.0",
-                "wp-coding-standards/wpcs": "3.1.0"
+                "nikic/php-parser": "^4.18 || ^5.1",
+                "phpstan/phpstan-deprecation-rules": "^1.0 || ^2.0",
+                "phpstan/phpstan-phpunit": "^1.0 || ^2.0",
+                "phpstan/phpstan-strict-rules": "^1.0 || ^2.0",
+                "phpunit/phpunit": "^8.5 || ^9.0",
+                "roots/wordpress": "*",
+                "wp-coding-standards/wpcs": "3.4.1"
             },
             "suggest": {
                 "phpstan/phpstan-deprecation-rules": "PHPStan rules for detecting usage of deprecated symbols",
@@ -178,7 +175,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-05-22T14:13:03+00:00"
+            "time": "2026-08-29T17:12:02+00:00"
         },
         {
             "name": "nikic/php-parser",
@@ -236,6 +233,50 @@
                 "source": "https://github.com/nikic/PHP-Parser/tree/v5.9.0"
             },
             "time": "2026-09-13T18:51:52+00:00"
+        },
+        {
+            "name": "php-stubs/woocommerce-stubs",
+            "version": "v11.1.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/php-stubs/woocommerce-stubs.git",
+                "reference": "06dfedfe33a46a12db99fd343b80f1f2f11e64f6"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/php-stubs/woocommerce-stubs/zipball/06dfedfe33a46a12db99fd343b80f1f2f11e64f6",
+                "reference": "06dfedfe33a46a12db99fd343b80f1f2f11e64f6",
+                "shasum": ""
+            },
+            "require": {
+                "php-stubs/wordpress-stubs": "^5.3 || ^6.0 || ^7.0"
+            },
+            "require-dev": {
+                "php": "~7.1 || ~8.0",
+                "php-stubs/generator": "^0.9.0"
+            },
+            "suggest": {
+                "symfony/polyfill-php73": "Symfony polyfill backporting some PHP 7.3+ features to lower PHP versions",
+                "szepeviktor/phpstan-wordpress": "WordPress extensions for PHPStan"
+            },
+            "type": "library",
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "WooCommerce function and class declaration stubs for static analysis.",
+            "homepage": "https://github.com/php-stubs/woocommerce-stubs",
+            "keywords": [
+                "PHPStan",
+                "static analysis",
+                "woocommerce",
+                "wordpress"
+            ],
+            "support": {
+                "issues": "https://github.com/php-stubs/woocommerce-stubs/issues",
+                "source": "https://github.com/php-stubs/woocommerce-stubs/tree/v11.1.2"
+            },
+            "time": "2026-09-22T23:29:58+00:00"
         },
         {
             "name": "php-stubs/wordpress-stubs",
@@ -2190,16 +2231,16 @@
         },
         {
             "name": "szepeviktor/phpstan-wordpress",
-            "version": "2.x-dev",
+            "version": "v2.0.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/szepeviktor/phpstan-wordpress.git",
-                "reference": "f8cfa97c7b6cb086492bc197a89ffc5cde1f6615"
+                "reference": "84577e2ea1e4c2a95537fe5ea2ac8e18f4ceab1a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/szepeviktor/phpstan-wordpress/zipball/f8cfa97c7b6cb086492bc197a89ffc5cde1f6615",
-                "reference": "f8cfa97c7b6cb086492bc197a89ffc5cde1f6615",
+                "url": "https://api.github.com/repos/szepeviktor/phpstan-wordpress/zipball/84577e2ea1e4c2a95537fe5ea2ac8e18f4ceab1a",
+                "reference": "84577e2ea1e4c2a95537fe5ea2ac8e18f4ceab1a",
                 "shasum": ""
             },
             "require": {
@@ -2215,12 +2256,11 @@
                 "phpstan/phpstan-strict-rules": "^2.0",
                 "phpunit/phpunit": "^9.0",
                 "szepeviktor/phpcs-psr-12-neutron-hybrid-ruleset": "^1.0",
-                "wp-coding-standards/wpcs": "3.4.1 as 2.3.0"
+                "wp-coding-standards/wpcs": "3.1.0 as 2.3.0"
             },
             "suggest": {
                 "swissspidy/phpstan-no-private": "Detect usage of internal core functions, classes and methods"
             },
-            "default-branch": true,
             "type": "phpstan-extension",
             "extra": {
                 "phpstan": {
@@ -2248,9 +2288,9 @@
             ],
             "support": {
                 "issues": "https://github.com/szepeviktor/phpstan-wordpress/issues",
-                "source": "https://github.com/szepeviktor/phpstan-wordpress/tree/2.x"
+                "source": "https://github.com/szepeviktor/phpstan-wordpress/tree/v2.0.4"
             },
-            "time": "2026-09-09T03:55:05+00:00"
+            "time": "2026-05-22T16:22:09+00:00"
         },
         {
             "name": "wp-coding-standards/wpcs",
@@ -8649,8 +8689,7 @@
     "minimum-stability": "dev",
     "stability-flags": {
         "phpcompatibility/phpcompatibility-wp": 15,
-        "roave/security-advisories": 20,
-        "szepeviktor/phpstan-wordpress": 20
+        "roave/security-advisories": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,

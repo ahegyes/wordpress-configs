@@ -1,0 +1,13 @@
+# Shared PHPStan rules that need no WordPress: phpstan.dist.neon includes this file, and a WordPress-free config can include it alone.
+parameters:
+    level: 10
+    checkMissingOverrideMethodAttribute: true
+    inferPrivatePropertyTypeFromConstructor: true
+    treatPhpDocTypesAsCertain: false
+    strictRules:
+        disallowedShortTernary: false
+    excludePaths:
+        # Code in a nested vendor directory is not analyzed but still scanned, so the code using it resolves.
+        analyse:
+            - %currentWorkingDirectory%/*/vendor/*
+            - %currentWorkingDirectory%/*/vendor-prefixed/*

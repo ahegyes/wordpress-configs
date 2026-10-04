@@ -1,15 +1,7 @@
-# Shared PHPStan baseline: every consumer repo's phpstan.neon extends this, so edits here reach all DWS repos.
+# Shared PHPStan profile: every consumer repo's phpstan.dist.neon extends this, so edits here reach all DWS repos.
 includes:
-    - phpstan.dist.neon.php
+    - phpstan.base.dist.neon
 
 parameters:
-    level: 8
-    inferPrivatePropertyTypeFromConstructor: true
-    treatPhpDocTypesAsCertain: false
-    strictRules:
-        disallowedShortTernary: false
-    excludePaths:
-        analyseAndScan:
-            - %currentWorkingDirectory%/vendor/*
-            - %currentWorkingDirectory%/node_modules/*
-            - %currentWorkingDirectory%/dependencies/*
+    WPCompat:
+        requiresAtLeast: '7.1'

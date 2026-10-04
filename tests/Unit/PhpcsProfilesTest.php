@@ -11,17 +11,20 @@ final class PhpcsProfilesTest extends TestCase {
 
 	protected string $scan_dir;
 
+	#[\Override]
 	protected function setUp(): void {
 		$this->scan_dir = ( \realpath( \sys_get_temp_dir() ) ?: \sys_get_temp_dir() ) . '/dws-wp-configs-phpcs-' . \uniqid();
 		\mkdir( $this->scan_dir );
 	}
 
+	#[\Override]
 	protected function tearDown(): void {
 		$entries = new \RecursiveIteratorIterator(
 			new \RecursiveDirectoryIterator( $this->scan_dir, \FilesystemIterator::SKIP_DOTS ),
 			\RecursiveIteratorIterator::CHILD_FIRST
 		);
 		foreach ( $entries as $entry ) {
+			self::assertInstanceOf( \SplFileInfo::class, $entry );
 			$entry->isDir() ? \rmdir( $entry->getPathname() ) : \unlink( $entry->getPathname() );
 		}
 		\rmdir( $this->scan_dir );
@@ -77,11 +80,16 @@ final class PhpcsProfilesTest extends TestCase {
 		$output  = (string) \shell_exec( $command );
 		$report  = \json_decode( $output, true );
 		self::assertIsArray( $report, $output );
+		self::assertIsArray( $report['files'], $output );
 
 		$sources = array();
 		foreach ( $report['files'] as $file => $result ) {
-			if ( array() !== $result['messages'] ) {
-				$sources[ $file ] = \array_column( $result['messages'], 'source' );
+			self::assertIsArray( $result );
+			self::assertIsArray( $result['messages'] );
+			foreach ( $result['messages'] as $message ) {
+				self::assertIsArray( $message );
+				self::assertIsString( $message['source'] );
+				$sources[ (string) $file ][] = $message['source'];
 			}
 		}
 
