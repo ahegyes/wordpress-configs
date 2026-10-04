@@ -131,7 +131,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		\file_put_contents( $manifest, \str_replace( '"php-stubs/woocommerce-stubs",', '"acme/absent-stubs",', self::read( $manifest ) ) );
 
 		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessage( 'acme/absent-stubs' );
+		$this->expectExceptionMessageIsOrContains( 'acme/absent-stubs' );
 
 		ScopePhpDependencies::scope( $project );
 	}
@@ -143,7 +143,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		\file_put_contents( $section, \str_replace( 'return \__(', $call . ' return \__(', self::read( $section ) ) );
 
 		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessage( $residue );
+		$this->expectExceptionMessageIsOrContains( $residue );
 
 		ScopePhpDependencies::scope( $project );
 	}
@@ -177,7 +177,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		$project = self::make_project( array() );
 
 		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessage( 'No package to scope' );
+		$this->expectExceptionMessageIsOrContains( 'No package to scope' );
 
 		ScopePhpDependencies::scope( $project );
 	}

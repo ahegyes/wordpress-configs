@@ -1,25 +1,17 @@
 {
     "scan-files": [
-        "php/php-scoper/*.inc.php",
-        "php/php-scoper/contrib/*.inc.php"
+        "php/php-scoper/*.inc.php"
     ],
     "symbol-whitelist": [
-        "Composer\\ClassMapGenerator\\ClassMapGenerator",
-        "Composer\\Composer",
-        "Composer\\Factory",
-        "Composer\\IO\\IOInterface",
-        "Composer\\Installer\\InstallationManager",
-        "Composer\\Package\\PackageInterface",
+        "Composer\\InstalledVersions",
         "Composer\\Script\\Event",
-        "Composer\\Util\\ProcessExecutor",
+        "Symfony\\Component\\Filesystem\\Filesystem",
         "Symfony\\Component\\Finder\\Finder"
     ],
     "php-core-extensions": [
         "Core",
-        "date",
         "json",
         "pcre",
-        "random",
         "SPL",
         "standard"
     ]

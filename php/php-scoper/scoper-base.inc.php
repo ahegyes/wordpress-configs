@@ -1,109 +1,93 @@
 <?php declare( strict_types=1 );
+/**
+ * Returns the php-scoper config that prefixes a project's framework packages, PHP-DI and the PSR interfaces with the project's own namespace.
+ *
+ * @package DeepWebSolutions\Config
+ */
 
+use DeepWebSolutions\Config\Composer\CollectScopingStubs;
 use Symfony\Component\Finder\Finder;
 
 /**
- * Base scoping config. Reads `scoping-exclusions.json` (written by
- * CollectScopingStubs) and merges plugin overrides on top. `Psr\*` always
- * excluded — scoping it would break cross-package interop on shared interfaces.
+ * Returns the php-scoper config for a project.
  *
- * @param array{
- *     project_dir?: string,
- *     finders?: list<Finder>,
- *     exclude_classes?: list<string>,
- *     exclude_functions?: list<string>,
- *     exclude_namespaces?: list<string>,
- *     exclude_constants?: list<string>,
- *     exclude_files?: list<string>,
- *     patchers?: list<callable>,
- * } $overrides
+ * @param   string $project_dir The root directory of the project, which holds composer.json and vendor/.
+ * @param   string ...$packages   Optional. More installed packages to scope, such as dompdf/dompdf. Default is none.
  *
- * @throws \InvalidArgumentException If $overrides carries a key outside the documented set.
- * @throws \JsonException            If scoping-exclusions.json exists but cannot be parsed.
- * @throws \RuntimeException         If scoping-exclusions.json exists but cannot be read.
+ * @throws  RuntimeException Thrown when composer.json declares no scoping prefix or text domain, or when no package to scope is installed.
  *
- * @return array
+ * @return  array<string, mixed>
  */
-return static function ( array $overrides = array() ): array {
-	// Reject unknown override keys loudly: php-scoper's own config keys are hyphenated
-	// (`exclude-classes`), so a consumer reaching for that spelling — or a typo — would
-	// otherwise be silently dropped and scope a symbol it meant to exclude.
-	$known_keys   = array(
-		'project_dir',
-		'finders',
-		'exclude_classes',
-		'exclude_functions',
-		'exclude_namespaces',
-		'exclude_constants',
-		'exclude_files',
-		'patchers',
-	);
-	$unknown_keys = \array_diff( \array_keys( $overrides ), $known_keys );
-	if ( array() !== $unknown_keys ) {
-		throw new \InvalidArgumentException(
-			\sprintf(
-				'Unknown scoper override key(s): %s. Valid keys: %s. Hyphenated forms (e.g. "exclude-classes") are php-scoper output, not override keys.',
-				\implode( ', ', $unknown_keys ),
-				\implode( ', ', $known_keys )
-			)
-		);
+return static function ( string $project_dir, string ...$packages ): array {
+	$manifest    = json_decode( (string) file_get_contents( "$project_dir/composer.json" ), true, flags: JSON_THROW_ON_ERROR );
+	$extra       = is_array( $manifest ) && isset( $manifest['extra'] ) && is_array( $manifest['extra'] ) ? $manifest['extra'] : array();
+	$prefix      = $extra['scoping-prefix'] ?? null;
+	$text_domain = $extra['text-domain'] ?? null;
+	if ( ! is_string( $prefix ) || '' === $prefix ) {
+		throw new RuntimeException( "$project_dir/composer.json declares no extra.scoping-prefix." );
+	}
+	if ( false !== $text_domain && ( ! is_string( $text_domain ) || '' === $text_domain ) ) {
+		throw new RuntimeException( "$project_dir/composer.json declares no extra.text-domain. Set it to the plugin's text domain, or to false when no framework string ships." );
 	}
 
-	$project_dir = $overrides['project_dir'] ?? \getcwd();
-
-	$exclusions_path = $project_dir . '/scoping-exclusions.json';
-	if ( \is_file( $exclusions_path ) ) {
-		$contents = file_get_contents( $exclusions_path );
-		if ( false === $contents ) {
-			throw new \RuntimeException( sprintf( 'Could not read %s', $exclusions_path ) );
+	$vendor_dir   = "$project_dir/vendor";
+	$package_dirs = array();
+	foreach ( array( 'ahegyes/wp-framework-*', 'php-di/*', 'laravel/serializable-closure', 'psr/container', 'psr/log', ...$packages ) as $pattern ) {
+		$matches = glob( "$vendor_dir/$pattern", GLOB_ONLYDIR );
+		if ( false === $matches ) {
+			throw new RuntimeException( "Could not list $vendor_dir/$pattern." );
 		}
-		$exclusions = json_decode( $contents, true, flags: JSON_THROW_ON_ERROR );
-	} else {
-		$exclusions = array(
-			'classes'   => array(),
-			'functions' => array(),
-			'constants' => array(),
-		);
+		$package_dirs = array_merge( $package_dirs, $matches );
 	}
-	// json_decode does not throw on valid scalar JSON ("foo", 42, true), which would then fatal on
-	// the array access below with a confusing engine error rather than the documented RuntimeException.
-	if ( ! \is_array( $exclusions ) ) {
-		throw new \RuntimeException(
-			sprintf( 'scoping-exclusions.json must decode to a JSON object; got %s.', \get_debug_type( $exclusions ) )
-		);
+	$package_dirs = array_values( array_unique( $package_dirs ) );
+	if ( array() === $package_dirs ) {
+		throw new RuntimeException( "No package to scope is installed in $vendor_dir." ); // Without finders, php-scoper scopes the whole working directory.
 	}
-	$exclusions['classes']   ??= array();
-	$exclusions['functions'] ??= array();
-	$exclusions['constants'] ??= array();
 
-	// Merge consumer overrides into the exclusion set so a consumer's own `exclude_*` symbols
-	// join the php-scoper `exclude-*` config that governs prefixing.
-	$exclude_classes   = \array_merge( $exclusions['classes'], $overrides['exclude_classes'] ?? array() );
-	$exclude_functions = \array_merge( $exclusions['functions'], $overrides['exclude_functions'] ?? array() );
-	$exclude_constants = \array_merge( $exclusions['constants'], $overrides['exclude_constants'] ?? array() );
+	// php-scoper writes every file below the deepest directory its inputs share, which drops the vendor directory of a single-vendor closure.
+	$vendors    = array_unique( array_map( static fn ( string $dir ): string => basename( dirname( $dir ) ), $package_dirs ) );
+	$output_dir = "$project_dir/vendor-prefixed";
+	if ( 1 === count( $vendors ) ) {
+		$output_dir .= '/' . reset( $vendors ) . ( 1 === count( $package_dirs ) ? '/' . basename( $package_dirs[0] ) : '' );
+	}
 
-	// Action Scheduler's `as_*` API is host-provided by WooCommerce or the standalone plugin,
-	// so scoped code must never prefix it. A regex covers the whole family, including
-	// functions added upstream later.
-	$host_function_exclusions = array( '/^as_/' );
+	$symbols = CollectScopingStubs::collect( $package_dirs );
 
 	return array(
-		'finders'            => $overrides['finders'] ?? array(),
+		'prefix'            => $prefix,
+		'output-dir'        => $output_dir,
+		'finders'           => array( Finder::create()->files()->in( $package_dirs )->name( array( '*.php', 'composer.json', 'LICENSE*' ) ) ),
+		// PHP-DI renders this file as a raw template, which a prefixed namespace declaration would break.
+		'exclude-files'     => array_filter( array( "$vendor_dir/php-di/php-di/src/Compiler/Template.php" ), 'is_file' ),
+		'exclude-classes'   => $symbols['classes'],
+		'exclude-functions' => $symbols['functions'],
+		'exclude-constants' => $symbols['constants'],
+		'patchers'          => array(
+			static function ( string $file_path, string $prefix, string $contents ): string {
+				if ( ! str_ends_with( $file_path, '/php-di/php-di/src/Invoker/FactoryParameterResolver.php' ) ) {
+					return $contents;
+				}
 
-		// Anchored regex, not the bare literal 'Psr': php-scoper matches a plain namespace string
-		// by case-insensitive substring, so 'Psr' would also leave any namespace merely containing
-		// "psr" (e.g. `Nyholm\Psr7`, `GuzzleHttp\Psr7`) unprefixed — silently breaking isolation for
-		// bundled PSR-7 implementations. The regex excludes only the real `Psr\*` root.
-		'exclude-namespaces' => \array_merge(
-			array( '/^Psr(?:\\\\|$)/i' ),
-			$overrides['exclude_namespaces'] ?? array()
+				return str_replace(
+					array( "'Psr\\Container\\ContainerInterface'", "'DI\\Factory\\RequestedEntry'" ),
+					array( "'$prefix\\Psr\\Container\\ContainerInterface'", "'$prefix\\DI\\Factory\\RequestedEntry'" ),
+					$contents
+				);
+			},
+			static function ( string $file_path, string $prefix, string $contents ) use ( $text_domain ): string {
+				if ( ! str_contains( $file_path, '/ahegyes/wp-framework-' ) || ! str_ends_with( $file_path, '.php' ) ) {
+					return $contents;
+				}
+
+				if ( false !== $text_domain ) {
+					$contents = str_replace( array( "'wp-framework'", '"wp-framework"' ), var_export( $text_domain, true ), $contents );
+				}
+				if ( 1 === preg_match( '/' . preg_quote( "$prefix\\", '/' ) . '(?:WC_|wc_|WC\(|woocommerce_|as_|Automattic\\\\WooCommerce\\\\)[\w\\\\]*|\'wp-framework\'/', $contents, $residue ) ) {
+					throw new RuntimeException( sprintf( 'Scoping left %s in %s: a host symbol the stubs do not declare took the prefix, or a framework string kept the reserved text domain.', $residue[0], $file_path ) );
+				}
+
+				return $contents;
+			},
 		),
-
-		'exclude-classes'    => $exclude_classes,
-		'exclude-functions'  => \array_merge( $host_function_exclusions, $exclude_functions ),
-		'exclude-constants'  => $exclude_constants,
-		'exclude-files'      => $overrides['exclude_files'] ?? array(),
-
-		'patchers'           => $overrides['patchers'] ?? array(),
 	);
 };
