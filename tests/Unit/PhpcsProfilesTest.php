@@ -47,6 +47,15 @@ final class PhpcsProfilesTest extends TestCase {
 		self::assertSame( array( 'src/Vendor/x.php' ), \array_keys( $this->scan( $profile ) ) );
 	}
 
+	public function test_production_profile_skips_docblock_sniffs_in_patterns_directories(): void {
+		foreach ( array( 'patterns', 'src/Patterns' ) as $dir ) {
+			\mkdir( $this->scan_dir . '/' . $dir, 0777, true );
+			\file_put_contents( $this->scan_dir . '/' . $dir . '/x.php', "<?php declare( strict_types=1 );\n\nclass X {}\n" );
+		}
+
+		self::assertSame( array( 'src/Patterns/x.php' ), \array_keys( $this->scan( 'phpcs.dist.xml' ) ) );
+	}
+
 	public function test_production_profile_reports_unsanitized_input(): void {
 		\file_put_contents( $this->scan_dir . '/input.php', "<?php declare( strict_types=1 );\n\n\$name = wp_unslash( \$_POST['name'] ?? '' );\n" );
 
