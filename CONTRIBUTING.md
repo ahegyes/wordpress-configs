@@ -27,7 +27,7 @@ composer lint:php        # phpcs + phpstan + composer-require-checker
 composer test            # unit suite
 composer audit --abandoned=report
 npm run lint:scripts     # ESLint over node/ + the config-smoke harness
-npm run lint:config      # load-check the eslint / stylelint / tsconfig / playwright baselines
+npm run lint:config      # load-check the eslint / stylelint / postcss / tsconfig / playwright baselines
 npm audit --omit=dev --audit-level=high
 ```
 

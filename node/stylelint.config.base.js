@@ -11,4 +11,10 @@ module.exports = {
 		'**/build/**',
 		'**/*.min.css',
 	],
+	reportDescriptionlessDisables: true,
+	reportInvalidScopeDisables: true,
+	reportNeedlessDisables: true,
+	rules: {
+		'selector-class-pattern': null,
+	},
 };

@@ -34,6 +34,7 @@ wordpress-configs/
 │   ├── tsconfig.base.json
 │   ├── eslint.config.base.mjs
 │   ├── stylelint.config.base.js
+│   ├── postcss.config.base.js
 │   └── playwright.config.base.js
 ├── tests/                           # PHPUnit unit tests (tests/Unit/); fixtures in tests/fixtures/
 ├── phpcs.dist.xml                   # SELF-lint — extends the production profile with WP-runtime exclusions (this repo's PHP is Composer-time tooling)

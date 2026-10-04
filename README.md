@@ -431,7 +431,7 @@ a library that references scoped symbols through runtime strings the scoper cann
 
 Shared baseline configurations for Node-ecosystem tooling — one central config per tool, extended and tweaked per project (the same central-defaults-plus-overrides pattern `@wordpress/scripts` itself uses). Live in `node/` (parallel to `php/`). Plugins compose each baseline using the tool-specific pattern shown below.
 
-The baselines assume the consuming plugin has installed `@wordpress/scripts` — the standard modern WP plugin stack. It brings `@wordpress/eslint-plugin` and `@wordpress/stylelint-config` transitively and declares `@playwright/test` as a peer dependency (npm installs peers automatically; stricter package managers may need it declared explicitly).
+The package declares the tools behind the baselines as `>=` peer dependencies, floored at the versions it is tested against: `@wordpress/scripts`, `@wordpress/eslint-plugin`, `@wordpress/stylelint-config`, `@wordpress/postcss-plugins-preset`, `@playwright/test` and `@axe-core/playwright`. npm installs missing peers automatically; stricter package managers need them declared explicitly.
 
 The bare `@ahegyes/wordpress-configs/node/...` require resolves through `node_modules`, not `vendor/`, so the package must also be installed on the npm side — a git devDependency pinned to a commit SHA:
 
@@ -459,7 +459,7 @@ Create a `tsconfig.json` in your project:
 
 #### ESLint
 
-`node/eslint.config.base.mjs` — flat-config wrapping `@wordpress/eslint-plugin`'s recommended preset, with the plugin's `test-unit` / `test-playwright` presets scoped to project test globs (`**/test/**`, `**/*.test.*`, `tests/e2e/**`). Requires `@wordpress/eslint-plugin` v25+ and ESLint v9+ (the flat format is the only one ESLint v10 supports).
+`node/eslint.config.base.mjs` — flat-config wrapping `@wordpress/eslint-plugin`'s recommended preset, with the plugin's `test-unit` / `test-playwright` presets scoped to project test globs (`**/test/**`, `**/*.test.*` script files, `tests/e2e/**`). The `*.test.*` glob names the script extensions, so test snapshots and JSON fixtures are not linted as scripts.
 
 Create an `eslint.config.mjs` in your project:
 
@@ -478,7 +478,7 @@ export default [
 
 #### Stylelint
 
-`node/stylelint.config.base.js` — extends `@wordpress/stylelint-config/scss` and adds `ignoreFiles` for generated/vendored trees. Do not load this base via `extends`: Stylelint ignores the `ignoreFiles` property of an extended config entirely. Use the spread pattern shown below; the globs then live in the consumer's root config and resolve against the consumer project.
+`node/stylelint.config.base.js` — extends `@wordpress/stylelint-config/scss`, adds `ignoreFiles` for generated/vendored trees, reports `stylelint-disable` comments that are needless, lack a `-- reason` or name a rule that does not apply, and turns off `selector-class-pattern` so BEM-style `__element` classes pass. Do not load this base via `extends`: Stylelint ignores the `ignoreFiles` property of an extended config entirely. Use the spread pattern shown below; the globs then live in the consumer's root config and resolve against the consumer project.
 
 Create a `stylelint.config.js` in your project:
 
@@ -494,15 +494,25 @@ module.exports = {
 };
 ```
 
+#### PostCSS
+
+`node/postcss.config.base.js` — a factory over `@wordpress/postcss-plugins-preset` that inlines source maps in development builds and writes them to separate files otherwise.
+
+Create a `postcss.config.js` in your project:
+
+```js
+module.exports = require('@ahegyes/wordpress-configs/node/postcss.config.base.js');
+```
+
 #### Playwright
 
-`node/playwright.config.base.js` — extends `@wordpress/scripts/config/playwright.config.js` (the canonical Playwright config from `@wordpress/scripts`), adjusting `testDir` to `tests/e2e/` to match DWS plugin layout. Inherits everything else: baseURL `http://localhost:8889`, viewport, headless Chromium, screenshots on failure, retries in CI, auto-start of wp-env, etc.
+`node/playwright.config.base.js` — a factory that takes the project's wp-env `port` and returns `@wordpress/scripts/config/playwright.config.js` (the canonical Playwright config from `@wordpress/scripts`) with `testDir` set to `tests/e2e/`, artifacts under `tests/.cache/artifacts/`, and a `webServer` that runs the project's `wp-env:start` script. It sets `WP_BASE_URL` and `WP_ARTIFACTS_PATH` before loading the `@wordpress/scripts` config, which reads them only once; an exported value wins. Inherits everything else: viewport, headless Chromium, screenshots on failure, retries in CI.
 
-Create a `playwright.config.js` in your project:
+Create a `playwright.config.js` in your project, passing the `port` from `.wp-env.json`:
 
 ```js
 const { defineConfig } = require('@playwright/test');
-const baseConfig = require('@ahegyes/wordpress-configs/node/playwright.config.base.js');
+const baseConfig = require('@ahegyes/wordpress-configs/node/playwright.config.base.js')({ port: 8811 });
 
 module.exports = defineConfig({
     ...baseConfig,
@@ -514,7 +524,7 @@ module.exports = defineConfig({
 });
 ```
 
-For test fixtures (admin login, block editor helpers, REST request utilities), import from `@wordpress/e2e-test-utils-playwright` in your test files — it provides extended `test`, `admin`, `editor`, `pageUtils`, and `requestUtils` fixtures designed for WordPress E2E testing.
+For test fixtures (admin login, block editor helpers, REST request utilities), import from `@wordpress/e2e-test-utils-playwright` in your test files — it provides extended `test`, `admin`, `editor`, `pageUtils`, and `requestUtils` fixtures designed for WordPress E2E testing. For accessibility scans, import `AxeBuilder` from `@axe-core/playwright`.
 
 ## Dependency Scoping Workflow
 
