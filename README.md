@@ -165,15 +165,7 @@ parameters:
         - vendor/wp-plugin/woocommerce  # If using WooCommerce
 ```
 
-WordPress 7.0 stubs resolve out of the box: this package rides `szepeviktor/phpstan-wordpress` at `2.x-dev`, whose `php-stubs/wordpress-stubs: >=6.6.2` constraint admits 7.x stubs (the tagged v2.0.3 still caps below 7.0 — revert to `^2` at the next release). A consumer whose own dependencies cap the stubs (`php-stubs/woocommerce-stubs` does) restores 7.0 analysis with a root-`require-dev` inline alias — root-only, a dependency-declared alias is ignored by the solver — bumping the exact 7.x version as new stubs ship:
-
-```json
-{
-    "require-dev": {
-        "php-stubs/wordpress-stubs": "7.0.0 as 6.9999.0"
-    }
-}
-```
+This package requires `php-stubs/wordpress-stubs` and `php-stubs/woocommerce-stubs`, so a consumer does not require them itself.
 
 Run:
 
