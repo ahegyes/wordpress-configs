@@ -5,6 +5,7 @@ namespace DeepWebSolutions\Config\Tests\Unit;
 use DeepWebSolutions\Config\Composer\ScopePhpDependencies;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 
 final class ScopePhpDependenciesTest extends TestCase {
 
@@ -23,9 +24,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 	#[\Override]
 	public static function tearDownAfterClass(): void {
-		foreach ( self::$projects as $project ) {
-			self::remove( $project );
-		}
+		new Filesystem()->remove( self::$projects );
 		self::$projects       = array();
 		self::$scoped_project = null;
 	}
@@ -46,7 +45,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 	#[DataProvider( 'provide_single_vendor_closures' )]
 	public function test_a_single_vendor_closure_still_nests_under_its_vendor_directory( array $packages, string|false $text_domain ): void {
 		$project = self::make_project( $packages, array(), array( 'text-domain' => $text_domain ) );
-		self::copy( self::VENDOR_DIR . '/psr/log', $project . '/vendor-prefixed/psr/log' );
+		new Filesystem()->mirror( self::VENDOR_DIR . '/psr/log', $project . '/vendor-prefixed/psr/log' );
 
 		ScopePhpDependencies::scope( $project );
 
@@ -231,10 +230,10 @@ final class ScopePhpDependenciesTest extends TestCase {
 		\file_put_contents( $project . '/composer.json', \json_encode( $manifest, \JSON_THROW_ON_ERROR | \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES ) );
 
 		foreach ( $packages as $package ) {
-			self::copy( self::FIXTURE_DIR . '/packages/' . $package, $project . '/vendor/ahegyes/' . $package );
+			new Filesystem()->mirror( self::FIXTURE_DIR . '/packages/' . $package, $project . '/vendor/ahegyes/' . $package );
 		}
 		foreach ( $third_party_packages as $package ) {
-			self::copy( self::VENDOR_DIR . '/' . $package, $project . '/vendor/' . $package );
+			new Filesystem()->mirror( self::VENDOR_DIR . '/' . $package, $project . '/vendor/' . $package );
 		}
 
 		return $project;
@@ -281,32 +280,5 @@ final class ScopePhpDependenciesTest extends TestCase {
 		self::assertIsString( $contents );
 
 		return $contents;
-	}
-
-	protected static function copy( string $from, string $to ): void {
-		\mkdir( $to, 0777, true );
-		$items = new \RecursiveIteratorIterator( new \RecursiveDirectoryIterator( $from, \FilesystemIterator::SKIP_DOTS ), \RecursiveIteratorIterator::SELF_FIRST );
-		foreach ( $items as $item ) {
-			self::assertInstanceOf( \SplFileInfo::class, $item );
-			$target = $to . \substr( $item->getPathname(), \strlen( $from ) );
-			$item->isDir() ? \mkdir( $target ) : \copy( $item->getPathname(), $target );
-		}
-	}
-
-	protected static function remove( string $path ): void {
-		if ( \is_link( $path ) || \is_file( $path ) ) {
-			\unlink( $path );
-			return;
-		}
-		if ( ! \is_dir( $path ) ) {
-			return;
-		}
-
-		$entries = \scandir( $path );
-		self::assertIsArray( $entries );
-		foreach ( \array_diff( $entries, array( '.', '..' ) ) as $entry ) {
-			self::remove( $path . '/' . $entry );
-		}
-		\rmdir( $path );
 	}
 }
