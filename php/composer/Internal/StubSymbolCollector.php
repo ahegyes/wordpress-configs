@@ -45,6 +45,7 @@ final class StubSymbolCollector extends \PhpParser\NodeVisitorAbstract {
 	 *
 	 * @param \PhpParser\Node $node Node being visited.
 	 */
+	#[\Override]
 	public function enterNode( \PhpParser\Node $node ): int|null {
 		switch ( \get_class( $node ) ) {
 			// Class-like declarations all flow into `$classes` — php-scoper's `exclude-classes` covers all of them.
