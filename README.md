@@ -169,13 +169,15 @@ parameters:
         - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php # For a WooCommerce extension.
 ```
 
+A project with a different minimum WordPress version sets `WPCompat.requiresAtLeast` in its own `parameters`, which win over the profile's.
+
 Run:
 
 ```sh
 vendor/bin/phpstan analyse -v --memory-limit=1G
 ```
 
-To add a plugin's conventional paths without listing them, include `phpstan.dist.neon.php` as well. It adds `functions-bootstrap.php`, `functions.php`, `footprint.php`, `uninstall.php`, `src/`, `includes/`, `models/`, `blocks/` and `templates/` when they exist, and scans `vendor-prefixed/`. The plugin's entry file is not among them, so list it under `paths`:
+To add a plugin's conventional paths without listing them, include `phpstan.dist.neon.php` as well. It adds `functions-bootstrap.php`, `functions.php`, `footprint.php`, `uninstall.php`, `src/`, `includes/`, `models/`, `blocks/` and `templates/` when they exist in the directory PHPStan runs from, and scans `vendor-prefixed/` there. The plugin's entry file is not among them, so list it under `paths`:
 
 ```neon
 includes:
