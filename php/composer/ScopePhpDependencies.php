@@ -65,9 +65,13 @@ final class ScopePhpDependencies {
 		// Loading the config parses the WooCommerce stubs, which comes close to PHP's default memory limit.
 		$command = array( \PHP_BINARY, '-d', 'memory_limit=1G', ( InstalledVersions::getInstallPath( 'humbug/php-scoper' ) ?? '' ) . '/bin/php-scoper', 'add-prefix', '--working-dir=' . $project_dir, '--config=' . $project_dir . '/scoper.inc.php', '--output-dir=' . $output_dir, '--force', '--no-interaction' );
 		// php-scoper's console wraps what it prints at the terminal width, which would split the paths and symbols in a failure message.
-		\exec( 'COLUMNS=4096 ' . \implode( ' ', \array_map( 'escapeshellarg', $command ) ) . ' 2>&1', $output, $exit_code ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_exec -- Runs in Composer, never on a WordPress server.
-		if ( 0 !== $exit_code ) {
-			throw new \RuntimeException( "php-scoper failed:\n" . \implode( "\n", $output ) );
+		$process = \proc_open( \implode( ' ', \array_map( 'escapeshellarg', $command ) ) . ' 2>&1', array( 1 => array( 'pipe', 'w' ) ), $pipes, null, array( 'COLUMNS' => '4096' ) + \getenv() ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_proc_open -- Runs in Composer, never on a WordPress server.
+		if ( false === $process ) {
+			throw new \RuntimeException( 'Could not start php-scoper.' );
+		}
+		$output = \stream_get_contents( $pipes[1] );
+		if ( 0 !== \proc_close( $process ) ) {
+			throw new \RuntimeException( "php-scoper failed:\n" . $output );
 		}
 
 		// php-scoper writes every file below the deepest directory its inputs share, which drops the vendor directory of a single-vendor closure.
