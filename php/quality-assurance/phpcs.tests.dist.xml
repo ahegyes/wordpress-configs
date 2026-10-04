@@ -22,5 +22,9 @@
 		<exclude name="WordPress.WP.AlternativeFunctions"/>
 		<!-- Smoke fixtures trap warnings via set_error_handler and dump diagnostics on failure. -->
 		<exclude name="WordPress.PHP.DevelopmentFunctions"/>
+		<!-- Tests build fake meta rows and query by meta key to assert stored state. -->
+		<exclude name="WordPress.DB.SlowDBQuery"/>
+		<!-- Tests change ini values to exercise the code that reads them. -->
+		<exclude name="WordPress.PHP.IniSet"/>
 	</rule>
 </ruleset>
