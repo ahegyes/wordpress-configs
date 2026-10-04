@@ -1,0 +1,4 @@
+rules:
+  # actionlint rejects the $/ syntax this audit asks for, and ./ already resolves reusable-workflow calls to the caller's commit.
+  self-repository:
+    disable: true
