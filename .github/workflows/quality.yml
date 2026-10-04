@@ -4,6 +4,9 @@ on:
   push:
     branches: [trunk]
   pull_request:
+  schedule:
+    # Weekly, so advisories published against the locked dependencies surface between changes; off the hour and staggered against the other weekly crons.
+    - cron: '53 6 * * 1'
   workflow_dispatch:
 
 concurrency:
