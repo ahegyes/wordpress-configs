@@ -27,7 +27,6 @@ stylelint.config.*
 tsconfig.json
 playwright.config.*
 scoper.inc.php
-scoping-exclusions.json
 .wp-env*
 .wordpress-org
 
