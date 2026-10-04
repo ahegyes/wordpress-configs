@@ -145,42 +145,57 @@ vendor/bin/phpcbf --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v
 
 #### PHPStan (Static Analysis)
 
-`php/quality-assurance/phpstan.dist.neon` — level 8, WordPress stubs, auto-discovered paths.
+`php/quality-assurance/phpstan.dist.neon` is the shared profile. It includes `phpstan.base.dist.neon` and adds the minimum WordPress version that `johnbillion/wp-compat` checks calls against:
 
-| Setting                                     | Value                                           |
-|---------------------------------------------|-------------------------------------------------|
-| Level                                       | 8                                               |
-| `treatPhpDocTypesAsCertain`                 | `false`                                         |
-| `inferPrivatePropertyTypeFromConstructor`   | `true`                                          |
-| WordPress stubs                             | `php-stubs/wordpress-stubs` (auto-bootstrapped) |
+| File | Holds |
+| --- | --- |
+| `phpstan.base.dist.neon` | The rules that need no WordPress: the level, the missing `#[\Override]` check, the strict-rules settings, the PSR-11 container stub and the nested vendor exclusions |
+| `phpstan.dist.neon` | The base, plus the minimum WordPress version |
+| `phpstan.dist.neon.php` | Opt-in discovery of a plugin's conventional paths |
 
-Create a `.phpstan.neon` in your project:
+Code under a nested `vendor/` or `vendor-prefixed/` directory is scanned but not analysed, so the code that uses it still resolves. The container stub types `ContainerInterface::get()` by its argument: a class-string returns an instance of that class, and any other string returns `mixed`. This package requires `php-stubs/wordpress-stubs` and `php-stubs/woocommerce-stubs`, so a consumer does not require them itself.
+
+Create a `phpstan.dist.neon` in your project:
 
 ```neon
 includes:
     - vendor/ahegyes/wordpress-configs/php/quality-assurance/phpstan.dist.neon
 
 parameters:
-    scanDirectories:
-        - vendor/wp-plugin/woocommerce  # If using WooCommerce
+    paths:
+        - my-plugin.php
+        - src
+    scanFiles:
+        - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php # For a WooCommerce extension.
 ```
-
-This package requires `php-stubs/wordpress-stubs` and `php-stubs/woocommerce-stubs`, so a consumer does not require them itself.
 
 Run:
 
-```bash
-vendor/bin/phpstan analyse -c ./.phpstan.neon -v --memory-limit=1G
+```sh
+vendor/bin/phpstan analyse -v --memory-limit=1G
 ```
 
-The bundled `phpstan.dist.neon.php` auto-discovers paths by layout:
+To add a plugin's conventional paths without listing them, include `phpstan.dist.neon.php` as well. It adds `functions-bootstrap.php`, `functions.php`, `footprint.php`, `uninstall.php`, `src/`, `includes/`, `models/`, `blocks/` and `templates/` when they exist, and scans `vendor-prefixed/`. The plugin's entry file is not among them, so list it under `paths`:
 
-| Layout (detected by)                               | Directories analysed                                                         | Root files                                            |
-|----------------------------------------------------|------------------------------------------------------------------------------|-------------------------------------------------------|
-| Plugin (`Plugin Name:` header) or library (`src/`) | `src/`, `includes/`, `models/`, `blocks/`, `templates/`, `config/`, `tests/` | `{plugin-name}.php`, `functions.php`, `uninstall.php` |
-| Theme (`style.css`)                                | `inc/`, `template-parts/`, `parts/`, `patterns/`, `blocks/`, `tests/`        | `functions.php`, `index.php`                          |
+```neon
+includes:
+    - vendor/ahegyes/wordpress-configs/php/quality-assurance/phpstan.dist.neon
+    - vendor/ahegyes/wordpress-configs/php/quality-assurance/phpstan.dist.neon.php
 
-When no layout is recognized, discovery contributes no paths and PHPStan aborts loudly ("at least one path must be specified") unless your own config declares `parameters.paths` — discovery is anchored on the working directory, so a repo-root fallback would make a monorepo-root invocation sweeping per-package configs analyse the entire monorepo in every run. Code in extra directories a recognized layout doesn't cover is added with `parameters.paths` in your own `.phpstan.neon` — a plain `parameters.paths` *merges* (appends) with the discovered set; to replace the discovered set entirely, use the NEON `parameters.paths!` override operator.
+parameters:
+    paths:
+        - my-plugin.php
+```
+
+To analyse code with no WordPress loaded, include `phpstan.base.dist.neon` alone and list `szepeviktor/phpstan-wordpress`, `johnbillion/wp-compat` and `swissspidy/phpstan-no-private` under `extra.phpstan/extension-installer.ignore` in the root `composer.json`, so a WordPress function is an unknown symbol. A WordPress config in the same repository then includes those extensions itself, because PHPStan rejects the minimum WordPress version when wp-compat is not loaded:
+
+```neon
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+    - vendor/johnbillion/wp-compat/extension.neon
+    - vendor/swissspidy/phpstan-no-private/rules.neon
+    - vendor/ahegyes/wordpress-configs/php/quality-assurance/phpstan.dist.neon
+```
 
 **Included PHPStan extensions** (auto-installed):
 

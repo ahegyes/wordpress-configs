@@ -15,7 +15,10 @@ wordpress-configs/
 │   │   ├── phpcs.base.dist.xml      # shared rules: full WordPress standard and PHPCompatibilityWP, with the PHP and WordPress floors
 │   │   ├── phpcs.dist.xml           # production profile: the base with tests/ excluded
 │   │   ├── phpcs.tests.dist.xml     # tests profile: base minus docblock and WP-runtime sniffs
-│   │   └── phpstan.dist.neon        # level 8 + WordPress stubs (auto-discovered via .neon.php)
+│   │   ├── phpstan.base.dist.neon   # shared rules that need no WordPress, the container stub and the nested-vendor exclusions
+│   │   ├── phpstan.dist.neon        # PHPStan profile: the base plus the minimum WordPress version
+│   │   ├── phpstan.dist.neon.php    # opt-in discovery of a plugin's conventional paths
+│   │   └── stubs/container.stub     # types PSR-11 ContainerInterface::get() by its class-string argument
 │   ├── php-scoper/
 │   │   ├── scoper-base.inc.php      # catalog-agnostic; reads scoping-exclusions.json; excludes as_* by regex
 │   │   └── contrib/
@@ -36,7 +39,7 @@ wordpress-configs/
 ├── tests/                           # PHPUnit unit tests (tests/Unit/); fixtures in tests/fixtures/
 ├── phpcs.dist.xml                   # SELF-lint — extends the production profile with WP-runtime exclusions (this repo's PHP is Composer-time tooling)
 ├── phpcs.tests.dist.xml             # SELF-lint for tests/ — extends the tests profile
-├── phpstan.dist.neon                # SELF-lint — includes shared, declares `paths: [php, tests]`
+├── phpstan.dist.neon                # SELF-lint — includes the shared profile, declares `paths: [php, tests]`
 ├── composer-require-checker.json    # whitelists Composer\* + Symfony\Finder (provided by composer/composer in require-dev)
 └── .github/workflows/               # 10 reusable + 5 self-CI (codeql, tests, tests-mutation, quality, workflow-checks)
 ```
