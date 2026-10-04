@@ -31,11 +31,11 @@ npm run lint:config      # load-check the eslint / stylelint / postcss / tsconfi
 npm audit --omit=dev --audit-level=high
 ```
 
-The scoping pipeline (`CollectScopingStubs` → `ScopePhpDependencies` → `scoper-base.inc.php` → autoload generator) only runs in a *consumer's* dev install; this repo tests each piece in isolation, so there's no build step to run here.
+The scoping pipeline runs in a consumer's development install. This repository's end-to-end test scopes a fixture project instead, so there is no build step to run here.
 
 ## Tests
 
-PHPUnit tests live under `tests/Unit/`. Use real `Composer\Composer` instances rather than mocks — it surfaces real composer-API regressions when you bump composer-runtime versions.
+PHPUnit tests live under `tests/Unit/`. They run the real tools, PHPCS, PHPStan and php-scoper, on fixtures copied to a temporary directory rather than on mocks.
 
 Mutation tests run via Infection on a weekly schedule (manually triggerable too). MSI ratchets up over time as new tests cover more branches.
 
