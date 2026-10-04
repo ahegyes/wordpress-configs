@@ -545,7 +545,7 @@ Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Pl
 
 | Workflow                              | Purpose                                          | Key Inputs                                                   |
 |---------------------------------------|--------------------------------------------------|--------------------------------------------------------------|
-| `reusable-php-syntax-check.yml`       | `php -l` matrix across PHP versions              | `project-path`, `php-versions[]`                             |
+| `reusable-php-syntax-check.yml`       | `php -l` matrix across PHP versions              | `project-path`, `php-versions[]`, `paths[]`                  |
 | `reusable-php-lint.yml`               | `composer validate --strict` and named composer scripts, each a parallel job | `project-path`, `php-version`, `scripts[]`                   |
 | `reusable-scripts-styles-lint.yml`    | ESLint + Stylelint via npm scripts               | `project-path`, `node-version`                               |
 | `reusable-phpunit.yml`                | PHPUnit; wp-env startup gated by `needs-wp-env`  | `project-path`, `php-version`, `wp-version`, `needs-wp-env`, `multisite` |
@@ -557,6 +557,8 @@ Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Pl
 | `reusable-codeql.yml`                 | CodeQL analysis across a language matrix         | `languages[]`                                                |
 
 Each workflow's `inputs:` block (every input carries a `description:`) is the authoritative reference for its full input set and defaults — the table lists only the commonly-set ones.
+
+**`paths[]`:** narrows the check to the files that must parse on an older PHP, such as by-path files loaded before a PHP version gate: `php-versions: '["7.4"]'` with `paths: '["uninstall.php", "vendor-prefixed/ahegyes/wp-framework-bootstrap"]'`. A path with no PHP file fails the check instead of passing it empty.
 
 **`php-versions[]` vs `php-version`:** `reusable-php-syntax-check.yml` accepts an array because matrixing across PHP versions is the whole point of syntax checking. The other reusables run a single PHP version per call — to test multiple versions, wrap the reusable in your own matrix. This asymmetry is intentional; consolidating either direction would force the wrong shape on the side that doesn't want it.
 

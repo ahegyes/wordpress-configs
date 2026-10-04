@@ -13,6 +13,11 @@ on:
         type: string
         required: false
         default: '["8.5"]'
+      paths:
+        description: 'Non-empty JSON array of files and directories to check, relative to project-path. Directories are searched for *.php files; the default checks the whole project except vendor/ and node_modules/.'
+        type: string
+        required: false
+        default: '["."]'
 
 permissions: {}
 
@@ -30,6 +35,15 @@ jobs:
         run: |
           if ! jq -e 'type == "array" and length > 0' <<< "$PHP_VERSIONS" > /dev/null; then
             echo "::error::php-versions must be a non-empty JSON array — got '$PHP_VERSIONS'."
+            exit 1
+          fi
+
+      - name: Reject an empty paths array
+        env:
+          PATHS: ${{ inputs.paths }}
+        run: |
+          if ! jq -e 'type == "array" and length > 0 and all(.[]; type == "string")' <<< "$PATHS" > /dev/null; then
+            echo "::error::paths must be a non-empty JSON array of strings — got '$PATHS'."
             exit 1
           fi
 
@@ -59,9 +73,17 @@ jobs:
 
       - name: Check PHP syntax
         working-directory: ${{ inputs.project-path }}
+        env:
+          PATHS: ${{ inputs.paths }}
         run: |
-          find . \
+          mapfile -t paths < <(jq -r '.[]' <<< "$PATHS")
+          find "${paths[@]}" \
             -path ./vendor -prune -o \
             -path ./node_modules -prune -o \
-            -name '*.php' -print0 \
-          | xargs -0 -n1 -P4 php -l
+            -name '*.php' -print0 > "$RUNNER_TEMP/php-files"
+          # A path list that holds no PHP file would otherwise pass without checking anything.
+          if [ ! -s "$RUNNER_TEMP/php-files" ]; then
+            echo "::error::No PHP files found under paths $PATHS."
+            exit 1
+          fi
+          xargs -0 -n1 -P4 php -l < "$RUNNER_TEMP/php-files"
