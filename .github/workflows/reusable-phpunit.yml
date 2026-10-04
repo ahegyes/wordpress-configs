@@ -69,7 +69,7 @@ jobs:
     permissions:
       contents: read
     env:
-      # Job-level, so a consumer script that starts wp-env again gets the same WordPress; both inputs empty defers to the config's core.
+      # A job-level WP_ENV_CORE gives a consumer script that starts wp-env again the same WordPress.
       WP_ENV_CORE: ${{ inputs.wp-env-core != '' && inputs.wp-env-core || (inputs.wp-version != '' && format('WordPress/WordPress#tags/{0}', inputs.wp-version)) || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

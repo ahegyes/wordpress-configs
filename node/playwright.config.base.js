@@ -3,8 +3,8 @@
  */
 
 module.exports = ( { port } ) => {
-	// @wordpress/scripts derives use.baseURL, webServer.port and outputDir from both variables while it is
-	// being required, so they are set before the require; `??=` leaves an exported value authoritative.
+	// The @wordpress/scripts config derives use.baseURL, webServer.port and outputDir from both variables
+	// only while it is being required, so they are set first.
 	process.env.WP_BASE_URL ??= `http://localhost:${ port }`;
 	process.env.WP_ARTIFACTS_PATH ??= 'tests/.cache/artifacts';
 

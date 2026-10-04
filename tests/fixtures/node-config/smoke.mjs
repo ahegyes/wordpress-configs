@@ -148,9 +148,8 @@ probes.push( [
 probes.push( [
 	'playwright.config.base.js',
 	() => {
-		// The @wordpress/scripts base reads WP_BASE_URL and WP_ARTIFACTS_PATH once, while it is
-		// being required, so the factory sets them first. Asserting the derived values holds that
-		// ordering in place: a require at module scope silently pins every consumer to port 8889.
+		// The @wordpress/scripts config reads both variables only while it is being required, so these
+		// assertions catch a require moved to module scope, which pins every consumer to port 8889.
 		const config = require( resolve( 'node/playwright.config.base.js' ) )( {
 			port: 9999,
 		} );

@@ -5,7 +5,7 @@ on:
     branches: [trunk]
   pull_request:
   schedule:
-    # Weekly, so advisories published against the locked dependencies surface between changes; off the hour and staggered against the other weekly crons.
+    # A weekly run surfaces advisories published against the locked dependencies between changes.
     - cron: '53 6 * * 1'
   workflow_dispatch:
 
@@ -155,7 +155,7 @@ jobs:
   plugin-check:
     name: Plugin Check
     needs: plugin-check-build
-    # The fixture fails Plugin Check unless the GitHub profile skips its Update URI and absent readme.txt and the scan skips vendor-prefixed/.
+    # The fixture fails Plugin Check unless the GitHub profile skips its Update URI and its missing readme.txt and the scan skips vendor-prefixed/.
     permissions:
       contents: read
     uses: ./.github/workflows/reusable-plugin-check.yml

@@ -81,7 +81,7 @@ jobs:
             -path ./vendor -prune -o \
             -path ./node_modules -prune -o \
             -name '*.php' -print0 > "$RUNNER_TEMP/php-files"
-          # A path list that holds no PHP file would otherwise pass without checking anything.
+          # With an empty list, xargs runs php -l once on empty standard input, which passes without checking a file.
           if [ ! -s "$RUNNER_TEMP/php-files" ]; then
             echo "::error::No PHP files found under paths $PATHS."
             exit 1

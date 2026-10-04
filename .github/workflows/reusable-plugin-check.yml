@@ -17,7 +17,7 @@ on:
         required: false
         default: '8.5'
       wp-org:
-        description: 'Run the full check set, for a build published to wp.org. The default GitHub profile skips plugin_updater and plugin_readme, which report the Update URI header and the absent readme.txt that a GitHub-distributed build carries by design.'
+        description: 'Run the full check set, for a build published to wp.org. The default GitHub profile skips plugin_updater and plugin_readme, which report two by-design traits of a GitHub-distributed build: its Update URI header and its missing readme.txt.'
         type: boolean
         required: false
         default: false
@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 30
     permissions: {}
     env:
-      # plugin-check-action starts its own wp-env without a phpVersion, and WordPress refuses to activate a plugin whose Requires PHP the default image does not meet.
+      # The action starts its own wp-env without a phpVersion, and WordPress refuses to activate a plugin whose Requires PHP the default image does not meet.
       WP_ENV_PHP_VERSION: ${{ inputs.php-version }}
     steps:
       - name: Validate plugin-slug
