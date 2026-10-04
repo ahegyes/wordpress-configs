@@ -70,8 +70,11 @@ final class ScopePhpDependencies {
 		}
 
 		// php-scoper writes every file below the deepest directory its inputs share, which drops the vendor directory of a single-vendor closure.
-		$manifests = \glob( $output_dir . '/*/composer.json' ) ?: array();
-		$dropped   = match ( true ) {
+		$manifests = \glob( $output_dir . '/*/composer.json' );
+		if ( false === $manifests ) {
+			throw new \RuntimeException( "Could not list '$output_dir'." );
+		}
+		$dropped = match ( true ) {
 			\is_file( $output_dir . '/composer.json' ) => self::package_name( $output_dir . '/composer.json' ),
 			array() !== $manifests                     => \dirname( self::package_name( $manifests[0] ) ),
 			default                                    => '',
