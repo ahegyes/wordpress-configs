@@ -56,6 +56,9 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+    env:
+      # Plugin Check's action starts its own wp-env without a phpVersion, and WordPress refuses to activate a plugin whose Requires PHP the default image does not meet.
+      WP_ENV_PHP_VERSION: ${{ inputs.php-version }}
     outputs:
       digest: ${{ steps.archive-digest.outputs.digest }}
       version: ${{ steps.release-inputs.outputs.version }}
@@ -144,12 +147,8 @@ jobs:
       - name: Build assets
         working-directory: ${{ inputs.project-path }}
         run: |
-          if [ -f package.json ]; then
-            npm ci
-            npm run build --if-present
-          else
-            echo "No package.json — skipping asset build."
-          fi
+          npm ci
+          npm run build --if-present
 
       - name: Generate POT
         if: ${{ inputs.generate-pot }}

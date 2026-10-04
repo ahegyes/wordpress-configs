@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       artifact:
-        description: 'Name of an artifact uploaded earlier in the calling workflow whose contents are the built plugin directory: the files the release zip ships, unzipped.'
+        description: 'Name of an artifact uploaded earlier in the calling workflow whose contents are the built plugin directory: the files the release zip ships, unzipped. Upload it with include-hidden-files: true, so the check also sees any hidden file the zip ships.'
         type: string
         required: true
       plugin-slug:
@@ -53,6 +53,7 @@ jobs:
         uses: WordPress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1.1.9
         with:
           build-dir: plugin-check-build/${{ inputs.plugin-slug }}
+          slug: ${{ inputs.plugin-slug }}
           exclude-checks: ${{ !inputs.wp-org && 'plugin_updater,plugin_readme' || '' }}
           # An empty token skips the pull request comment, which this job's token has no permission to post.
           repo-token: ''

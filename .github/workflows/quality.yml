@@ -150,6 +150,7 @@ jobs:
         with:
           name: dws-build-fixture
           path: tests/fixtures/dws-build-fixture
+          include-hidden-files: true
           retention-days: 1
 
   plugin-check:

@@ -14,7 +14,7 @@ on:
         required: false
         default: '["8.5"]'
       paths:
-        description: 'Non-empty JSON array of files and directories to check, relative to project-path. Directories are searched for *.php files; the default checks the whole project except vendor/ and node_modules/.'
+        description: 'Non-empty JSON array of files and directories to check, relative to project-path. Directories are searched for *.php files, skipping any vendor/ and node_modules/ inside them.'
         type: string
         required: false
         default: '["."]'
@@ -78,8 +78,8 @@ jobs:
         run: |
           mapfile -t paths < <(jq -r '.[]' <<< "$PATHS")
           find "${paths[@]}" \
-            -path ./vendor -prune -o \
-            -path ./node_modules -prune -o \
+            -path '*/vendor' -prune -o \
+            -path '*/node_modules' -prune -o \
             -name '*.php' -print0 > "$RUNNER_TEMP/php-files"
           # With an empty list, xargs runs php -l once on empty standard input, which passes without checking a file.
           if [ ! -s "$RUNNER_TEMP/php-files" ]; then
