@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- Production PHPCS profile: every consumer repo's phpcs.xml extends this, and lints tests/ with phpcs.tests.dist.xml instead. -->
+<!-- Production PHPCS profile: every consumer repo's phpcs.dist.xml extends this, and lints tests/ with phpcs.tests.dist.xml instead. -->
 <ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../vendor/squizlabs/php_codesniffer/phpcs.xsd">
 	<rule ref="./phpcs.base.dist.xml"/>
 

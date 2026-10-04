@@ -12,8 +12,8 @@ Intentionally standalone — also consumable by non-plugin repos (themes, site b
 wordpress-configs/
 ├── php/
 │   ├── quality-assurance/           # SHARED configs — consumed by other repos
-│   │   ├── phpcs.base.dist.xml      # shared rules: full WordPress standard + PHPCompatibilityWP, PHP 8.5+ / WP 7.1+
-│   │   ├── phpcs.dist.xml           # production profile: base + tests/ excluded
+│   │   ├── phpcs.base.dist.xml      # shared rules: full WordPress standard and PHPCompatibilityWP, with the PHP and WordPress floors
+│   │   ├── phpcs.dist.xml           # production profile: the base with tests/ excluded
 │   │   ├── phpcs.tests.dist.xml     # tests profile: base minus docblock and WP-runtime sniffs
 │   │   └── phpstan.dist.neon        # level 8 + WordPress stubs (auto-discovered via .neon.php)
 │   ├── php-scoper/
@@ -54,8 +54,7 @@ Dogfooding scope: `reusable-php-lint`, `reusable-scripts-styles-lint`, `reusable
 
 - File naming: `<tool>.dist.<ext>` — IDEs auto-recognize the trailing extension as XML/NEON/etc.
 - PSR-12 file-header order overridden: `PSR12.Files.FileHeader.IncorrectOrder` is silenced in the shared `php/quality-assurance/phpcs.base.dist.xml` so consumers can write `<?php declare( strict_types=1 );` inline.
-- PHPCS exclude patterns are written `(?-i)…` with escaped dots: PHPCS matches them case-insensitively against the absolute path, so a bare `*/vendor/*` would also skip `src/Vendor/`. The base ruleset carries no `*/tests/*` pattern, because an included ruleset's exclude patterns apply to the ruleset that includes it.
-- `lint:php` chains 3 tools: `phpcs` (production and tests profiles) + `phpstan` + `composer-require-checker`. Symbols used from transitive deps are whitelisted in `composer-require-checker.json`, not added to `require`.
+- `lint:php` runs `phpcs` with the production and tests profiles, `phpstan` and `composer-require-checker`. Symbols used from transitive deps are whitelisted in `composer-require-checker.json`, not added to `require`.
 - `--ignore-platform-req=php+` is applied to Composer installs/updates in scripts, this repo's CI, and the reusable workflows — only the PHP upper bound is ignored so future-PHP installs stay possible; extension requirements and PHP floor checks stay live.
 - Self-lint is `phpcs.dist.xml` and `phpcs.tests.dist.xml` at root (extending the shared profiles with this repo's exclusions) — NOT the consumer-facing `php/quality-assurance/` profiles.
 - `CollectScopingStubs` writes the exclusion JSON via temp-file + `rename` (atomic on same filesystem) so a concurrent reader can't observe a partial write.

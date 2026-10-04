@@ -54,18 +54,12 @@ Base configuration files that your project extends. Create thin project-level co
 
 Two profiles share `php/quality-assurance/phpcs.base.dist.xml`, which runs the full `WordPress` standard and PHPCompatibilityWP:
 
-| Profile    | File                                         | Lints                                                       |
-|------------|----------------------------------------------|-------------------------------------------------------------|
-| Production | `php/quality-assurance/phpcs.dist.xml`       | Everything except `tests/`                                  |
-| Tests      | `php/quality-assurance/phpcs.tests.dist.xml` | `tests/`, without the docblock and WordPress-runtime sniffs |
+| Profile | File | Lints |
+| --- | --- | --- |
+| Production | `php/quality-assurance/phpcs.dist.xml` | Everything except `tests/` |
+| Tests | `php/quality-assurance/phpcs.tests.dist.xml` | `tests/`, without the docblock and WordPress-runtime sniffs |
 
-| Setting              | Value        |
-|----------------------|--------------|
-| PHP compatibility    | 8.5 or later |
-| WordPress minimum    | 7.1          |
-| Parallel workers     | 8            |
-
-Both profiles skip `bin/`, `vendor/`, `vendor-prefixed/`, `node_modules/` and generated files. The patterns match case-sensitively, so a `src/Vendor/` source directory is still linted.
+Both profiles skip `bin/`, `vendor/`, `vendor-prefixed/`, `node_modules/`, `index.php` placeholders and generated files. The patterns match case-sensitively, so a `src/Vendor/` source directory is still linted.
 
 Create a `phpcs.dist.xml` in your project:
 
