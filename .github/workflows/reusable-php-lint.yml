@@ -23,14 +23,14 @@ on:
         required: false
         default: '--prefer-dist --ignore-platform-req=php+'
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   validate-inputs:
     name: Validate inputs
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions: {}
     steps:
       # An empty JSON array expands to zero matrix jobs and reports success — a silent skip of the lint.
       - name: Reject an empty scripts array
@@ -47,6 +47,8 @@ jobs:
     needs: validate-inputs
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:

@@ -54,8 +54,7 @@ on:
         required: false
         default: true
 
-permissions:
-  contents: read
+permissions: {}
 
 env:
   # WP_ENV_VERSION is pinned identically in reusable-release.yml, reusable-phpunit.yml, and reusable-playwright-e2e.yml and must stay in sync — npx-inline @wordpress/env versions are invisible to dependabot, so nothing bumps them together automatically.
@@ -66,6 +65,8 @@ jobs:
     name: PHPUnit (PHP ${{ inputs.php-version }} / WP ${{ inputs.wp-env-core != '' && inputs.wp-env-core || inputs.wp-version != '' && inputs.wp-version || (inputs.needs-wp-env && 'consumer-default' || 'no-wp-env') }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

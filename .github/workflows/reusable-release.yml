@@ -47,8 +47,7 @@ concurrency:
   group: release-${{ inputs.plugin-slug }}
   cancel-in-progress: false
 
-permissions:
-  contents: read
+permissions: {}
 
 env:
   # WP_ENV_VERSION is pinned identically in reusable-release.yml, reusable-phpunit.yml, and reusable-playwright-e2e.yml and must stay in sync — npx-inline @wordpress/env versions are invisible to dependabot, so nothing bumps them together automatically.

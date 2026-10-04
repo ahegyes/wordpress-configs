@@ -10,12 +10,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   lint-php:
     name: PHP Lint
+    permissions:
+      contents: read
     uses: ./.github/workflows/reusable-php-lint.yml
     with:
       scripts: '["lint:php:phpcs", "lint:php:phpcs:tests", "lint:php:phpstan", "lint:php:composer-require-checker"]'
@@ -23,6 +24,8 @@ jobs:
   php-syntax:
     name: PHP Syntax
     # Scoped to php/ — tests/fixtures/ holds intentional php -l failures (duplicate stub declarations).
+    permissions:
+      contents: read
     uses: ./.github/workflows/reusable-php-syntax-check.yml
     with:
       project-path: php
@@ -80,6 +83,8 @@ jobs:
   lint-scripts:
     name: Lint scripts (ESLint)
     # Reuse the standard scripts/styles workflow with lint-styles disabled (no CSS in this repo).
+    permissions:
+      contents: read
     uses: ./.github/workflows/reusable-scripts-styles-lint.yml
     with:
       lint-styles: false
@@ -111,6 +116,8 @@ jobs:
   supply-chain:
     name: Supply-chain audit
     # npm gate audits production deps only — the dev-tooling graph (wp-scripts/playwright trees) is advisory via dependabot alerts.
+    permissions:
+      contents: read
     uses: ./.github/workflows/reusable-supply-chain-audit.yml
     with:
       npm-audit-flags: '--omit=dev --audit-level=high'
@@ -118,6 +125,8 @@ jobs:
   block-json:
     name: block.json schema check
     # Dogfoods reusable-block-json-check against a throwaway fixture; this tooling repo ships no real blocks.
+    permissions:
+      contents: read
     uses: ./.github/workflows/reusable-block-json-check.yml
     with:
       project-path: tests/fixtures/block-json

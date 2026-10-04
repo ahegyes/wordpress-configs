@@ -14,14 +14,14 @@ on:
         required: false
         default: '["8.5"]'
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   validate-inputs:
     name: Validate inputs
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions: {}
     steps:
       # An empty JSON array expands to zero matrix jobs and reports success — a silent skip of the syntax check.
       - name: Reject an empty php-versions array
@@ -38,6 +38,8 @@ jobs:
     needs: validate-inputs
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
