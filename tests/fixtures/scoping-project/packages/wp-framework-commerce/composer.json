@@ -8,6 +8,9 @@
     },
     "classmap": [
       "lib/"
+    ],
+    "files": [
+      "functions.php"
     ]
   },
   "extra": {

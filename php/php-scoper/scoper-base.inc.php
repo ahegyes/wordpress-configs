@@ -49,18 +49,10 @@ return static function ( string $project_dir, string ...$packages ): array {
 		throw new RuntimeException( "No package to scope is installed in '$vendor_dir'." ); // Without finders, php-scoper scopes the whole working directory.
 	}
 
-	// A single-vendor closure needs its vendor directory set here, because php-scoper writes every file below the deepest directory its inputs share.
-	$vendors    = array_unique( array_map( static fn ( string $dir ): string => basename( dirname( $dir ) ), $package_dirs ) );
-	$output_dir = "$project_dir/vendor-prefixed";
-	if ( 1 === count( $vendors ) ) {
-		$output_dir .= '/' . reset( $vendors ) . ( 1 === count( $package_dirs ) ? '/' . basename( $package_dirs[0] ) : '' );
-	}
-
 	$symbols = CollectScopingStubs::collect( $package_dirs );
 
 	return array(
 		'prefix'            => trim( $prefix, '\\' ),
-		'output-dir'        => $output_dir,
 		'finders'           => array( Finder::create()->files()->in( $package_dirs ) ),
 		// PHP-DI renders this file as a raw template, which a prefixed namespace declaration would break.
 		'exclude-files'     => array_filter( array( "$vendor_dir/php-di/php-di/src/Compiler/Template.php" ), 'is_file' ),

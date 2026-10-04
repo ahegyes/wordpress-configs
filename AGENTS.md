@@ -19,10 +19,10 @@ wordpress-configs/
 │   │   ├── phpstan.dist.neon        # PHPStan profile: the base plus the minimum WordPress version
 │   │   └── phpstan.dist.neon.php    # opt-in discovery of a plugin's conventional paths
 │   ├── php-scoper/
-│   │   └── scoper-base.inc.php      # the php-scoper config: the closure in the project's vendor/, nested vendor-prefixed/ output, host-symbol exclusions, PHP-DI and text-domain patchers
+│   │   └── scoper-base.inc.php      # the php-scoper config: the closure in the project's vendor/, host-symbol exclusions, PHP-DI and text-domain patchers
 │   └── composer/
 │       ├── CollectScopingStubs.php  # the WordPress (sniccowp), Action Scheduler and extra.scoping-stubs symbols scoping leaves global
-│       ├── ScopePhpDependencies.php # Composer scripts and scope(): runs php-scoper into vendor-prefixed/ and writes scoper-autoload.php
+│       ├── ScopePhpDependencies.php # Composer scripts and scope(): runs php-scoper into vendor-prefixed/, nests it as <vendor>/<package>/ and writes scoper-autoload.php
 │       └── Internal/
 │           └── StubSymbolCollector.php # AST visitor that harvests stubs symbols
 ├── node/

@@ -72,19 +72,21 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 	public function test_scoped_autoload_loads_prefixed_classes_and_files(): void {
 		$script = \sprintf(
-			'namespace Automattic\WooCommerce\Admin\Settings { abstract class SettingsSection {} } namespace { require %s; require %s; echo json_encode( array( interface_exists( %s ), class_exists( %s ), class_exists( %s ), class_exists( %s ), function_exists( %s ) ) ); }',
+			'namespace Automattic\WooCommerce\Admin\Settings { abstract class SettingsSection {} } namespace { require %s; require %s; echo json_encode( array( interface_exists( %s ), class_exists( %s ), class_exists( %s ), class_exists( %s ), class_exists( %s ), function_exists( %s ), function_exists( %s ) ) ); }',
 			\var_export( self::VENDOR_DIR . '/composer/ClassLoader.php', true ),
 			\var_export( self::scoped_project() . '/vendor-prefixed/scoper-autoload.php', true ),
 			\var_export( 'Acme\Scoped\Psr\Log\LoggerInterface', true ),
 			\var_export( 'Acme\Scoped\DeepWebSolutions\Framework\Commerce\SettingsSection', true ),
 			\var_export( 'Acme\Scoped\LegacyRenderer', true ),
+			\var_export( 'Acme\Scoped\LegacyCanvas', true ),
 			\var_export( 'Acme\Scoped\DI\ContainerBuilder', true ),
-			\var_export( 'Acme\Scoped\DI\create', true )
+			\var_export( 'Acme\Scoped\DI\create', true ),
+			\var_export( 'Acme\Scoped\DeepWebSolutions\Framework\Commerce\get_label_prefix', true )
 		);
 		\exec( \escapeshellarg( \PHP_BINARY ) . ' -r ' . \escapeshellarg( $script ) . ' 2>&1', $output, $exit_code );
 
 		self::assertSame( 0, $exit_code, \implode( "\n", $output ) );
-		self::assertSame( '[true,true,true,true,true]', \implode( "\n", $output ) );
+		self::assertSame( '[true,true,true,true,true,true,true]', \implode( "\n", $output ) );
 	}
 
 	public function test_php_di_compares_prefixed_class_names(): void {
@@ -131,6 +133,22 @@ final class ScopePhpDependenciesTest extends TestCase {
 			'missing' => array( array( 'text-domain' => null ) ),
 			'empty'   => array( array( 'text-domain' => '' ) ),
 		);
+	}
+
+	public function test_a_failed_scope_run_keeps_the_previous_build(): void {
+		$project = self::make_project( array( 'wp-framework-commerce', 'wp-framework-loader' ) );
+		ScopePhpDependencies::scope( $project );
+		$autoload = self::read( $project . '/vendor-prefixed/scoper-autoload.php' );
+		\file_put_contents( $project . '/composer.json', \str_replace( '"text-domain": "acme-text-domain"', '"text-domain": ""', self::read( $project . '/composer.json' ) ) );
+
+		try {
+			ScopePhpDependencies::scope( $project );
+			self::fail( 'The scope run did not fail.' );
+		} catch ( \RuntimeException $exception ) {
+			self::assertStringContainsString( 'extra.text-domain', $exception->getMessage() );
+		}
+		self::assertSame( $autoload, self::read( $project . '/vendor-prefixed/scoper-autoload.php' ) );
+		self::assertSame( array( 'ahegyes/wp-framework-commerce', 'ahegyes/wp-framework-loader' ), self::package_dirs( $project . '/vendor-prefixed' ) );
 	}
 
 	public function test_scope_run_fails_when_declared_stubs_are_not_installed(): void {
@@ -180,6 +198,18 @@ final class ScopePhpDependenciesTest extends TestCase {
 			self::assertStringContainsString( 'vendor-prefixed', $exception->getMessage() );
 		}
 		self::assertFileExists( $project . '/src/Plugin.php' );
+	}
+
+	public function test_scope_run_writes_only_to_vendor_prefixed_whatever_the_config_says(): void {
+		$project = self::make_project( array( 'wp-framework-loader' ), array(), array( 'text-domain' => false ) );
+		\mkdir( $project . '/src' );
+		\file_put_contents( $project . '/src/Plugin.php', "<?php\n" );
+		\file_put_contents( $project . '/scoper.inc.php', \str_replace( 'return ( require', '$config = ( require', self::read( $project . '/scoper.inc.php' ) ) . "\$config['output-dir'] = __DIR__ . '/src';\n\nreturn \$config;\n" );
+
+		ScopePhpDependencies::scope( $project );
+
+		self::assertFileExists( $project . '/src/Plugin.php' );
+		self::assertSame( array( 'ahegyes/wp-framework-loader' ), self::package_dirs( $project . '/vendor-prefixed' ) );
 	}
 
 	public function test_scope_run_refuses_a_symlinked_package(): void {
