@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<!-- Repo self-lint for tests/: extends the shared php/quality-assurance/phpcs.tests.dist.xml profile. -->
+<ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="vendor/squizlabs/php_codesniffer/phpcs.xsd">
+	<description>Lints this repo's own tests.</description>
+
+	<!-- Test fixtures are intentionally minimal stub files with deliberate redeclarations — not linted. -->
+	<exclude-pattern>(?-i)*/tests/fixtures/*</exclude-pattern>
+
+	<rule ref="./php/quality-assurance/phpcs.tests.dist.xml">
+		<!-- The scoping tests' helpers take camelCase named arguments. -->
+		<exclude name="WordPress.NamingConventions.ValidVariableName"/>
+		<!-- Tests legitimately use shell_exec/putenv (running php-scoper and phpcs, setting
+		     COMPOSER), @-silenced symlink probes, and reserved-word params. -->
+		<exclude name="WordPress.PHP.NoSilencedErrors"/>
+		<exclude name="WordPress.PHP.DiscouragedPHPFunctions"/>
+		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames"/>
+	</rule>
+</ruleset>
