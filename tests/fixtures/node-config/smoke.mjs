@@ -5,6 +5,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -115,21 +116,32 @@ probes.push( [
 
 probes.push( [
 	'postcss.config.base.js',
-	() => {
+	async () => {
 		const factory = require( resolve( 'node/postcss.config.base.js' ) );
-		const scss = factory( {
-			env: 'development',
-			file: { extname: '.scss' },
-		} );
-		if ( 0 === scss.plugins.length ) {
+		const postcss = createRequire(
+			require.resolve( '@wordpress/scripts/package.json' )
+		)( 'postcss' );
+		const css = readFileSync(
+			'tests/fixtures/node-config/probe.css',
+			'utf8'
+		);
+		const transform = async ( env ) =>
+			(
+				await postcss( factory( { env } ).plugins ).process( css, {
+					from: undefined,
+				} )
+			).css;
+
+		const production = await transform( 'production' );
+		if ( production.includes( '/*' ) || production.includes( '\n' ) ) {
 			throw new Error(
-				'.scss context did not yield a non-empty plugin chain'
+				`production CSS is not minified: ${ production }`
 			);
 		}
-		const css = factory( { env: 'production', file: { extname: '.css' } } );
-		if ( 0 === css.plugins.length ) {
+		const development = await transform( 'development' );
+		if ( ! development.includes( '/*' ) ) {
 			throw new Error(
-				'.css context did not yield a non-empty plugin chain'
+				`development CSS lost its comment: ${ development }`
 			);
 		}
 	},

@@ -496,7 +496,7 @@ module.exports = {
 
 #### PostCSS
 
-`node/postcss.config.base.js` — a factory over `@wordpress/postcss-plugins-preset` that inlines source maps in development builds and writes them to separate files otherwise.
+`node/postcss.config.base.js` — a factory over `@wordpress/postcss-plugins-preset` that adds the `cssnano` minifier to production builds: the chain `@wordpress/scripts` uses when a project has no PostCSS config, which any project config switches off. A project that needs another PostCSS plugin appends it to this chain and keeps the minifier.
 
 Create a `postcss.config.js` in your project:
 
