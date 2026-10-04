@@ -34,23 +34,26 @@ wordpress-configs/
 │   ├── tsconfig.base.json
 │   ├── eslint.config.base.mjs
 │   ├── stylelint.config.base.js
+│   ├── postcss.config.base.js
 │   └── playwright.config.base.js
 ├── tests/                           # PHPUnit unit tests (tests/Unit/); fixtures in tests/fixtures/
 ├── phpcs.dist.xml                   # SELF-lint — extends the production profile with WP-runtime exclusions (this repo's PHP is Composer-time tooling)
 ├── phpcs.tests.dist.xml             # SELF-lint for tests/ — extends the tests profile
 ├── phpstan.dist.neon                # SELF-lint — includes the shared profile, declares `paths: [php, tests]`
 ├── composer-require-checker.json    # whitelists Composer\* + Symfony\Finder (provided by composer/composer in require-dev)
-└── .github/workflows/               # 10 reusable + 5 self-CI (codeql, tests, tests-mutation, quality, workflow-checks)
+└── .github/
+    ├── zizmor.yml                   # disables zizmor's self-repository audit until actionlint accepts $/
+    └── workflows/                   # 11 reusable and 5 self-CI (codeql, tests, tests-mutation, quality, workflow-checks)
 ```
 
 ## Reusable CI workflows
 
-10 reusable workflows in `.github/workflows/reusable-*.yml` (`workflow_call` only):
-`reusable-block-json-check`, `reusable-scripts-styles-lint`, `reusable-php-lint`, `reusable-php-syntax-check`, `reusable-phpunit`, `reusable-playwright-e2e`, `reusable-supply-chain-audit`, `reusable-release`, `reusable-workflow-checks`, `reusable-codeql`.
+11 reusable workflows in `.github/workflows/reusable-*.yml` (`workflow_call` only):
+`reusable-block-json-check`, `reusable-scripts-styles-lint`, `reusable-php-lint`, `reusable-php-syntax-check`, `reusable-phpunit`, `reusable-playwright-e2e`, `reusable-plugin-check`, `reusable-supply-chain-audit`, `reusable-release`, `reusable-workflow-checks`, `reusable-codeql`.
 
-Plus 5 self-running for this repo's own CI: `codeql`, `tests`, `tests-mutation`, `quality`, `workflow-checks`. `tests` dogfoods `reusable-phpunit` as a unit-only matrix (`needs-wp-env: false`). `quality` dogfoods this repo's own reusables — `reusable-php-lint` (phpcs, phpstan, composer-require-checker as parallel jobs), `reusable-php-syntax-check` (scoped to `php/`, since `tests/fixtures/` carries intentional `php -l` redeclaration failures), `reusable-supply-chain-audit`, `reusable-scripts-styles-lint` (lint:scripts; styles disabled), and `reusable-block-json-check` (against the throwaway `tests/fixtures/block-json` fixture, since this tooling repo ships no real blocks). `workflow-checks` and `codeql` are thin callers of `reusable-workflow-checks` (actionlint for workflow YAML correctness + zizmor for workflow security; uploads SARIF → Security tab and fails the job on findings) and `reusable-codeql` (this repo passes `languages: '["actions", "javascript-typescript"]'`).
+Plus 5 self-running for this repo's own CI: `codeql`, `tests`, `tests-mutation`, `quality`, `workflow-checks`. `tests` dogfoods `reusable-phpunit` as a unit-only matrix (`needs-wp-env: false`). `quality` dogfoods this repo's own reusables — `reusable-php-lint` (composer validate, phpcs, phpstan, composer-require-checker as parallel jobs), `reusable-php-syntax-check` (scoped to `php/`, since `tests/fixtures/` carries intentional `php -l` redeclaration failures, and over the `tests/fixtures/dws-build-fixture` build on the oldest PHP that by-path files must parse on), `reusable-plugin-check` (the GitHub profile over the same build, uploaded as an artifact), `reusable-supply-chain-audit`, `reusable-scripts-styles-lint` (lint:scripts; styles disabled), and `reusable-block-json-check` (against the throwaway `tests/fixtures/block-json` fixture, since this tooling repo ships no real blocks). `workflow-checks` and `codeql` are thin callers of `reusable-workflow-checks` (actionlint for workflow YAML correctness and zizmor for workflow security; uploads SARIF → Security tab and fails the job on findings) and `reusable-codeql` (this repo passes `languages: '["actions", "javascript-typescript"]'`).
 
-Dogfooding scope: `reusable-php-lint`, `reusable-scripts-styles-lint`, `reusable-supply-chain-audit`, `reusable-php-syntax-check`, `reusable-block-json-check` (against a throwaway fixture), `reusable-phpunit` (unit-only via `needs-wp-env: false`), `reusable-workflow-checks`, and `reusable-codeql` are run against this repo in self-CI. The other two — `reusable-playwright-e2e` and `reusable-release` — are plugin-shaped with no meaningful target here, so they are validated by actionlint + zizmor static checks only, not behaviorally exercised.
+Dogfooding scope: `reusable-php-lint`, `reusable-scripts-styles-lint`, `reusable-supply-chain-audit`, `reusable-php-syntax-check`, `reusable-block-json-check` (against a throwaway fixture), `reusable-plugin-check` (against the build fixture), `reusable-phpunit` (unit-only via `needs-wp-env: false`), `reusable-workflow-checks`, and `reusable-codeql` are run against this repo in self-CI. The other two — `reusable-playwright-e2e` and `reusable-release` — are plugin-shaped with no meaningful target here, so they are validated by actionlint and zizmor static checks only, not behaviorally exercised.
 
 ## Conventions
 

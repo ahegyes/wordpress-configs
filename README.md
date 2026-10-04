@@ -431,7 +431,7 @@ a library that references scoped symbols through runtime strings the scoper cann
 
 Shared baseline configurations for Node-ecosystem tooling — one central config per tool, extended and tweaked per project (the same central-defaults-plus-overrides pattern `@wordpress/scripts` itself uses). Live in `node/` (parallel to `php/`). Plugins compose each baseline using the tool-specific pattern shown below.
 
-The baselines assume the consuming plugin has installed `@wordpress/scripts` — the standard modern WP plugin stack. It brings `@wordpress/eslint-plugin` and `@wordpress/stylelint-config` transitively and declares `@playwright/test` as a peer dependency (npm installs peers automatically; stricter package managers may need it declared explicitly).
+The package declares the tools behind the baselines as `>=` peer dependencies, floored at the versions it is tested against: `@wordpress/scripts`, `@wordpress/eslint-plugin`, `@wordpress/stylelint-config`, `@wordpress/postcss-plugins-preset`, `@playwright/test` and `@axe-core/playwright`. npm installs missing peers automatically; stricter package managers need them declared explicitly.
 
 The bare `@ahegyes/wordpress-configs/node/...` require resolves through `node_modules`, not `vendor/`, so the package must also be installed on the npm side — a git devDependency pinned to a commit SHA:
 
@@ -459,7 +459,7 @@ Create a `tsconfig.json` in your project:
 
 #### ESLint
 
-`node/eslint.config.base.mjs` — flat-config wrapping `@wordpress/eslint-plugin`'s recommended preset, with the plugin's `test-unit` / `test-playwright` presets scoped to project test globs (`**/test/**`, `**/*.test.*`, `tests/e2e/**`). Requires `@wordpress/eslint-plugin` v25+ and ESLint v9+ (the flat format is the only one ESLint v10 supports).
+`node/eslint.config.base.mjs` — flat-config wrapping `@wordpress/eslint-plugin`'s recommended preset, with the plugin's `test-unit` / `test-playwright` presets scoped to project test globs (`**/test/**`, `**/*.test.*` script files, `tests/e2e/**`). The `*.test.*` glob names the script extensions, so test snapshots and JSON fixtures are not linted as scripts.
 
 Create an `eslint.config.mjs` in your project:
 
@@ -478,7 +478,7 @@ export default [
 
 #### Stylelint
 
-`node/stylelint.config.base.js` — extends `@wordpress/stylelint-config/scss` and adds `ignoreFiles` for generated/vendored trees. Do not load this base via `extends`: Stylelint ignores the `ignoreFiles` property of an extended config entirely. Use the spread pattern shown below; the globs then live in the consumer's root config and resolve against the consumer project.
+`node/stylelint.config.base.js` — extends `@wordpress/stylelint-config/scss`, adds `ignoreFiles` for generated/vendored trees, reports `stylelint-disable` comments that are needless, lack a `-- reason` or name a rule that does not apply, and turns off `selector-class-pattern` so BEM-style `__element` classes pass. Do not load this base via `extends`: Stylelint ignores the `ignoreFiles` property of an extended config entirely. Use the spread pattern shown below; the globs then live in the consumer's root config and resolve against the consumer project.
 
 Create a `stylelint.config.js` in your project:
 
@@ -494,15 +494,25 @@ module.exports = {
 };
 ```
 
+#### PostCSS
+
+`node/postcss.config.base.js` — a factory over `@wordpress/postcss-plugins-preset` that adds the `cssnano` minifier to production builds: the chain `@wordpress/scripts` uses when a project has no PostCSS config, which any project config switches off. A project that needs another PostCSS plugin appends it to this chain and keeps the minifier.
+
+Create a `postcss.config.js` in your project:
+
+```js
+module.exports = require('@ahegyes/wordpress-configs/node/postcss.config.base.js');
+```
+
 #### Playwright
 
-`node/playwright.config.base.js` — extends `@wordpress/scripts/config/playwright.config.js` (the canonical Playwright config from `@wordpress/scripts`), adjusting `testDir` to `tests/e2e/` to match DWS plugin layout. Inherits everything else: baseURL `http://localhost:8889`, viewport, headless Chromium, screenshots on failure, retries in CI, auto-start of wp-env, etc.
+`node/playwright.config.base.js` — a factory that takes the project's wp-env `port` and returns `@wordpress/scripts/config/playwright.config.js` (the canonical Playwright config from `@wordpress/scripts`) with `testDir` set to `tests/e2e/`, artifacts under `tests/.cache/artifacts/`, and a `webServer` that runs the project's `wp-env:start` script. It sets `WP_BASE_URL` and `WP_ARTIFACTS_PATH` before loading the `@wordpress/scripts` config, which reads them only once; an exported value wins. Inherits everything else: viewport, headless Chromium, screenshots on failure, retries in CI.
 
-Create a `playwright.config.js` in your project:
+Create a `playwright.config.js` in your project, passing the `port` from `.wp-env.json`:
 
 ```js
 const { defineConfig } = require('@playwright/test');
-const baseConfig = require('@ahegyes/wordpress-configs/node/playwright.config.base.js');
+const baseConfig = require('@ahegyes/wordpress-configs/node/playwright.config.base.js')({ port: 8811 });
 
 module.exports = defineConfig({
     ...baseConfig,
@@ -514,7 +524,7 @@ module.exports = defineConfig({
 });
 ```
 
-For test fixtures (admin login, block editor helpers, REST request utilities), import from `@wordpress/e2e-test-utils-playwright` in your test files — it provides extended `test`, `admin`, `editor`, `pageUtils`, and `requestUtils` fixtures designed for WordPress E2E testing.
+For test fixtures (admin login, block editor helpers, REST request utilities), import from `@wordpress/e2e-test-utils-playwright` in your test files — it provides extended `test`, `admin`, `editor`, `pageUtils`, and `requestUtils` fixtures designed for WordPress E2E testing. For accessibility scans, import `AxeBuilder` from `@axe-core/playwright`.
 
 ## Dependency Scoping Workflow
 
@@ -535,22 +545,27 @@ Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Pl
 
 | Workflow                              | Purpose                                          | Key Inputs                                                   |
 |---------------------------------------|--------------------------------------------------|--------------------------------------------------------------|
-| `reusable-php-syntax-check.yml`       | `php -l` matrix across PHP versions              | `project-path`, `php-versions[]`                             |
-| `reusable-php-lint.yml`               | Named composer scripts as parallel jobs          | `project-path`, `php-version`, `scripts[]`                   |
+| `reusable-php-syntax-check.yml`       | `php -l` matrix across PHP versions              | `project-path`, `php-versions[]`, `paths[]`                  |
+| `reusable-php-lint.yml`               | `composer validate --strict` and named composer scripts, each a parallel job | `project-path`, `php-version`, `scripts[]`                   |
 | `reusable-scripts-styles-lint.yml`    | ESLint + Stylelint via npm scripts               | `project-path`, `node-version`                               |
-| `reusable-phpunit.yml`                | PHPUnit; wp-env startup gated by `needs-wp-env`  | `project-path`, `php-version`, `wp-version`, `needs-wp-env`  |
+| `reusable-phpunit.yml`                | PHPUnit; wp-env startup gated by `needs-wp-env`  | `project-path`, `php-version`, `wp-version`, `needs-wp-env`, `multisite` |
 | `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `project-path`, `artifact-slug`, `php-version`               |
 | `reusable-block-json-check.yml`       | Validates block.json against wp.org schema       | `project-path`, `node-version`                              |
-| `reusable-supply-chain-audit.yml`     | `composer audit` + `npm audit` (parallel jobs)   | `project-path`, `composer-audit`, `npm-audit`, plus `*-flags` |
+| `reusable-plugin-check.yml`           | WordPress Plugin Check against a built plugin directory | `artifact`, `plugin-slug`, `php-version`, `wp-org`     |
+| `reusable-supply-chain-audit.yml`     | `composer audit` and `npm audit` of the committed lockfiles (parallel jobs) | `project-path`, `composer-audit`, `npm-audit`, plus `*-flags` |
 | `reusable-release.yml`                | Build zip/assets → verify/test zip → deploy verified artifacts to wp.org | `plugin-slug`, `project-path`, `scoped-dependencies-dir`, `php-version`, `requires-scoped-dependencies`, `plugin-check`, `generate-pot`, `pot-domain` (no secrets) |
 | `reusable-workflow-checks.yml`        | actionlint + zizmor with a blocking SARIF gate   | — (no inputs)                                                |
 | `reusable-codeql.yml`                 | CodeQL analysis across a language matrix         | `languages[]`                                                |
 
 Each workflow's `inputs:` block (every input carries a `description:`) is the authoritative reference for its full input set and defaults — the table lists only the commonly-set ones.
 
+**`paths[]`:** narrows the check to the files that must parse on an older PHP, such as by-path files loaded before a PHP version gate: `php-versions: '["7.4"]'` with `paths: '["uninstall.php", "vendor-prefixed/ahegyes/wp-framework-bootstrap"]'`. A path list that matches no PHP file fails the check instead of passing it empty.
+
 **`php-versions[]` vs `php-version`:** `reusable-php-syntax-check.yml` accepts an array because matrixing across PHP versions is the whole point of syntax checking. The other reusables run a single PHP version per call — to test multiple versions, wrap the reusable in your own matrix. This asymmetry is intentional; consolidating either direction would force the wrong shape on the side that doesn't want it.
 
-**`reusable-phpunit.yml` + `needs-wp-env`:** Defaults to `true` (the wp-env + npm ci + start/stop steps run; `npm ci` requires a committed `package-lock.json` in the consumer project). Set `needs-wp-env: false` for pure-unit suites that don't need a WordPress runtime — skips the Node setup and wp-env lifecycle entirely.
+**`reusable-phpunit.yml` and `needs-wp-env`:** Defaults to `true`: the workflow runs `npm ci` and starts and stops the project's own `@wordpress/env`, so the consumer commits a `package-lock.json` that declares it, and the locked version is the one that runs. `reusable-playwright-e2e.yml` and the release test do the same. Set `needs-wp-env: false` for pure-unit suites that don't need a WordPress runtime — skips the Node setup and wp-env lifecycle entirely. `multisite: true` starts the environment as a network by merging `"multisite": true` into the config's override file, because wp-env reads that setting only from a config file.
+
+**`reusable-plugin-check.yml`:** checks a built plugin directory, uploaded as an artifact earlier in the calling workflow, with WordPress Plugin Check in a fresh wp-env, after activating the plugin on `php-version`. The default GitHub profile skips `plugin_updater` and `plugin_readme`, which report two by-design traits of a GitHub-distributed build, its `Update URI` header and its missing `readme.txt`; `wp-org: true` runs the full set. Plugin Check skips `vendor-prefixed/`, so scoped dependencies are checked at their source instead. The job fails on any error, while warnings only annotate. The action installs the newest Plugin Check release from wp.org, not a pinned one.
 
 ### Plugin orchestrators
 

@@ -8,7 +8,7 @@ on:
         type: string
         required: true
       project-path:
-        description: 'Path to the project (relative to repo root). When package.json is present, npm ci runs here and a package-lock.json is required.'
+        description: 'Path to the project (relative to repo root). npm ci runs here, so package.json and package-lock.json are required and must declare @wordpress/env, whose locked version runs the built-artifact test.'
         type: string
         required: false
         default: '.'
@@ -47,12 +47,7 @@ concurrency:
   group: release-${{ inputs.plugin-slug }}
   cancel-in-progress: false
 
-permissions:
-  contents: read
-
-env:
-  # WP_ENV_VERSION is pinned identically in reusable-release.yml, reusable-phpunit.yml, and reusable-playwright-e2e.yml and must stay in sync — npx-inline @wordpress/env versions are invisible to dependabot, so nothing bumps them together automatically.
-  WP_ENV_VERSION: '11.9.0'
+permissions: {}
 
 jobs:
   build:
@@ -61,6 +56,9 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+    env:
+      # Plugin Check's action starts its own wp-env without a phpVersion, and WordPress refuses to activate a plugin whose Requires PHP the default image does not meet.
+      WP_ENV_PHP_VERSION: ${{ inputs.php-version }}
     outputs:
       digest: ${{ steps.archive-digest.outputs.digest }}
       version: ${{ steps.release-inputs.outputs.version }}
@@ -116,7 +114,7 @@ jobs:
           echo "VERSION=$version" >> "$GITHUB_ENV"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -136,7 +134,7 @@ jobs:
           tools: composer:v2, wp-cli
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] no cache is configured on this step, so there is nothing to poison (v6.4.0)
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] no cache is configured on this step, so there is nothing to poison (v7.0.0)
         with:
           node-version: '26'
 
@@ -149,12 +147,8 @@ jobs:
       - name: Build assets
         working-directory: ${{ inputs.project-path }}
         run: |
-          if [ -f package.json ]; then
-            npm ci
-            npm run build --if-present
-          else
-            echo "No package.json — skipping asset build."
-          fi
+          npm ci
+          npm run build --if-present
 
       - name: Generate POT
         if: ${{ inputs.generate-pot }}
@@ -353,7 +347,7 @@ jobs:
 
       - name: Run Plugin Check
         if: ${{ inputs.plugin-check }}
-        uses: WordPress/plugin-check-action@98a1788320d0add90df2d8183934ecccbc4e05d2 # v1.1.7
+        uses: WordPress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1.1.9
         with:
           build-dir: ${{ inputs.project-path }}/plugin-check-build/${{ inputs.plugin-slug }}
 
@@ -389,7 +383,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -423,7 +417,7 @@ jobs:
           tools: composer:v2
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # zizmor: ignore[cache-poisoning] no cache is configured on this step, so there is nothing to poison (v6.4.0)
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] no cache is configured on this step, so there is nothing to poison (v7.0.0)
         with:
           node-version: '26'
 
@@ -436,10 +430,10 @@ jobs:
       - name: Install npm dependencies (E2E runner)
         working-directory: ${{ inputs.project-path }}
         run: |
-          if [ -f package.json ]; then
-            npm ci
-          else
-            echo "No package.json — skipping npm install."
+          npm ci
+          if [ ! -x ./node_modules/.bin/wp-env ]; then
+            echo "::error::@wordpress/env is not installed in this project — add it to devDependencies. This workflow runs the version the project's lockfile pins."
+            exit 1
           fi
 
       - name: Redirect wp-env at built artifact
@@ -460,7 +454,7 @@ jobs:
 
       - name: Start wp-env
         working-directory: ${{ inputs.project-path }}
-        run: npx --yes @wordpress/env@"$WP_ENV_VERSION" start
+        run: ./node_modules/.bin/wp-env start
 
       - name: Assert the mounted plugin is the built artifact
         working-directory: ${{ inputs.project-path }}
@@ -471,7 +465,7 @@ jobs:
           VERSION: ${{ needs.build.outputs.version }}
         run: |
           target="wp-content/plugins/$PLUGIN_SLUG"
-          run_cli() { npx --yes @wordpress/env@"$WP_ENV_VERSION" run cli "$@"; }
+          run_cli() { ./node_modules/.bin/wp-env run cli "$@"; }
           if [ "$REQUIRES_SCOPED" = "true" ]; then
             run_cli test -f "$target/$SCOPED_DEPENDENCIES_DIR/scoper-autoload.php"
           fi
@@ -585,6 +579,6 @@ jobs:
           ASSETS_DIR: ./wp-org-assets
 
       - name: Attach artifact to GitHub release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # zizmor: ignore[superfluous-actions] deliberate release creation and asset upload are one reviewed action (v2.3.3)
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # zizmor: ignore[superfluous-actions] deliberate release creation and asset upload are one reviewed action (v3.0.3)
         with:
           files: ./dist/${{ inputs.plugin-slug }}.zip

@@ -1,0 +1,59 @@
+name: Plugin Check
+
+on:
+  workflow_call:
+    inputs:
+      artifact:
+        description: 'Name of an artifact uploaded earlier in the calling workflow whose contents are the built plugin directory: the files the release zip ships, unzipped. Upload it with include-hidden-files: true, so the check also sees any hidden file the zip ships.'
+        type: string
+        required: true
+      plugin-slug:
+        description: 'Plugin slug: the directory the build is mounted as, which Plugin Check reports under and compares the headers against.'
+        type: string
+        required: true
+      php-version:
+        description: 'PHP version of the WordPress the check runs in. The plugin is activated before the check, so this must meet its Requires PHP header.'
+        type: string
+        required: false
+        default: '8.5'
+      wp-org:
+        description: 'Run the full check set, for a build published to wp.org. The default GitHub profile skips plugin_updater and plugin_readme, which report two by-design traits of a GitHub-distributed build: its Update URI header and its missing readme.txt.'
+        type: boolean
+        required: false
+        default: false
+
+permissions: {}
+
+jobs:
+  plugin-check:
+    name: Plugin Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: {}
+    env:
+      # The action starts its own wp-env without a phpVersion, and WordPress refuses to activate a plugin whose Requires PHP the default image does not meet.
+      WP_ENV_PHP_VERSION: ${{ inputs.php-version }}
+    steps:
+      - name: Validate plugin-slug
+        env:
+          PLUGIN_SLUG: ${{ inputs.plugin-slug }}
+        run: |
+          if ! printf '%s' "$PLUGIN_SLUG" | grep -Eq '^[a-z0-9-]+$'; then
+            echo "::error::plugin-slug must match ^[a-z0-9-]+$ — got '$PLUGIN_SLUG'."
+            exit 1
+          fi
+
+      - name: Download the build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.artifact }}
+          path: plugin-check-build/${{ inputs.plugin-slug }}
+
+      - name: Run Plugin Check
+        uses: WordPress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1.1.9
+        with:
+          build-dir: plugin-check-build/${{ inputs.plugin-slug }}
+          slug: ${{ inputs.plugin-slug }}
+          exclude-checks: ${{ !inputs.wp-org && 'plugin_updater,plugin_readme' || '' }}
+          # An empty token skips the pull request comment, which this job's token has no permission to post.
+          repo-token: ''

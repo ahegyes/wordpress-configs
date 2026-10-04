@@ -9,7 +9,7 @@ export default [
 	...wordpress.configs.recommended,
 	...wordpress.configs[ 'test-unit' ].map( ( config ) => ( {
 		...config,
-		files: [ '**/test/**', '**/*.test.*' ],
+		files: [ '**/test/**', '**/*.test.{js,jsx,ts,tsx,mjs,cjs,mts,cts}' ],
 	} ) ),
 	...wordpress.configs[ 'test-playwright' ].map( ( config ) => ( {
 		...config,

@@ -13,15 +13,20 @@ on:
         type: string
         required: false
         default: '["8.5"]'
+      paths:
+        description: 'Non-empty JSON array of files and directories to check, relative to project-path. Directories are searched for *.php files, skipping any vendor/ and node_modules/ inside them.'
+        type: string
+        required: false
+        default: '["."]'
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   validate-inputs:
     name: Validate inputs
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions: {}
     steps:
       # An empty JSON array expands to zero matrix jobs and reports success — a silent skip of the syntax check.
       - name: Reject an empty php-versions array
@@ -33,18 +38,29 @@ jobs:
             exit 1
           fi
 
+      - name: Reject an empty paths array
+        env:
+          PATHS: ${{ inputs.paths }}
+        run: |
+          if ! jq -e 'type == "array" and length > 0 and all(.[]; type == "string")' <<< "$PATHS" > /dev/null; then
+            echo "::error::paths must be a non-empty JSON array of strings — got '$PATHS'."
+            exit 1
+          fi
+
   syntax:
     name: Syntax (PHP ${{ matrix.php-version }})
     needs: validate-inputs
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         php-version: ${{ fromJSON(inputs.php-versions) }}
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -57,9 +73,17 @@ jobs:
 
       - name: Check PHP syntax
         working-directory: ${{ inputs.project-path }}
+        env:
+          PATHS: ${{ inputs.paths }}
         run: |
-          find . \
-            -path ./vendor -prune -o \
-            -path ./node_modules -prune -o \
-            -name '*.php' -print0 \
-          | xargs -0 -n1 -P4 php -l
+          mapfile -t paths < <(jq -r '.[]' <<< "$PATHS")
+          find "${paths[@]}" \
+            -path '*/vendor' -prune -o \
+            -path '*/node_modules' -prune -o \
+            -name '*.php' -print0 > "$RUNNER_TEMP/php-files"
+          # With an empty list, xargs runs php -l once on empty standard input, which passes without checking a file.
+          if [ ! -s "$RUNNER_TEMP/php-files" ]; then
+            echo "::error::No PHP files found under paths $PATHS."
+            exit 1
+          fi
+          xargs -0 -n1 -P4 php -l < "$RUNNER_TEMP/php-files"

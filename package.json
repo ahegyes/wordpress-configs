@@ -20,24 +20,27 @@
     "exports": {
         "./node/eslint.config.base.mjs": "./node/eslint.config.base.mjs",
         "./node/stylelint.config.base.js": "./node/stylelint.config.base.js",
+        "./node/postcss.config.base.js": "./node/postcss.config.base.js",
         "./node/playwright.config.base.js": "./node/playwright.config.base.js",
         "./node/tsconfig.base.json": "./node/tsconfig.base.json",
         "./package.json": "./package.json"
     },
     "peerDependencies": {
-        "@playwright/test": "^1.58.2",
-        "@wordpress/scripts": ">=32",
-        "@wordpress/eslint-plugin": "^25.6.0",
-        "@wordpress/stylelint-config": "^23.42.0"
+        "@axe-core/playwright": ">=4.13.0",
+        "@playwright/test": ">=1.63.0",
+        "@wordpress/eslint-plugin": ">=27.0.0",
+        "@wordpress/postcss-plugins-preset": ">=5.56.0",
+        "@wordpress/scripts": ">=36.0.0",
+        "@wordpress/stylelint-config": ">=26.0.0"
     },
     "dependencies": {
         "prettier": "npm:wp-prettier@^3.0.3"
     },
     "devDependencies": {
-        "@wordpress/e2e-test-utils-playwright": "^1.50.0",
-        "@wordpress/eslint-plugin": "^25.6.0",
-        "@wordpress/scripts": "^32.6.0",
-        "@wordpress/stylelint-config": "^23.42.0"
+        "@wordpress/e2e-test-utils-playwright": "^2.1.0",
+        "@wordpress/eslint-plugin": "^27.0.0",
+        "@wordpress/scripts": "^36.0.0",
+        "@wordpress/stylelint-config": "^26.0.0"
     },
     "scripts": {
         "packages-install:all": "composer packages-install && npm run packages-install",

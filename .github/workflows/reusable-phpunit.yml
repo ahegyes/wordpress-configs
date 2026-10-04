@@ -9,7 +9,7 @@ on:
         required: false
         default: '.'
       php-version:
-        description: 'PHP version to run tests against'
+        description: 'PHP version on the runner, which runs Composer and any suite that does not use wp-env. Suites inside wp-env run on the phpVersion of its config file.'
         type: string
         required: false
         default: '8.5'
@@ -48,26 +48,31 @@ on:
         type: string
         required: false
         default: ''
+      multisite:
+        description: 'Start wp-env as a multisite network. wp-env reads multisite only from a config file, so this merges "multisite": true into the override file of the config in use (.wp-env.override.json, or <name>.override.json beside wp-env-config-file).'
+        type: boolean
+        required: false
+        default: false
       needs-wp-env:
-        description: 'Set false for unit-only suites that do not need a WordPress runtime. When true the npm ci, wp-env start, and wp-env stop steps run and a package.json plus package-lock.json are required; false skips all three.'
+        description: 'Set false for unit-only suites that need no WordPress runtime. When true, the workflow installs npm dependencies and starts and stops the project''s own locked wp-env, so package.json and package-lock.json must declare @wordpress/env.'
         type: boolean
         required: false
         default: true
 
-permissions:
-  contents: read
-
-env:
-  # WP_ENV_VERSION is pinned identically in reusable-release.yml, reusable-phpunit.yml, and reusable-playwright-e2e.yml and must stay in sync — npx-inline @wordpress/env versions are invisible to dependabot, so nothing bumps them together automatically.
-  WP_ENV_VERSION: '11.9.0'
+permissions: {}
 
 jobs:
   phpunit:
     name: PHPUnit (PHP ${{ inputs.php-version }} / WP ${{ inputs.wp-env-core != '' && inputs.wp-env-core || inputs.wp-version != '' && inputs.wp-version || (inputs.needs-wp-env && 'consumer-default' || 'no-wp-env') }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      # A job-level WP_ENV_CORE gives a consumer script that starts wp-env again the same WordPress.
+      WP_ENV_CORE: ${{ inputs.wp-env-core != '' && inputs.wp-env-core || (inputs.wp-version != '' && format('WordPress/WordPress#tags/{0}', inputs.wp-version)) || '' }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -80,7 +85,7 @@ jobs:
 
       - name: Setup Node.js (for wp-env)
         if: ${{ inputs.needs-wp-env }}
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ inputs.node-version }}
           cache: 'npm'
@@ -95,18 +100,20 @@ jobs:
       - name: Install npm dependencies
         if: ${{ inputs.needs-wp-env }}
         working-directory: ${{ inputs.project-path }}
-        run: npm ci
+        run: |
+          npm ci
+          if [ ! -x ./node_modules/.bin/wp-env ]; then
+            echo "::error::@wordpress/env is not installed in this project — add it to devDependencies. This workflow runs the version the project's lockfile pins."
+            exit 1
+          fi
 
       - name: Start wp-env
         if: ${{ inputs.needs-wp-env }}
         working-directory: ${{ inputs.project-path }}
         env:
-          # Override priority: wp-env-core (full value) > wp-version (formatted as tag).
-          # If both empty, WP_ENV_CORE is empty and wp-env falls back to the consumer's
-          # config file `core` setting.
-          WP_ENV_CORE: ${{ inputs.wp-env-core != '' && inputs.wp-env-core || (inputs.wp-version != '' && format('WordPress/WordPress#tags/{0}', inputs.wp-version)) || '' }}
           WP_ENV_CONFIG_FILE: ${{ inputs.wp-env-config-file }}
           WP_ENV_XDEBUG: ${{ inputs.wp-env-xdebug }}
+          WP_ENV_MULTISITE: ${{ inputs.multisite }}
         run: |
           args=()
           if [ -n "$WP_ENV_CONFIG_FILE" ]; then
@@ -115,7 +122,14 @@ jobs:
           if [ -n "$WP_ENV_XDEBUG" ]; then
             args+=(--xdebug="$WP_ENV_XDEBUG")
           fi
-          npx --yes @wordpress/env@"$WP_ENV_VERSION" start "${args[@]}"
+          if [ "$WP_ENV_MULTISITE" = "true" ]; then
+            config="${WP_ENV_CONFIG_FILE:-.wp-env.json}"
+            override="${config%.json}.override.json"
+            [ -f "$override" ] || echo '{}' > "$override"
+            jq '.multisite = true' "$override" > "$override.tmp"
+            mv "$override.tmp" "$override"
+          fi
+          ./node_modules/.bin/wp-env start "${args[@]}"
 
       - name: Run tests
         working-directory: ${{ inputs.project-path }}
@@ -129,8 +143,10 @@ jobs:
         env:
           WP_ENV_CONFIG_FILE: ${{ inputs.wp-env-config-file }}
         run: |
+          # Teardown runs on failure too, including a failure that happened before the binary existed.
+          [ -x ./node_modules/.bin/wp-env ] || exit 0
           args=()
           if [ -n "$WP_ENV_CONFIG_FILE" ]; then
             args+=(--config "$WP_ENV_CONFIG_FILE")
           fi
-          npx --yes @wordpress/env@"$WP_ENV_VERSION" stop "${args[@]}"
+          ./node_modules/.bin/wp-env stop "${args[@]}"

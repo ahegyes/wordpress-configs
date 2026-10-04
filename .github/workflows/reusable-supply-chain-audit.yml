@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       project-path:
-        description: 'Path to the project (relative to repo root)'
+        description: 'Path to the project (relative to repo root). Its composer.lock and package-lock.json are audited as committed; nothing is installed.'
         type: string
         required: false
         default: '.'
@@ -19,12 +19,12 @@ on:
         required: false
         default: '26'
       composer-audit:
-        description: 'Run `composer audit`. Set false for repos without composer.json. At least one of composer-audit / npm-audit must stay enabled.'
+        description: 'Run `composer audit` against composer.lock, so the lockfile is required. Set false for repos without composer.json. At least one of composer-audit / npm-audit must stay enabled.'
         type: boolean
         required: false
         default: true
       npm-audit:
-        description: 'Run `npm audit` (installs with npm ci first, so a package-lock.json is required). Set false for repos without package.json. Audits the full dependency graph (dev/build deps included) by default. At least one of composer-audit / npm-audit must stay enabled.'
+        description: 'Run `npm audit` against package-lock.json, so the lockfile is required. Set false for repos without package.json. Audits the full dependency graph (dev/build deps included) by default. At least one of composer-audit / npm-audit must stay enabled.'
         type: boolean
         required: false
         default: true
@@ -33,11 +33,6 @@ on:
         type: string
         required: false
         default: '--abandoned=report'
-      composer-options:
-        description: 'Composer install options passed to the dependency-install step.'
-        type: string
-        required: false
-        default: '--prefer-dist --ignore-platform-req=php+'
       npm-audit-flags:
         description: 'Extra flags passed to `npm audit`. Defaults to --audit-level=high — audits the full graph (dev/build deps included) and fails only on high/critical advisories; low/moderate are surfaced without failing. Pass --omit=dev to audit production deps only.'
         type: string
@@ -49,14 +44,14 @@ on:
         required: false
         default: true
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   validate-inputs:
     name: Validate inputs
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions: {}
     steps:
       # Both audits off leaves no job to run, so the workflow succeeds having audited nothing.
       - name: Require at least one audit enabled
@@ -65,13 +60,16 @@ jobs:
           echo "::error::Enable composer-audit and/or npm-audit — with both false this audit reports success without auditing anything."
           exit 1
 
+  # Both audits read the committed lockfiles, because installing first runs third-party code (Composer plugins, npm lifecycle scripts) before the audit.
   composer-audit:
     if: ${{ inputs.composer-audit }}
     name: composer audit
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
@@ -79,10 +77,6 @@ jobs:
           php-version: ${{ inputs.php-version }}
           coverage: none
           tools: composer:v2
-      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
-        with:
-          working-directory: ${{ inputs.project-path }}
-          composer-options: ${{ inputs.composer-options }}
       - name: composer audit
         working-directory: ${{ inputs.project-path }}
         env:
@@ -93,7 +87,7 @@ jobs:
           set +e
           # Composer has no distinct findings exit code; advisory mode softens only valid findings JSON.
           # shellcheck disable=SC2086
-          composer audit $AUDIT_FLAGS --format=json > "$audit_json"
+          composer audit --locked $AUDIT_FLAGS --format=json > "$audit_json"
           status=$?
           set -e
           cat "$audit_json"
@@ -129,18 +123,15 @@ jobs:
     name: npm audit
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ inputs.node-version }}
-          cache: 'npm'
-          cache-dependency-path: ${{ inputs.project-path }}/package-lock.json
-      - name: npm ci
-        working-directory: ${{ inputs.project-path }}
-        run: npm ci
       - name: npm audit
         working-directory: ${{ inputs.project-path }}
         env:
@@ -150,7 +141,7 @@ jobs:
           audit_json="$(mktemp)"
           set +e
           # shellcheck disable=SC2086
-          npm audit $AUDIT_FLAGS --json > "$audit_json"
+          npm audit --package-lock-only $AUDIT_FLAGS --json > "$audit_json"
           status=$?
           set -e
           cat "$audit_json"
