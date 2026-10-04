@@ -546,7 +546,7 @@ Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Pl
 | Workflow                              | Purpose                                          | Key Inputs                                                   |
 |---------------------------------------|--------------------------------------------------|--------------------------------------------------------------|
 | `reusable-php-syntax-check.yml`       | `php -l` matrix across PHP versions              | `project-path`, `php-versions[]`                             |
-| `reusable-php-lint.yml`               | Named composer scripts as parallel jobs          | `project-path`, `php-version`, `scripts[]`                   |
+| `reusable-php-lint.yml`               | `composer validate --strict` and named composer scripts, each a parallel job | `project-path`, `php-version`, `scripts[]`                   |
 | `reusable-scripts-styles-lint.yml`    | ESLint + Stylelint via npm scripts               | `project-path`, `node-version`                               |
 | `reusable-phpunit.yml`                | PHPUnit; wp-env startup gated by `needs-wp-env`  | `project-path`, `php-version`, `wp-version`, `needs-wp-env`, `multisite` |
 | `reusable-playwright-e2e.yml`         | Playwright E2E + report upload on failure        | `project-path`, `artifact-slug`, `php-version`               |
