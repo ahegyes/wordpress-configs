@@ -12,21 +12,11 @@ on:
         type: string
         required: false
         default: '.'
-      scoped-dependencies-dir:
-        description: 'Project-relative php-scoper output directory that contains scoper-autoload.php'
-        type: string
-        required: false
-        default: 'vendor-prefixed'
       php-version:
         description: 'PHP version for build steps'
         type: string
         required: false
         default: '8.5'
-      requires-scoped-dependencies:
-        description: 'Whether the archive must include scoped dependencies; plugins bundling scoped third-party deps keep the default, set false for plugins without the scoping pipeline'
-        type: boolean
-        required: false
-        default: true
       plugin-check:
         description: 'Whether to run WordPress Plugin Check against the built plugin archive'
         type: boolean
@@ -61,6 +51,7 @@ jobs:
       WP_ENV_PHP_VERSION: ${{ inputs.php-version }}
     outputs:
       digest: ${{ steps.archive-digest.outputs.digest }}
+      requires-scoped: ${{ steps.scoping.outputs.requires-scoped }}
       version: ${{ steps.release-inputs.outputs.version }}
     steps:
       - name: Enforce release inputs
@@ -70,7 +61,6 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
           PLUGIN_SLUG: ${{ inputs.plugin-slug }}
           PROJECT_PATH: ${{ inputs.project-path }}
-          SCOPED_DEPENDENCIES_DIR: ${{ inputs.scoped-dependencies-dir }}
         run: |
           # Slash-wrap so a `..` segment anywhere (start, middle, end, or whole) is caught.
           has_dotdot_segment() {
@@ -108,7 +98,6 @@ jobs:
             exit 1
           fi
           validate_path_input 'project-path' "$PROJECT_PATH"
-          validate_path_input 'scoped-dependencies-dir' "$SCOPED_DEPENDENCIES_DIR"
 
           version="${REF_NAME#v}"
           echo "VERSION=$version" >> "$GITHUB_ENV"
@@ -125,6 +114,14 @@ jobs:
             echo "::error::Missing .distignore — refusing to build a wp.org archive without explicit file exclusions."
             exit 1
           fi
+
+      - name: Detect the scoping pipeline
+        id: scoping
+        working-directory: ${{ inputs.project-path }}
+        run: |
+          requires_scoped=$(jq -r 'if (.extra["scoping-prefix"] | type) == "string" then "true" else "false" end' composer.json)
+          echo "REQUIRES_SCOPED=$requires_scoped" >> "$GITHUB_ENV"
+          echo "requires-scoped=$requires_scoped" >> "$GITHUB_OUTPUT"
 
       - name: Setup PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
@@ -155,8 +152,6 @@ jobs:
         working-directory: ${{ inputs.project-path }}
         env:
           POT_DOMAIN: ${{ inputs.pot-domain != '' && inputs.pot-domain || inputs.plugin-slug }}
-          REQUIRES_SCOPED: ${{ inputs.requires-scoped-dependencies }}
-          SCOPED_DEPENDENCIES_DIR: ${{ inputs.scoped-dependencies-dir }}
         run: |
           if ! printf '%s' "$POT_DOMAIN" | grep -Eq '^[a-z0-9_-]+$'; then
             echo "::error::pot-domain must match ^[a-z0-9_-]+$ — got '$POT_DOMAIN'."
@@ -165,10 +160,10 @@ jobs:
           mkdir -p languages
           wp i18n make-pot . "languages/$POT_DOMAIN.pot" --domain="$POT_DOMAIN"
           if [ "$REQUIRES_SCOPED" = "true" ] \
-            && [ -d "$SCOPED_DEPENDENCIES_DIR" ] \
-            && grep -rql --include='*.php' "'$POT_DOMAIN'" "$SCOPED_DEPENDENCIES_DIR" \
-            && ! grep -Fq "#: $SCOPED_DEPENDENCIES_DIR/" "languages/$POT_DOMAIN.pot"; then
-            echo "::warning::$SCOPED_DEPENDENCIES_DIR/ carries strings under '$POT_DOMAIN' but the generated POT has no $SCOPED_DEPENDENCIES_DIR/ source references."
+            && [ -d vendor-prefixed ] \
+            && grep -rql --include='*.php' "'$POT_DOMAIN'" vendor-prefixed \
+            && ! grep -Fq "#: vendor-prefixed/" "languages/$POT_DOMAIN.pot"; then
+            echo "::warning::vendor-prefixed/ carries strings under '$POT_DOMAIN' but the generated POT has no vendor-prefixed/ source references."
           fi
 
       - name: Verify version consistency
@@ -215,62 +210,37 @@ jobs:
           exit "$status"
 
       - name: Assert scoped packages bundled
+        if: ${{ steps.scoping.outputs.requires-scoped == 'true' }}
         working-directory: ${{ inputs.project-path }}
         env:
           PLUGIN_SLUG: ${{ inputs.plugin-slug }}
-          REQUIRES_SCOPED: ${{ inputs.requires-scoped-dependencies }}
-          SCOPED_DEPENDENCIES_DIR: ${{ inputs.scoped-dependencies-dir }}
         run: |
-          [ "$REQUIRES_SCOPED" = "true" ] || exit 0
           entries=$(unzip -Z1 "$PLUGIN_SLUG.zip")
           status=0
 
-          required_scoped="$PLUGIN_SLUG/$SCOPED_DEPENDENCIES_DIR/scoper-autoload.php"
-          if ! printf '%s\n' "$entries" | grep -qxF "$required_scoped"; then
-            echo "::error::Archive is missing $required_scoped."
+          if ! printf '%s\n' "$entries" | grep -qxF "$PLUGIN_SLUG/vendor-prefixed/scoper-autoload.php"; then
+            echo "::error::Archive is missing $PLUGIN_SLUG/vendor-prefixed/scoper-autoload.php."
             status=1
           fi
 
-          if [ ! -d "$SCOPED_DEPENDENCIES_DIR" ]; then
-            echo "::error::No $SCOPED_DEPENDENCIES_DIR/ directory — the scoping pipeline did not run."
+          scoped_package_roots=$(find vendor-prefixed -mindepth 3 -maxdepth 3 -type f -name composer.json -exec dirname {} \; 2>/dev/null | LC_ALL=C sort -u)
+          if [ -z "$scoped_package_roots" ]; then
+            echo "::error::No scoped package under vendor-prefixed/<vendor>/<package>/ — the scoping pipeline did not run."
             status=1
-          else
-            scoped_package_roots=$(
-              if [ -f "$SCOPED_DEPENDENCIES_DIR/composer.json" ]; then
-                printf '%s\n' "$SCOPED_DEPENDENCIES_DIR"
-              else
-                find "$SCOPED_DEPENDENCIES_DIR" -mindepth 2 -maxdepth 2 -type f -name composer.json -exec dirname {} \;
-                find "$SCOPED_DEPENDENCIES_DIR" -mindepth 3 -maxdepth 3 -type f -name composer.json -exec dirname {} \;
-              fi | LC_ALL=C sort -u
-            )
-            if [ -z "$scoped_package_roots" ]; then
-              echo "::error::No scoped package roots found under $SCOPED_DEPENDENCIES_DIR/."
-              status=1
-            else
-              while IFS= read -r pkg; do
-                [ -n "$pkg" ] || continue
-                pkg_entries=$(
-                  printf '%s\n' "$entries" \
-                    | grep -F -- "$PLUGIN_SLUG/$pkg/" \
-                    | grep '[^/]$' || true
-                )
-                if [ "$pkg" = "$SCOPED_DEPENDENCIES_DIR" ]; then
-                  pkg_entries=$(printf '%s\n' "$pkg_entries" | grep -vxF "$PLUGIN_SLUG/$SCOPED_DEPENDENCIES_DIR/scoper-autoload.php" || true)
-                fi
-                if [ -z "$pkg_entries" ]; then
-                  echo "::error::Archive is missing scoped package $pkg/."
-                  status=1
-                fi
-              done <<< "$scoped_package_roots"
-            fi
           fi
+          while IFS= read -r pkg; do
+            [ -n "$pkg" ] || continue
+            if ! printf '%s\n' "$entries" | grep -F -- "$PLUGIN_SLUG/$pkg/" | grep -q '[^/]$'; then
+              echo "::error::Archive is missing scoped package $pkg/."
+              status=1
+            fi
+          done <<< "$scoped_package_roots"
           exit "$status"
 
       - name: Assert forbidden entries absent
         working-directory: ${{ inputs.project-path }}
         env:
           PLUGIN_SLUG: ${{ inputs.plugin-slug }}
-          SCOPED_DEPENDENCIES_DIR: ${{ inputs.scoped-dependencies-dir }}
         run: |
           entries=$(unzip -Z1 "$PLUGIN_SLUG.zip")
           status=0
@@ -308,12 +278,12 @@ jobs:
                 echo "::error::Archive must not contain $entry."
                 status=1
                 ;;
-              # Bundled CA/cert files under vendor/ or the scoped-dependencies dir are legitimate
+              # Bundled CA/cert files under vendor/ or vendor-prefixed/ are legitimate
               # runtime resources, not secrets. This exempt arm MUST stay ahead of the broad
               # *.pem/*.key secret arm below — `case` stops at the first match, so reordering or
               # merging the two would start flagging bundled certs (or suppress the secret check).
               "$PLUGIN_SLUG/vendor/"*.pem|"$PLUGIN_SLUG/"*"/vendor/"*.pem|"$PLUGIN_SLUG/vendor/"*.key|"$PLUGIN_SLUG/"*"/vendor/"*.key \
-                |"$PLUGIN_SLUG/$SCOPED_DEPENDENCIES_DIR/"*.pem|"$PLUGIN_SLUG/$SCOPED_DEPENDENCIES_DIR/"*.key)
+                |"$PLUGIN_SLUG/vendor-prefixed/"*.pem|"$PLUGIN_SLUG/vendor-prefixed/"*.key)
                 ;;
               "$PLUGIN_SLUG/.env"*|"$PLUGIN_SLUG/"*"/.env"* \
                 |"$PLUGIN_SLUG/.npmrc"|"$PLUGIN_SLUG/"*"/.npmrc" \
@@ -460,14 +430,13 @@ jobs:
         working-directory: ${{ inputs.project-path }}
         env:
           PLUGIN_SLUG: ${{ inputs.plugin-slug }}
-          REQUIRES_SCOPED: ${{ inputs.requires-scoped-dependencies }}
-          SCOPED_DEPENDENCIES_DIR: ${{ inputs.scoped-dependencies-dir }}
+          REQUIRES_SCOPED: ${{ needs.build.outputs.requires-scoped }}
           VERSION: ${{ needs.build.outputs.version }}
         run: |
           target="wp-content/plugins/$PLUGIN_SLUG"
           run_cli() { ./node_modules/.bin/wp-env run cli "$@"; }
           if [ "$REQUIRES_SCOPED" = "true" ]; then
-            run_cli test -f "$target/$SCOPED_DEPENDENCIES_DIR/scoper-autoload.php"
+            run_cli test -f "$target/vendor-prefixed/scoper-autoload.php"
           fi
           if run_cli test -f "$target/composer.json"; then
             echo "::error::Mounted plugin has composer.json — wp-env is serving the source tree, not the built zip."
