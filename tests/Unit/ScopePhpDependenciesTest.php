@@ -109,6 +109,9 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 		self::assertStringContainsString( "'Acme\\\\Scoped\\\\AcmeLegacy_Config' => __DIR__ . '/acme/legacy/library/AcmeLegacy/Config.php'", $autoload );
 		self::assertStringNotContainsString( 'AcmeLegacy_Language_en', $autoload );
+		self::assertStringNotContainsString( 'AcmeLegacy_Locale_de', $autoload );
+		self::assertStringContainsString( "'Acme\\\\Scoped\\\\AcmeLegacy_LocaleData'", $autoload );
+		self::assertStringContainsString( "'Acme\\\\Scoped\\\\AcmeLegacy_Extra' => __DIR__ . '/acme/legacy/plugins/extra/Extra.php'", $autoload );
 		\preg_match_all( "/^\\t'([^']+)' => __DIR__/m", $autoload, $classes );
 		$sorted = $classes[1];
 		\sort( $sorted );

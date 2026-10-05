@@ -167,7 +167,7 @@ final class ScopePhpDependencies {
 			$excluded  = self::excluded( $package_dir, self::strings( $autoload['exclude-from-classmap'] ?? array() ) );
 			$generator = new ClassMapGenerator();
 			foreach ( $paths as $path ) {
-				if ( \file_exists( "$package_dir/$path" ) ) { // Composer skips an autoload path a package does not ship.
+				if ( \str_contains( $path, '*' ) || \file_exists( "$package_dir/$path" ) ) { // Composer skips an autoload path a package does not ship.
 					$generator->scanPaths( "$package_dir/$path", $excluded );
 				}
 			}
@@ -202,7 +202,7 @@ final class ScopePhpDependencies {
 		}
 		$patterns = \array_map(
 			static fn ( string $path ): string => \strtr(
-				\preg_quote( \ltrim( \strtr( $path, '\\', '/' ), '/' ), '#' ),
+				\preg_quote( \trim( \strtr( $path, '\\', '/' ), '/' ), '#' ),
 				array(
 					'\\*\\*' => '.+?',
 					'\\*'    => '[^/]+?',
@@ -211,7 +211,7 @@ final class ScopePhpDependencies {
 			$paths
 		);
 
-		return '#^' . \preg_quote( \strtr( $package_dir, '\\', '/' ), '#' ) . '/(?:' . \implode( '|', $patterns ) . ')#';
+		return '#^' . \preg_quote( \strtr( $package_dir, '\\', '/' ), '#' ) . '/(?:' . \implode( '|', $patterns ) . ')(?:$|/)#';
 	}
 
 	/**

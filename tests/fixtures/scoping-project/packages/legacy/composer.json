@@ -9,8 +9,12 @@
     "psr-0": {
       "AcmeLegacy": "library/"
     },
+    "classmap": [
+      "plugins/*/"
+    ],
     "exclude-from-classmap": [
-      "/library/**/en.php"
+      "/library/**/en.php",
+      "/library/AcmeLegacy/Locale"
     ]
   }
 }
