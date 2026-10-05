@@ -50,6 +50,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 			self::package_dirs( self::scoped_project() . '/vendor-prefixed' )
 		);
 		self::assertStringContainsString( 'namespace Acme\Scoped\Acme\Loader;', self::read( self::scoped_project() . '/vendor-prefixed/acme/loader/load.php' ) );
+		self::assertDirectoryDoesNotExist( self::scoped_project() . '/vendor-prefixed/acme/commerce/tests' );
 	}
 
 	/**
@@ -232,6 +233,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 			self::assertStringStartsWith( 'No scoped package declares these prefixed names', $exception->getMessage() );
 			self::assertMatchesRegularExpression( '/\n' . \preg_quote( $name . ' in ', '/' ) . '.+SettingsSection\.php:\d+$/m', $exception->getMessage() );
 		}
+		self::assertStringContainsString( "'Acme\\\\Scoped\\\\Acme\\\\Commerce\\\\SettingsSection'", self::read( $project . '/vendor-prefixed/scoper-autoload.php' ) );
 	}
 
 	/**
@@ -269,6 +271,18 @@ final class ScopePhpDependenciesTest extends TestCase {
 		$this->expectExceptionMessageIsOrContains( 'src/Compiler/Template.php' );
 
 		ScopePhpDependencies::scope( $project );
+	}
+
+	public function test_scope_run_fails_before_php_scoper_without_a_scoping_prefix(): void {
+		$project = self::make_project( array( 'acme/loader' ), array( 'scoping-prefix' => null ) );
+
+		try {
+			ScopePhpDependencies::scope( $project );
+			self::fail( 'The scope run did not fail.' );
+		} catch ( \RuntimeException $exception ) {
+			self::assertStringContainsString( 'extra.scoping-prefix', $exception->getMessage() );
+		}
+		self::assertDirectoryDoesNotExist( $project . '/vendor-prefixed' );
 	}
 
 	public function test_scope_run_fails_without_the_project_directory(): void {
@@ -385,11 +399,9 @@ final class ScopePhpDependenciesTest extends TestCase {
 	}
 
 	/**
-	 * Copies the fixture project into a temporary directory, installs the given packages into its vendor directory and records them in Composer's installed.json.
-	 *
-	 * @param list<string>         $names     The packages scoper.inc.php names.
-	 * @param array<string, mixed> $extra     Entries merged into composer.json's extra; null removes one.
-	 * @param list<string>|null    $installed The packages to install. Default is every fixture and third-party package.
+	 * @param list<string>         $names
+	 * @param array<string, mixed> $extra
+	 * @param list<string>|null    $installed
 	 */
 	protected static function make_project( array $names = array( 'acme/commerce', 'acme/legacy' ), array $extra = array(), ?array $installed = null, string $vendor = 'vendor' ): string {
 		$project          = ( \realpath( \sys_get_temp_dir() ) ?: \sys_get_temp_dir() ) . '/dws wp-configs scoping ' . \uniqid();

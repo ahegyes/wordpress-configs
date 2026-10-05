@@ -18,6 +18,8 @@
     "composer/class-map-generator": "^1",
     "nikic/php-parser": "^5",
     "sniccowp/php-scoper-wordpress-excludes": "^7.1",
+    "symfony/filesystem": "^7.4",
+    "symfony/finder": "^7.4",
 
     "wp-coding-standards/wpcs": "^3.4.1",
     "phpcompatibility/phpcompatibility-wp": "^3@alpha",

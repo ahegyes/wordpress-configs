@@ -11,12 +11,10 @@ final class ScopedPackages {
 	/**
 	 * Returns the directories of the named packages and of their runtime dependencies, and of the packages a name drops.
 	 *
-	 * A name is a package name or an fnmatch() pattern; one that starts with ! drops the packages it matches, which then stay unscoped and are not followed.
-	 * Dependencies follow the require entries Composer recorded, never require-dev; platform requirements and packages only provided by another are skipped,
-	 * and a package replaced by another resolves to the replacing one. Composer plugins are build tools and are never scoped.
+	 * Dependencies follow the require entries Composer recorded and never require-dev, so naming a library scopes what it needs at runtime.
 	 *
 	 * @param   string       $vendor_dir The project's Composer vendor directory.
-	 * @param   list<string> $names      The packages to scope, as names or patterns.
+	 * @param   list<string> $names      The packages to scope, as names or fnmatch() patterns, where a name that starts with ! drops the packages it matches.
 	 *
 	 * @throws  \RuntimeException Thrown when no name is given, installed.json is unreadable, a name matches no installed package, a dependency is not installed, or a scoped package is a symbolic link.
 	 *
@@ -59,7 +57,7 @@ final class ScopedPackages {
 		while ( array() !== $queue ) {
 			$name    = (string) \array_shift( $queue );
 			$package = $installed[ $name ];
-			if ( isset( $scoped[ $name ] ) || 'composer-plugin' === ( $package['type'] ?? '' ) ) {
+			if ( isset( $scoped[ $name ] ) || 'composer-plugin' === ( $package['type'] ?? '' ) ) { // Composer plugins run at build time and never ship.
 				continue;
 			}
 			$scoped[ $name ] = $package;
@@ -70,6 +68,7 @@ final class ScopedPackages {
 					continue;
 				}
 				$candidates = isset( $installed[ $required ] ) ? array( $required ) : \array_diff( $replacers[ $required ] ?? array(), $dropped );
+				// A requirement another package only provides is a virtual package, such as an interface implementation the project picks itself.
 				if ( array() === $candidates && ! isset( $provided[ $required ] ) && ! isset( $replacers[ $required ] ) ) {
 					throw new \RuntimeException( "'$name' requires '$required', which is not installed in '$vendor_dir'." );
 				}
@@ -88,7 +87,9 @@ final class ScopedPackages {
 			}
 		}
 		foreach ( \array_unique( $dropped ) as $name ) {
-			$directories['dropped'][ $name ] = self::directory( $vendor_dir, $name, $installed[ $name ], false );
+			if ( 'metapackage' !== ( $installed[ $name ]['type'] ?? '' ) ) {
+				$directories['dropped'][ $name ] = self::directory( $vendor_dir, $name, $installed[ $name ], false );
+			}
 		}
 
 		return $directories;
@@ -131,10 +132,10 @@ final class ScopedPackages {
 	/**
 	 * Returns the real directory a package is installed in.
 	 *
-	 * @param   string                  $vendor_dir    The project's Composer vendor directory.
-	 * @param   string                  $name          The package name.
-	 * @param   array<array-key, mixed> $package       The package's installed.json entry.
-	 * @param   bool                    $refuse_links  Whether a symbolic link fails the call.
+	 * @param   string                  $vendor_dir   The project's Composer vendor directory.
+	 * @param   string                  $name         The package name.
+	 * @param   array<array-key, mixed> $package      The package's installed.json entry.
+	 * @param   bool                    $refuse_links Whether a symbolic link fails the call.
 	 *
 	 * @throws  \RuntimeException Thrown when the package directory does not exist, or is a symbolic link that $refuse_links forbids.
 	 *

@@ -13,9 +13,9 @@ use Symfony\Component\Finder\Finder;
  * Returns the php-scoper config for a project.
  *
  * @param   string $project_dir The root directory of the project, which holds composer.json.
- * @param   string ...$names    The packages to scope, as names or fnmatch() patterns; one that starts with ! drops the packages it matches.
+ * @param   string ...$names    The packages to scope, as names or fnmatch() patterns, where a name that starts with ! drops the packages it matches.
  *
- * @throws  RuntimeException Thrown when composer.json declares no scoping prefix, or no text domain while a scoped package declares one; when a package to scope is missing; or when a recipe's target is missing.
+ * @throws  RuntimeException Thrown when composer.json declares no scoping prefix, or no text domain while a scoped package declares one, when a package to scope is missing, or when a recipe's target is missing.
  *
  * @return  array<string, mixed>
  */
@@ -74,7 +74,7 @@ return static function ( string $project_dir, string ...$names ): array {
 		$targets = array_merge( $recipe['exclude-files'] ?? array(), array_keys( $recipe['replacements'] ?? array() ) );
 		foreach ( $targets as $target ) {
 			if ( ! is_file( "$dir/$target" ) ) {
-				throw new RuntimeException( "The $name recipe targets '$target', which the installed package no longer ships." );
+				throw new RuntimeException( "The '$name' recipe targets '$target', which the installed package no longer ships." );
 			}
 		}
 		foreach ( $recipe['exclude-files'] ?? array() as $target ) {
@@ -89,7 +89,7 @@ return static function ( string $project_dir, string ...$names ): array {
 				foreach ( $replacements as $search => $replace ) {
 					$search = str_replace( '{prefix}', $prefix, (string) $search );
 					if ( ! str_contains( $contents, $search ) ) {
-						throw new RuntimeException( "The $name recipe expects '$search' in '$target', which the installed package no longer contains." );
+						throw new RuntimeException( "The '$name' recipe expects '$search' in '$target', which the installed package no longer contains." );
 					}
 					$contents = str_replace( $search, str_replace( '{prefix}', $prefix, $replace ), $contents );
 				}
@@ -104,7 +104,7 @@ return static function ( string $project_dir, string ...$names ): array {
 		throw new RuntimeException( "'$project_dir/composer.json' declares no extra.text-domain, which the strings of the scoped packages take." );
 	}
 
-	// Libraries build class names in strings php-scoper cannot see; a string that starts with a scoped package's own namespace names one of its classes.
+	// Libraries build class names in strings php-scoper cannot see, and a string that starts with a scoped package's own namespace names one of its classes.
 	if ( array() !== $roots ) {
 		$separated  = static fn ( string $name ): string => implode( '\\\\{1,2}', array_map( static fn ( string $segment ): string => preg_quote( $segment, '/' ), explode( '\\', $name ) ) );
 		$own        = '/^(\\\\{0,2})((?:' . implode( '|', array_map( $separated, array_unique( $roots ) ) ) . ')(\\\\{1,2}))/';
@@ -153,7 +153,8 @@ return static function ( string $project_dir, string ...$names ): array {
 
 	return array(
 		'prefix'                  => trim( $prefix, '\\' ),
-		'finders'                 => array( Finder::create()->files()->in( array_values( $packages['scoped'] ) ) ),
+		// A package's tests run against development tools that are never scoped, so they would only ship dead, unresolvable code.
+		'finders'                 => array( Finder::create()->files()->in( array_values( $packages['scoped'] ) )->exclude( array( 'tests', 'Tests' ) ) ),
 		'exclude-files'           => $exclude_files,
 		'exclude-namespaces'      => array( ...$exclude_namespaces, ...$symbols['namespaces'] ),
 		'exclude-classes'         => $symbols['classes'],

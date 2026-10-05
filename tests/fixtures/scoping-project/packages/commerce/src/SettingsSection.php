@@ -41,7 +41,7 @@ final class SettingsSection extends \Automattic\WooCommerce\Admin\Settings\Setti
 	 * @return  object
 	 */
 	public static function format( string $type ): object {
-		$class = "Acme\\Commerce\\Formats\\{$type}";
+		$class = "Acme\\Commerce\\Formats\\$type";
 
 		return new $class();
 	}

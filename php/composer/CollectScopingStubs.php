@@ -39,7 +39,7 @@ final class CollectScopingStubs {
 			\array_push( $files, ...self::declared_stubs( $dir ) );
 		}
 		foreach ( $dropped_dirs as $dir ) {
-			foreach ( Finder::create()->files()->in( $dir )->name( '*.php' ) as $file ) {
+			foreach ( Finder::create()->files()->in( $dir )->exclude( array( 'tests', 'Tests' ) )->name( '*.php' ) as $file ) {
 				$files[] = $file->getPathname();
 			}
 		}

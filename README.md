@@ -251,7 +251,7 @@ Create `scoper.inc.php` at the project root and name the packages to scope:
 return ( require __DIR__ . '/vendor/ahegyes/wordpress-configs/php/php-scoper/scoper-base.inc.php' )( __DIR__, 'dompdf/dompdf', 'php-di/php-di' );
 ```
 
-A name is a package name or an `fnmatch()` pattern, such as `'your-vendor/*'`. The runtime dependencies of each named package follow from Composer's `installed.json`, through `require` and never `require-dev`, so naming a library scopes what it needs. A name that starts with `!` keeps the packages it matches unscoped, such as a polyfill whose global functions must stay reachable (`'!symfony/polyfill-php80'`); the symbols they declare stay global too. Keep the scoped packages in `require-dev`, so a production install never loads their unprefixed copies.
+A name is a package name or an `fnmatch()` pattern, such as `'your-vendor/your-library-*'`. The runtime dependencies of each named package follow from Composer's `installed.json`, through `require` and never `require-dev`, so naming a library scopes what it needs. A pattern matches every installed package, development tools included, so keep it as narrow as the packages it means. A name that starts with `!` keeps the packages it matches unscoped, such as a polyfill whose global functions must stay reachable (`'!symfony/polyfill-php80'`), and the symbols they declare stay global too. Keep the scoped packages in `require-dev`, so a production install never loads their unprefixed copies, and require an unscoped package in `require`, so a production install still ships it.
 
 A scope run:
 

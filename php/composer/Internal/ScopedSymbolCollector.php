@@ -10,9 +10,9 @@ use PhpParser\NodeVisitorAbstract;
 use PhpParser\Parser;
 
 /**
- * PhpParser visitor that collects the symbols scoped code declares and the prefixed names it references.
+ * Collects the symbols scoped code declares and the prefixed names it references.
  *
- * A NameResolver and a ParentConnectingVisitor must run ahead of this visitor in the same traversal.
+ * It reads the parent and namespacedName attributes that a ParentConnectingVisitor and a NameResolver set earlier in the same traversal.
  *
  * @internal
  */
@@ -22,21 +22,21 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 	/**
 	 * The lowercase names of the declared classes, interfaces, traits, enums, functions and constants, keyed by themselves.
 	 *
-	 * @var array<string, string>
+	 * @var     array<string, string>
 	 */
 	public array $declared = array();
 
 	/**
 	 * The prefixed names the code references, each with its location.
 	 *
-	 * @var list<array{name: string, location: string}>
+	 * @var     list<array{name: string, location: string}>
 	 */
 	public array $references = array();
 
 	/**
 	 * The file the next traversal reads.
 	 *
-	 * @var string
+	 * @var     string
 	 */
 	public string $file = '';
 
@@ -61,8 +61,6 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 
 	/**
 	 * {@inheritDoc}
-	 *
-	 * @param   Node $node The node being visited.
 	 */
 	#[\Override]
 	public function enterNode( Node $node ): int|null {
@@ -72,16 +70,29 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 			foreach ( $node->consts as $const ) {
 				$this->declare( $const->namespacedName );
 			}
-		} elseif ( $node instanceof Node\Expr\FuncCall && $node->name instanceof Node\Name && \in_array( $node->name->toLowerString(), array( 'define', 'class_alias' ), true ) ) {
-			$argument = $node->args[ 'define' === $node->name->toLowerString() ? 0 : 1 ] ?? null;
-			if ( $argument instanceof Node\Arg && $argument->value instanceof Node\Scalar\String_ ) {
-				$this->declare( new Node\Name( \ltrim( $argument->value->value, '\\' ) ) );
-			}
 		} elseif ( $node instanceof Node\Scalar\String_ ) {
 			$this->string( $node );
 		} elseif ( $node instanceof Node\Name && ! $node->getAttribute( 'parent' ) instanceof Node\Stmt\Namespace_ ) {
 			$use = $node->getAttribute( 'parent' ) instanceof Node\UseItem ? $node->getAttribute( 'parent' )->getAttribute( 'parent' ) : null;
 			$this->reference( $use instanceof Node\Stmt\GroupUse ? $use->prefix->toString() . '\\' . $node->toString() : $node->toString(), $node );
+		}
+
+		return null;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	#[\Override]
+	public function leaveNode( Node $node ): null {
+		// The names in a call's arguments are resolved only once the traversal has visited them.
+		if ( $node instanceof Node\Expr\FuncCall && $node->name instanceof Node\Name && \in_array( $node->name->toLowerString(), array( 'define', 'class_alias' ), true ) ) {
+			$argument = $node->args[ 'define' === $node->name->toLowerString() ? 0 : 1 ] ?? null;
+			if ( $argument instanceof Node\Arg && $argument->value instanceof Node\Scalar\String_ ) {
+				$this->declare( new Node\Name( \ltrim( $argument->value->value, '\\' ) ) );
+			} elseif ( $argument instanceof Node\Arg && $argument->value instanceof Node\Expr\ClassConstFetch && $argument->value->class instanceof Node\Name ) {
+				$this->declare( $argument->value->class );
+			}
 		}
 
 		return null;
@@ -94,7 +105,7 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 	/**
 	 * Records a declared symbol.
 	 *
-	 * @param   Node\Name|null $name The resolved name of the symbol; null for an anonymous class.
+	 * @param   Node\Name|null $name The resolved name of the symbol, or null for an anonymous class.
 	 */
 	protected function declare( ?Node\Name $name ): void {
 		if ( ! \is_null( $name ) ) {

@@ -34,14 +34,19 @@ final class ScopePhpDependencies {
 	}
 
 	/**
-	 * Scopes a project's dependencies into its vendor-prefixed directory with the project's scoper.inc.php, checks that every prefixed name is declared by the scoped code, then writes vendor-prefixed/scoper-autoload.php.
+	 * Scopes a project's dependencies into its vendor-prefixed directory with the project's scoper.inc.php, writes vendor-prefixed/scoper-autoload.php, then checks that the scoped code declares every prefixed name it references.
 	 *
 	 * @param   string $project_dir The root directory of the project.
 	 *
-	 * @throws  \RuntimeException Thrown when the project or php-scoper is missing, vendor-prefixed is a symbolic link, php-scoper fails, a prefixed name is declared by no scoped package, or a scoped package manifest cannot be read.
+	 * @throws  \RuntimeException Thrown when the project, its scoping prefix or php-scoper is missing, vendor-prefixed is a symbolic link, php-scoper fails, a prefixed name is declared by no scoped package, or a scoped package manifest cannot be read.
 	 */
 	public static function scope( string $project_dir ): void {
 		$project_dir = \realpath( $project_dir ) ?: throw new \RuntimeException( "The project directory '$project_dir' does not exist." );
+		$prefix      = self::extra( $project_dir . '/composer.json' )['scoping-prefix'] ?? null;
+		$prefix      = \is_string( $prefix ) ? \trim( $prefix, '\\' ) : '';
+		if ( '' === $prefix ) {
+			throw new \RuntimeException( "'$project_dir/composer.json' declares no extra.scoping-prefix." );
+		}
 
 		$output_dir = $project_dir . '/vendor-prefixed';
 		if ( \is_link( $output_dir ) ) {
@@ -80,12 +85,13 @@ final class ScopePhpDependencies {
 		};
 		if ( '' !== $dropped ) {
 			$filesystem->rename( $output_dir, $output_dir . '.nesting' );
+			$filesystem->mkdir( \dirname( $output_dir . '/' . $dropped ) );
 			$filesystem->rename( $output_dir . '.nesting', $output_dir . '/' . $dropped );
 		}
 
-		$prefix = self::extra( $project_dir . '/composer.json' )['scoping-prefix'] ?? '';
-		self::verify( $output_dir, \trim( \is_string( $prefix ) ? $prefix : '', '\\' ) );
+		// The autoloader goes first, so a project whose scoped code fails the check still loads.
 		$filesystem->dumpFile( $output_dir . '/scoper-autoload.php', self::autoload( $output_dir ) );
+		self::verify( $output_dir, $prefix );
 	}
 
 	// endregion

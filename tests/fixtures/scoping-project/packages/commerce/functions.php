@@ -22,3 +22,5 @@ const LABEL = 'Commerce';
 function get_label_prefix(): string {
 	return 'Commerce';
 }
+
+\class_alias( Formats\Csv::class, Formats\Comma::class );
