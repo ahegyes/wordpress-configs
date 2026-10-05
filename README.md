@@ -153,7 +153,7 @@ vendor/bin/phpcbf --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v
 | `phpstan.dist.neon` | The base, plus the minimum WordPress version |
 | `phpstan.dist.neon.php` | Opt-in discovery of a plugin's conventional paths |
 
-Code under a nested `vendor/` or `vendor-prefixed/` directory is scanned but not analyzed, so the code that uses it still resolves. This package requires `php-stubs/wordpress-stubs`, so a consumer does not require it itself. A WooCommerce extension requires `php-stubs/woocommerce-stubs` and scans it.
+Code under a nested `vendor/` or `vendor-prefixed/` directory is scanned but not analyzed, so the code that uses it still resolves. This package requires `php-stubs/wordpress-stubs`, so a consumer does not require it itself. A project that scans or declares `php-stubs/woocommerce-stubs`, such as a WooCommerce extension, requires it itself.
 
 Create a `phpstan.dist.neon` in your project:
 

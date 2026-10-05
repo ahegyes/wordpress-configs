@@ -9,7 +9,7 @@ on:
         required: false
         default: '.'
       php-version:
-        description: 'PHP version on the runner, which runs Composer and any suite that does not use wp-env, and inside wp-env, through WP_ENV_PHP_VERSION, which wins over the phpVersion of its config files.'
+        description: 'PHP version for Composer and any suite outside wp-env, and for wp-env through WP_ENV_PHP_VERSION, which wins over the phpVersion of its config files.'
         type: string
         required: false
         default: '8.5'
@@ -79,7 +79,7 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      # setup-node only warns when package.json declares no version, then runs the runner's own Node.
+      # Without a declared version, setup-node only warns and runs the runner's own Node.
       - name: Require a Node version in package.json
         if: ${{ inputs.needs-wp-env }}
         working-directory: ${{ inputs.project-path }}

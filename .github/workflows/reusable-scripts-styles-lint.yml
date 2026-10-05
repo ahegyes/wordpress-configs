@@ -48,7 +48,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # setup-node only warns when package.json declares no version, then runs the runner's own Node.
+      # Without a declared version, setup-node only warns and runs the runner's own Node.
       - name: Require a Node version in package.json
         working-directory: ${{ inputs.project-path }}
         run: |
