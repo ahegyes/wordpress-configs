@@ -175,10 +175,11 @@ probes.push( [
 				`port did not reach webServer.port (got ${ config.webServer.port })`
 			);
 		}
-		if ( 'npm run wp-env:start' !== config.webServer.command ) {
-			throw new Error(
-				`webServer.command is ${ config.webServer.command }`
-			);
+		if (
+			require( '@wordpress/scripts/config/playwright.config.js' )
+				.webServer !== config.webServer
+		) {
+			throw new Error( 'webServer is not the @wordpress/scripts one' );
 		}
 		if ( ! config.outputDir.startsWith( 'tests/.cache/artifacts' ) ) {
 			throw new Error( `outputDir is ${ config.outputDir }` );

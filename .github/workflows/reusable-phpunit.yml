@@ -9,7 +9,7 @@ on:
         required: false
         default: '.'
       php-version:
-        description: 'PHP version on the runner, which runs Composer and any suite that does not use wp-env. Suites inside wp-env run on the phpVersion of its config file.'
+        description: 'PHP version for Composer and any suite outside wp-env, and for wp-env through WP_ENV_PHP_VERSION, which wins over the phpVersion of its config files.'
         type: string
         required: false
         default: '8.5'
@@ -33,11 +33,6 @@ on:
         type: string
         required: false
         default: '--prefer-dist --ignore-platform-req=php+'
-      node-version:
-        description: 'Node.js version for wp-env CLI'
-        type: string
-        required: false
-        default: '26'
       wp-env-config-file:
         description: 'Path to a wp-env config file (relative to project-path). Leave empty to use the default .wp-env.json. Use a separate file per environment (e.g., .wp-env.tests.json) to migrate off the deprecated implicit dev/tests split.'
         type: string
@@ -54,7 +49,7 @@ on:
         required: false
         default: false
       needs-wp-env:
-        description: 'Set false for unit-only suites that need no WordPress runtime. When true, the workflow installs npm dependencies and starts and stops the project''s own locked wp-env, so package.json and package-lock.json must declare @wordpress/env.'
+        description: 'Set false for unit-only suites that need no WordPress runtime. When true, the workflow installs npm dependencies on the Node version package.json declares and starts and stops the project''s own locked wp-env, so package.json and package-lock.json must declare @wordpress/env.'
         type: boolean
         required: false
         default: true
@@ -69,8 +64,9 @@ jobs:
     permissions:
       contents: read
     env:
-      # A job-level WP_ENV_CORE gives a consumer script that starts wp-env again the same WordPress.
+      # Job-level wp-env variables give a consumer script that starts wp-env again the same WordPress and PHP.
       WP_ENV_CORE: ${{ inputs.wp-env-core != '' && inputs.wp-env-core || (inputs.wp-version != '' && format('WordPress/WordPress#tags/{0}', inputs.wp-version)) || '' }}
+      WP_ENV_PHP_VERSION: ${{ inputs.php-version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -83,11 +79,21 @@ jobs:
           coverage: none
           tools: composer:v2
 
+      # Without a declared version, setup-node only warns and runs the runner's own Node.
+      - name: Require a Node version in package.json
+        if: ${{ inputs.needs-wp-env }}
+        working-directory: ${{ inputs.project-path }}
+        run: |
+          if ! jq -e '[.volta.node, .volta.extends, ([.devEngines.runtime] | flatten[] | objects | select((.name | strings | ascii_downcase) == "node") | .version), .engines.node] | any' package.json > /dev/null; then
+            echo "::error::package.json declares no Node version — add engines.node, volta.node or a devEngines.runtime entry named node."
+            exit 1
+          fi
+
       - name: Setup Node.js (for wp-env)
         if: ${{ inputs.needs-wp-env }}
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: ${{ inputs.node-version }}
+          node-version-file: ${{ inputs.project-path }}/package.json
           cache: 'npm'
           cache-dependency-path: ${{ inputs.project-path }}/package-lock.json
 

@@ -81,37 +81,12 @@ jobs:
           ! grep -qF '(0 files in queue)' phpcs-scan.log
 
   lint-scripts:
-    name: Lint scripts (ESLint)
-    # Reuse the standard scripts/styles workflow with lint-styles disabled (no CSS in this repo).
+    name: Lint scripts
     permissions:
       contents: read
     uses: ./.github/workflows/reusable-scripts-styles-lint.yml
     with:
-      lint-styles: false
-
-  lint-config:
-    name: Node config smokes
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '26'
-          cache: 'npm'
-          cache-dependency-path: package-lock.json
-
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Smoke-test shared Node configs
-        run: npm run lint:config
+      scripts: '["lint:scripts", "lint:config"]'
 
   supply-chain:
     name: Supply-chain audit

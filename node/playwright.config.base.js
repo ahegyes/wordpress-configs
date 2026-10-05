@@ -13,10 +13,5 @@ module.exports = ( { port } ) => {
 	return {
 		...wpBaseConfig,
 		testDir: 'tests/e2e',
-		webServer: {
-			...wpBaseConfig.webServer,
-			// The @wordpress/scripts default, `npm run wp-env start`, bypasses the consumer's wp-env:start script.
-			command: 'npm run wp-env:start',
-		},
 	};
 };

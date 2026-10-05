@@ -8,7 +8,7 @@
 $project_dir = getcwd() ?: throw new RuntimeException( 'The current working directory is unreadable.' );
 $paths       = array();
 
-foreach ( array( 'functions-bootstrap.php', 'functions.php', 'footprint.php', 'uninstall.php' ) as $file ) {
+foreach ( array( 'functions-bootstrap.php', 'functions.php', 'uninstall.php' ) as $file ) {
 	if ( is_file( "$project_dir/$file" ) ) {
 		$paths[] = "$project_dir/$file";
 	}

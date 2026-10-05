@@ -3,45 +3,64 @@ name: Scripts/Styles Lint
 on:
   workflow_call:
     inputs:
+      scripts:
+        description: 'Non-empty JSON array of npm scripts; each runs as its own parallel job.'
+        type: string
+        required: true
       project-path:
-        description: 'Path to the project (relative to repo root). npm ci runs here, so package.json and a package-lock.json must be present.'
+        description: 'Path to the project (relative to repo root). npm ci runs here, so package.json and a package-lock.json must be present, and package.json must declare the Node version.'
         type: string
         required: false
         default: '.'
-      node-version:
-        description: 'Node.js version'
-        type: string
-        required: false
-        default: '26'
-      lint-scripts:
-        description: 'Run `npm run lint:scripts` (ESLint). Set false for repos without JS sources.'
-        type: boolean
-        required: false
-        default: true
-      lint-styles:
-        description: 'Run `npm run lint:styles` (Stylelint). Set false for repos without CSS sources.'
-        type: boolean
-        required: false
-        default: true
 
 permissions: {}
 
 jobs:
+  validate-inputs:
+    name: Validate inputs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: {}
+    steps:
+      # An empty JSON array expands to zero matrix jobs and reports success — a silent skip of the lint.
+      - name: Reject an empty scripts array
+        env:
+          SCRIPTS: ${{ inputs.scripts }}
+        run: |
+          if ! jq -e 'type == "array" and length > 0' <<< "$SCRIPTS" > /dev/null; then
+            echo "::error::scripts must be a non-empty JSON array — got '$SCRIPTS'."
+            exit 1
+          fi
+
   lint:
-    name: Lint scripts/styles
+    name: ${{ matrix.script }}
+    needs: validate-inputs
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        script: ${{ fromJSON(inputs.scripts) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
+      # Without a declared version, setup-node only warns and runs the runner's own Node.
+      - name: Require a Node version in package.json
+        working-directory: ${{ inputs.project-path }}
+        run: |
+          if ! jq -e '[.volta.node, .volta.extends, ([.devEngines.runtime] | flatten[] | objects | select((.name | strings | ascii_downcase) == "node") | .version), .engines.node] | any' package.json > /dev/null; then
+            echo "::error::package.json declares no Node version — add engines.node, volta.node or a devEngines.runtime entry named node."
+            exit 1
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: ${{ inputs.node-version }}
+          node-version-file: ${{ inputs.project-path }}/package.json
           cache: 'npm'
           cache-dependency-path: ${{ inputs.project-path }}/package-lock.json
 
@@ -49,12 +68,8 @@ jobs:
         working-directory: ${{ inputs.project-path }}
         run: npm ci
 
-      - name: Lint scripts
-        if: ${{ inputs.lint-scripts }}
+      - name: npm run ${{ matrix.script }}
         working-directory: ${{ inputs.project-path }}
-        run: npm run lint:scripts
-
-      - name: Lint styles
-        if: ${{ inputs.lint-styles }}
-        working-directory: ${{ inputs.project-path }}
-        run: npm run lint:styles
+        env:
+          SCRIPT: ${{ matrix.script }}
+        run: npm run "$SCRIPT"

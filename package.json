@@ -26,7 +26,6 @@
         "./package.json": "./package.json"
     },
     "peerDependencies": {
-        "@axe-core/playwright": ">=4.13.0",
         "@playwright/test": ">=1.63.0",
         "@wordpress/eslint-plugin": ">=27.0.0",
         "@wordpress/postcss-plugins-preset": ">=5.56.0",
