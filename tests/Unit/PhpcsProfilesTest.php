@@ -59,6 +59,31 @@ final class PhpcsProfilesTest extends TestCase {
 		self::assertSame( array( 'src/Patterns/x.php' ), \array_keys( $this->scan( 'phpcs.dist.xml' ) ) );
 	}
 
+	/**
+	 * @return array<string, array{string}>
+	 */
+	public static function provide_silence_is_golden_stubs(): array {
+		return array(
+			'two-line-comment'  => array( "<?php\n// Silence is golden.\n" ),
+			'same-line-comment' => array( "<?php // Silence is golden.\n" ),
+		);
+	}
+
+	#[DataProvider( 'provide_silence_is_golden_stubs' )]
+	public function test_production_profile_accepts_silence_is_golden_stubs( string $stub ): void {
+		\mkdir( $this->scan_dir . '/assets' );
+		\file_put_contents( $this->scan_dir . '/assets/index.php', $stub );
+
+		self::assertSame( array(), $this->scan( 'phpcs.dist.xml' ) );
+	}
+
+	public function test_production_profile_lints_a_theme_index_file(): void {
+		\mkdir( $this->scan_dir . '/theme' );
+		\file_put_contents( $this->scan_dir . '/theme/index.php', "<?php\n\nget_header();\necho get_query_var( 'paged' );\nget_footer();\n" );
+
+		self::assertContains( 'WordPress.Security.EscapeOutput.OutputNotEscaped', $this->scan( 'phpcs.dist.xml' )['theme/index.php'] ?? array() );
+	}
+
 	public function test_production_profile_reports_unsanitized_input(): void {
 		\file_put_contents( $this->scan_dir . '/input.php', "<?php declare( strict_types=1 );\n\n\$name = wp_unslash( \$_POST['name'] ?? '' );\n" );
 
