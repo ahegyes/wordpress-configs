@@ -8,7 +8,7 @@ body:
       label: Affected area
       options:
         - Composer scripts (CollectScopingStubs, ScopePhpDependencies)
-        - php-scoper base config (scoper-base, contrib/*)
+        - php-scoper base config (scoper-base)
         - PHPCS ruleset (phpcs.dist.xml)
         - PHPStan config (phpstan.dist.neon)
         - Reusable GitHub Actions workflow

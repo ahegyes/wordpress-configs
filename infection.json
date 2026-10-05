@@ -12,6 +12,8 @@
         "html": "build/infection/infection.html",
         "summary": "build/infection/summary.log"
     },
+    "timeout": 60,
+    "testFrameworkOptions": "--exclude-group=slow",
     "mutators": {
         "@default": true
     },

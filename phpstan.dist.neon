@@ -3,9 +3,6 @@ includes:
     - php/quality-assurance/phpstan.dist.neon
 
 parameters:
-    # The scoping pipeline and its tests do not pass level 10 or the override check.
-    level: 8
-    checkMissingOverrideMethodAttribute: false
     paths:
         - php
         - tests

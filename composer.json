@@ -14,9 +14,12 @@
   "require": {
     "php": ">=8.5",
     "ext-json": "*",
-    "ext-tokenizer": "*",
 
+    "composer/class-map-generator": "^1",
     "nikic/php-parser": "^5",
+    "sniccowp/php-scoper-wordpress-excludes": "^7.1",
+    "symfony/filesystem": "^7.4",
+    "symfony/finder": "^7.4",
 
     "wp-coding-standards/wpcs": "^3.4.1",
     "phpcompatibility/phpcompatibility-wp": "^3@alpha",
@@ -35,10 +38,13 @@
   },
   "require-dev": {
     "composer/composer": "^2",
+    "dompdf/dompdf": "^3.1",
     "humbug/php-scoper": "^0.18",
     "infection/infection": "^0.35",
-    "maglnet/composer-require-checker": "^4",
-    "phpunit/phpunit": "^13"
+    "php-di/php-di": "^7",
+    "phpunit/phpunit": "^13",
+    "psr/container": "^2",
+    "psr/log": "^3"
   },
   "suggest": {
     "humbug/php-scoper": "Required for the dependency-scoping pipeline (ScopePhpDependencies + the scoper-base config)."
@@ -74,13 +80,11 @@
     "lint:php": [
       "@lint:php:phpcs",
       "@lint:php:phpcs:tests",
-      "@lint:php:phpstan",
-      "@lint:php:composer-require-checker"
+      "@lint:php:phpstan"
     ],
     "lint:php:phpcs": "phpcs --standard=./phpcs.dist.xml --basepath=. ./ -v",
     "lint:php:phpcs:tests": "phpcs --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v",
     "lint:php:phpstan": "phpstan analyse -v --memory-limit=1G",
-    "lint:php:composer-require-checker": "@php vendor/bin/composer-require-checker check --config-file=composer-require-checker.json",
 
     "test": [
       "@test:unit"

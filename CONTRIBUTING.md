@@ -23,7 +23,7 @@ composer test            # PHPUnit unit suite
 CI runs more than `composer test`: `quality.yml` runs the PHP-lint, PHP-syntax, PHPCS-dist-smoke, ESLint, Node-config-smoke, supply-chain, and block.json-schema gates, while `tests.yml` runs the PHPUnit suite. The commands below mirror those with a local equivalent:
 
 ```bash
-composer lint:php        # phpcs + phpstan + composer-require-checker
+composer lint:php        # phpcs + phpstan
 composer test            # unit suite
 composer audit --abandoned=report
 npm run lint:scripts     # ESLint over node/ + the config-smoke harness
@@ -31,11 +31,11 @@ npm run lint:config      # load-check the eslint / stylelint / postcss / tsconfi
 npm audit --omit=dev --audit-level=high
 ```
 
-The scoping pipeline (`CollectScopingStubs` → `ScopePhpDependencies` → `scoper-base.inc.php` → autoload generator) only runs in a *consumer's* dev install; this repo tests each piece in isolation, so there's no build step to run here.
+The scoping pipeline runs in a consumer's development install. This repository's end-to-end test scopes a fixture project instead, so there is no build step to run here.
 
 ## Tests
 
-PHPUnit tests live under `tests/Unit/`. Use real `Composer\Composer` instances rather than mocks — it surfaces real composer-API regressions when you bump composer-runtime versions.
+PHPUnit tests live under `tests/Unit/`. They run the real tools, PHPCS, PHPStan and php-scoper, on fixtures copied to a temporary directory rather than on mocks.
 
 Mutation tests run via Infection on a weekly schedule (manually triggerable too). MSI ratchets up over time as new tests cover more branches.
 
@@ -44,14 +44,6 @@ Mutation tests run via Infection on a weekly schedule (manually triggerable too)
 Anything in `.github/workflows/reusable-*.yml` is consumed by external repositories via SHA-pinned refs such as `uses: ahegyes/wordpress-configs/.github/workflows/X.yml@<sha>`, with dependabot tracking new `trunk` commits. Build-side reusable bumps may be automerged by consumer policy; changes to the credentialed `deploy` path in `reusable-release.yml` are reviewed, never automerged in consumers. Give every input a `description:` in the workflow's `inputs:` block — that's the authoritative reference; add it to the README table only if it's commonly set.
 
 The safe-evolution rule: shipped `workflow_call` input names, types, and semantics are frozen. Adding an input is compatible only when it is optional and its default preserves current behavior. Renaming, removing, or re-typing a shipped input — or changing a default in a behavior-visible way — is a coordinated migration: land the change and bump every consumer's pin in the same window, and never let that bump automerge. A caller passing an input the workflow no longer declares fails at startup, which GitHub does not surface as a failed check on the PR that took the bump.
-
-## composer-require-checker.json
-
-`composer-require-checker.json` whitelists symbols our PHP code uses that come from packages this repo `require-dev`s (not `require`s) — chiefly the `Composer\*` API provided transitively by `composer/composer`. The file itself is the authoritative list.
-
-We **don't** add these to `require`: `require` is reserved for what the package offers its consumers, not what its own tooling consumes. composer-require-checker catches accidental dependence on something not in `require`; the whitelist exempts the deliberately-consumed-but-not-required ones.
-
-If you add a new whitelist entry, document the rationale in your PR description.
 
 ## Filing changes
 

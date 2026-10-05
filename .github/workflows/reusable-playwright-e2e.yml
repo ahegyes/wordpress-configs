@@ -33,7 +33,7 @@ on:
         required: false
         default: '26'
       composer-options:
-        description: 'Composer install options. The default includes --no-dev; override without it when a scoping pipeline populates dependencies/ during the dev-mode install.'
+        description: 'Composer install options. The default includes --no-dev; override without it when a scoping pipeline populates vendor-prefixed/ during the dev-mode install.'
         type: string
         required: false
         default: '--prefer-dist --no-dev --ignore-platform-req=php+'

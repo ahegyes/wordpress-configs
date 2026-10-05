@@ -25,8 +25,8 @@ Environment protection, the tag guard, and environment-only secrets defend again
 ## Scope
 
 In scope:
-- Vulnerabilities in the Composer scripts (`CollectScopingStubs`, `ScopePhpDependencies`) — including php-scoper command construction (argv), the `extra.scoping-flags` allow-list, scoped-output path confinement (the strict-descendant check), placeholder file/dir creation, and stubs file resolution.
-- Vulnerabilities in the php-scoper base config (`scoper-base.inc.php`, `contrib/*.inc.php`) — e.g., unsafe finder / exclude-file handling, or prefix-stripping that leaves symbols incorrectly scoped.
+- Vulnerabilities in the scoping scripts (`ScopePhpDependencies`, `ScopedPackages`, `CollectScopingStubs`) — including php-scoper command construction, the symbolic-link refusal before `vendor-prefixed/` is emptied, and stubs file resolution.
+- Vulnerabilities in the php-scoper base config (`scoper-base.inc.php`) and its recipes — such as unsafe finder / exclude-file handling, or prefix-stripping that leaves symbols incorrectly scoped.
 - Vulnerabilities in the reusable GitHub Actions workflows (`reusable-*.yml`) — particularly script injection via PR-controlled inputs or unpinned third-party action references that could compromise consuming repositories.
 - Vulnerabilities in the Node configs (eslint/stylelint/playwright/tsconfig bases).
 
