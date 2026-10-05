@@ -29,7 +29,6 @@
     "phpstan/phpstan-deprecation-rules": "^2",
     "phpstan/phpstan-strict-rules": "^2",
     "php-stubs/wordpress-stubs": "^7.1",
-    "php-stubs/woocommerce-stubs": "^11.1",
     "johnbillion/wp-compat": "^2",
     "szepeviktor/phpstan-wordpress": "^2",
     "swissspidy/phpstan-no-private": "^1",
@@ -42,6 +41,7 @@
     "humbug/php-scoper": "^0.18",
     "infection/infection": "^0.35",
     "php-di/php-di": "^7",
+    "php-stubs/woocommerce-stubs": "^11.1",
     "phpunit/phpunit": "^13",
     "psr/container": "^2",
     "psr/log": "^3"
