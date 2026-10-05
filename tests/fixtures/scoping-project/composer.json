@@ -9,7 +9,7 @@
     ]
   },
   "extra": {
-    "scoping-prefix": "Acme\\Scoped",
+    "scoping-prefix": "Acme\\Scoped\\",
     "scoping-stubs": [
       "./stubs/host-plugin.php"
     ],

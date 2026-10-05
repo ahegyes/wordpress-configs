@@ -3,9 +3,16 @@
 namespace DeepWebSolutions\Config\Composer;
 
 use Composer\ClassMapGenerator\ClassMapGenerator;
+use Composer\Factory;
 use Composer\InstalledVersions;
 use Composer\Script\Event;
+use DeepWebSolutions\Config\Composer\Internal\ScopedSymbolCollector;
+use PhpParser\NodeTraverser;
+use PhpParser\NodeVisitor\NameResolver;
+use PhpParser\NodeVisitor\ParentConnectingVisitor;
+use PhpParser\ParserFactory;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Finder\Finder;
 
 /**
  * Scopes a project's dependencies into its vendor-prefixed directory with php-scoper and writes their autoloader.
@@ -14,20 +21,7 @@ final class ScopePhpDependencies {
 	// region METHODS
 
 	/**
-	 * Scopes the dependencies of the project Composer runs in.
-	 *
-	 * @param   Event $event The Composer script event.
-	 *
-	 * @throws  \RuntimeException Thrown when the scope run fails.
-	 */
-	public static function run( Event $event ): void {
-		$vendor_dir = $event->getComposer()->getConfig()->get( 'vendor-dir' );
-
-		self::scope( \dirname( \is_string( $vendor_dir ) ? $vendor_dir : '' ) );
-	}
-
-	/**
-	 * Scopes the dependencies after a development install only, so a production install keeps the scoped output it ships.
+	 * Scopes the dependencies of the project Composer runs in, after a development install only, so a production install keeps the scoped output it ships.
 	 *
 	 * @param   Event $event The Composer script event.
 	 *
@@ -35,16 +29,16 @@ final class ScopePhpDependencies {
 	 */
 	public static function postAutoloadDump( Event $event ): void {
 		if ( $event->isDevMode() ) {
-			self::run( $event );
+			self::scope( \dirname( Factory::getComposerFile() ) );
 		}
 	}
 
 	/**
-	 * Scopes a project's dependencies into its vendor-prefixed directory with the project's scoper.inc.php, then writes vendor-prefixed/scoper-autoload.php.
+	 * Scopes a project's dependencies into its vendor-prefixed directory with the project's scoper.inc.php, checks that every prefixed name is declared by the scoped code, then writes vendor-prefixed/scoper-autoload.php.
 	 *
 	 * @param   string $project_dir The root directory of the project.
 	 *
-	 * @throws  \RuntimeException Thrown when the project or php-scoper is missing, vendor-prefixed is a symbolic link, php-scoper fails, or a scoped package manifest cannot be read.
+	 * @throws  \RuntimeException Thrown when the project or php-scoper is missing, vendor-prefixed is a symbolic link, php-scoper fails, a prefixed name is declared by no scoped package, or a scoped package manifest cannot be read.
 	 */
 	public static function scope( string $project_dir ): void {
 		$project_dir = \realpath( $project_dir ) ?: throw new \RuntimeException( "The project directory '$project_dir' does not exist." );
@@ -62,7 +56,7 @@ final class ScopePhpDependencies {
 			$filesystem->dumpFile( $output_dir . '/scoper-autoload.php', "<?php\n" ); // The project's autoloader requires this file, and php-scoper boots through that autoloader.
 		}
 
-		// Loading the config parses the WooCommerce stubs, which comes close to PHP's default memory limit.
+		// Loading the config parses the declared stubs files, and large ones exceed PHP's default memory limit.
 		$command = array( \PHP_BINARY, '-d', 'memory_limit=1G', ( InstalledVersions::getInstallPath( 'humbug/php-scoper' ) ?? '' ) . '/bin/php-scoper', 'add-prefix', '--working-dir=' . $project_dir, '--config=' . $project_dir . '/scoper.inc.php', '--output-dir=' . $output_dir, '--force', '--no-interaction' );
 		// php-scoper's console wraps what it prints at the terminal width, which would split the paths and symbols in a failure message.
 		$process = \proc_open( \implode( ' ', \array_map( 'escapeshellarg', $command ) ) . ' 2>&1', array( 1 => array( 'pipe', 'w' ) ), $pipes, null, array( 'COLUMNS' => '4096' ) + \getenv() ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_proc_open -- Runs in Composer, never on a WordPress server.
@@ -81,15 +75,16 @@ final class ScopePhpDependencies {
 		}
 		$dropped = match ( true ) {
 			\is_file( $output_dir . '/composer.json' ) => self::package_name( $output_dir . '/composer.json' ),
-			array() !== $manifests                     => \dirname( self::package_name( $manifests[0] ) ),
+			array() !== $manifests                     => \dirname( self::package_name( \current( $manifests ) ) ),
 			default                                    => '',
 		};
 		if ( '' !== $dropped ) {
 			$filesystem->rename( $output_dir, $output_dir . '.nesting' );
-			$filesystem->mkdir( \dirname( $output_dir . '/' . $dropped ) );
 			$filesystem->rename( $output_dir . '.nesting', $output_dir . '/' . $dropped );
 		}
 
+		$prefix = self::extra( $project_dir . '/composer.json' )['scoping-prefix'] ?? '';
+		self::verify( $output_dir, \trim( \is_string( $prefix ) ? $prefix : '', '\\' ) );
 		$filesystem->dumpFile( $output_dir . '/scoper-autoload.php', self::autoload( $output_dir ) );
 	}
 
@@ -98,7 +93,44 @@ final class ScopePhpDependencies {
 	// region HELPERS
 
 	/**
-	 * Returns the autoloader of the scoped packages, which registers their psr-4 and classmap entries on a class loader of its own and requires their files entries.
+	 * Fails when the scoped code references a prefixed name it does not declare, which would fail at runtime: a host symbol no stubs file declares, a dependency outside the scoped packages, or a string php-scoper took for a class name.
+	 *
+	 * @param   string $output_dir The vendor-prefixed directory.
+	 * @param   string $prefix     The scoping prefix.
+	 *
+	 * @throws  \RuntimeException Thrown when a prefixed name is declared by no scoped package.
+	 */
+	protected static function verify( string $output_dir, string $prefix ): void {
+		$parser    = new ParserFactory()->createForNewestSupportedVersion();
+		$collector = new ScopedSymbolCollector( $prefix, $parser );
+		foreach ( Finder::create()->files()->in( $output_dir )->name( '*.php' )->sortByName() as $file ) {
+			$collector->file = $file->getPathname();
+			new NodeTraverser( new NameResolver(), new ParentConnectingVisitor(), $collector )->traverse( $parser->parse( $file->getContents() ) ?? array() );
+		}
+
+		$namespaces = array();
+		foreach ( $collector->declared as $name ) {
+			$namespace = '';
+			foreach ( \array_slice( \explode( '\\', $name ), 0, -1 ) as $segment ) {
+				$namespace                = \ltrim( "$namespace\\$segment", '\\' );
+				$namespaces[ $namespace ] = $namespace;
+			}
+		}
+
+		$undeclared = array();
+		foreach ( $collector->references as $reference ) {
+			$name = \strtolower( \rtrim( $reference['name'], '\\' ) );
+			if ( ! isset( $collector->declared[ $name ] ) && ! isset( $namespaces[ $name ] ) ) {
+				$undeclared[] = $reference['name'] . ' in ' . $reference['location'];
+			}
+		}
+		if ( array() !== $undeclared ) {
+			throw new \RuntimeException( "No scoped package declares these prefixed names, which would fail at runtime. Declare the host's stubs under extra.scoping-stubs, scope the package that declares the name, or exclude it in scoper.inc.php:\n" . \implode( "\n", \array_unique( $undeclared ) ) );
+		}
+	}
+
+	/**
+	 * Returns the autoloader of the scoped packages: a class map over each package's psr-4, psr-0 and classmap paths, which serves PEAR-style psr-0 classes too, followed by its files entries.
 	 *
 	 * @param   string $output_dir The vendor-prefixed directory.
 	 *
@@ -112,7 +144,6 @@ final class ScopePhpDependencies {
 			throw new \RuntimeException( "No scoped package exists in '$output_dir'." );
 		}
 
-		$psr4     = '';
 		$classmap = array();
 		$files    = '';
 		foreach ( $manifests as $manifest ) {
@@ -121,15 +152,21 @@ final class ScopePhpDependencies {
 			$decoded     = self::manifest( $manifest );
 			$autoload    = isset( $decoded['autoload'] ) && \is_array( $decoded['autoload'] ) ? $decoded['autoload'] : array();
 
-			foreach ( (array) ( $autoload['psr-4'] ?? array() ) as $namespace => $paths ) {
-				foreach ( self::strings( $paths ) as $path ) {
-					$psr4 .= \sprintf( "\$loader->addPsr4( %s, __DIR__ . %s );\n", \var_export( (string) $namespace, true ), \var_export( "$relative/$path", true ) );
+			$paths = self::strings( $autoload['classmap'] ?? array() );
+			foreach ( array( 'psr-4', 'psr-0' ) as $standard ) {
+				foreach ( (array) ( $autoload[ $standard ] ?? array() ) as $namespace_paths ) {
+					\array_push( $paths, ...self::strings( $namespace_paths ) );
 				}
 			}
-			foreach ( self::strings( $autoload['classmap'] ?? array() ) as $path ) {
-				foreach ( ClassMapGenerator::createMap( "$package_dir/$path" ) as $class => $file ) {
-					$classmap[ $class ] = \substr( $file, \strlen( $output_dir ) );
+			$excluded  = self::excluded( $package_dir, self::strings( $autoload['exclude-from-classmap'] ?? array() ) );
+			$generator = new ClassMapGenerator();
+			foreach ( $paths as $path ) {
+				if ( \file_exists( "$package_dir/$path" ) ) { // Composer skips an autoload path a package does not ship.
+					$generator->scanPaths( "$package_dir/$path", $excluded );
 				}
+			}
+			foreach ( $generator->getClassMap()->getMap() as $class => $file ) {
+				$classmap[ $class ] = \substr( $file, \strlen( $output_dir ) );
 			}
 			foreach ( self::strings( $autoload['files'] ?? array() ) as $path ) {
 				$files .= \sprintf( "require_once __DIR__ . %s;\n", \var_export( "$relative/$path", true ) );
@@ -142,7 +179,48 @@ final class ScopePhpDependencies {
 			$classes .= \sprintf( "\t%s => __DIR__ . %s,\n", \var_export( $class, true ), \var_export( $file, true ) );
 		}
 
-		return "<?php declare( strict_types=1 );\n\n// Generated by ScopePhpDependencies on every scope run.\n\n\$loader = new \\Composer\\Autoload\\ClassLoader();\n$psr4\$loader->addClassMap( array(\n$classes) );\n\$loader->register();\n\n$files";
+		return "<?php declare( strict_types=1 );\n\n// Generated by ScopePhpDependencies on every scope run.\n\n\$loader = new \\Composer\\Autoload\\ClassLoader();\n\$loader->addClassMap( array(\n$classes) );\n\$loader->register();\n\n$files";
+	}
+
+	/**
+	 * Returns the pattern of a package's exclude-from-classmap paths, with Composer's * and ** wildcards, or null when it excludes none.
+	 *
+	 * @param   string       $package_dir The directory of the scoped package.
+	 * @param   list<string> $paths       The paths, relative to the package.
+	 *
+	 * @return  non-empty-string|null
+	 */
+	protected static function excluded( string $package_dir, array $paths ): ?string {
+		if ( array() === $paths ) {
+			return null;
+		}
+		$patterns = \array_map(
+			static fn ( string $path ): string => \strtr(
+				\preg_quote( \ltrim( \strtr( $path, '\\', '/' ), '/' ), '#' ),
+				array(
+					'\\*\\*' => '.+?',
+					'\\*'    => '[^/]+?',
+				)
+			),
+			$paths
+		);
+
+		return '#^' . \preg_quote( \strtr( $package_dir, '\\', '/' ), '#' ) . '/(?:' . \implode( '|', $patterns ) . ')#';
+	}
+
+	/**
+	 * Returns the extra entries a manifest declares.
+	 *
+	 * @param   string $file The path of the manifest.
+	 *
+	 * @throws  \RuntimeException Thrown when the manifest cannot be read.
+	 *
+	 * @return  array<array-key, mixed>
+	 */
+	protected static function extra( string $file ): array {
+		$extra = self::manifest( $file )['extra'] ?? array();
+
+		return \is_array( $extra ) ? $extra : array();
 	}
 
 	/**

@@ -2,6 +2,8 @@
 
 namespace Acme\Commerce;
 
+use Acme\Commerce\Formats;
+use Acme\Commerce\Formats\{Csv};
 use Psr\Log\LoggerInterface;
 
 /**
@@ -20,6 +22,9 @@ final class SettingsSection extends \Automattic\WooCommerce\Admin\Settings\Setti
 		\as_enqueue_async_action( 'acme_commerce_rendered' );
 		\host_plugin_setting();
 		$order_util = 'Automattic\\WooCommerce\\Utilities\\OrderUtil';
+		$formats    = 'Acme\\Commerce\\Formats\\';
+		$csv        = '\\Acme\\Commerce\\Formats\\Csv';
+		$prefix     = \Acme\Commerce\get_label_prefix() . \Acme\Commerce\LABEL;
 
 		return \__( 'Commerce', 'acme-commerce' );
 	}

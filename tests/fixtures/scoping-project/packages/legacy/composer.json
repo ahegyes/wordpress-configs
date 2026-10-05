@@ -10,7 +10,7 @@
       "AcmeLegacy": "library/"
     },
     "exclude-from-classmap": [
-      "/library/AcmeLegacy/Language/"
+      "/library/**/en.php"
     ]
   }
 }

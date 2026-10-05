@@ -108,6 +108,10 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 		self::assertStringContainsString( "'Acme\\\\Scoped\\\\AcmeLegacy_Config' => __DIR__ . '/acme/legacy/library/AcmeLegacy/Config.php'", $autoload );
 		self::assertStringNotContainsString( 'AcmeLegacy_Language_en', $autoload );
+		\preg_match_all( "/^\\t'([^']+)' => __DIR__/m", $autoload, $classes );
+		$sorted = $classes[1];
+		\sort( $sorted );
+		self::assertSame( $sorted, $classes[1] );
 	}
 
 	public function test_php_di_keeps_its_template_and_optional_proxies_and_compares_prefixed_names(): void {
@@ -127,7 +131,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		self::assertStringContainsString( '\wc_get_logger()', $section );
 		self::assertStringContainsString( '\as_enqueue_async_action(', $section );
 		self::assertStringContainsString( '\host_plugin_setting()', $section );
-		self::assertStringContainsString( "'Automattic\\\\WooCommerce\\\\Utilities\\\\OrderUtil'", $section );
+		self::assertStringContainsString( "'Automattic\\WooCommerce\\Utilities\\OrderUtil'", $section );
 		self::assertStringContainsString( "\\__('Commerce', 'acme-text-domain')", $section );
 		self::assertStringNotContainsString( 'acme-commerce', $section );
 	}
@@ -152,6 +156,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 			ScopePhpDependencies::scope( $project );
 			self::fail( 'The scope run did not fail.' );
 		} catch ( \RuntimeException $exception ) {
+			self::assertStringStartsWith( "php-scoper failed:\n", $exception->getMessage() );
 			self::assertStringContainsString( 'extra.text-domain', $exception->getMessage() );
 		}
 		self::assertFileExists( $project . '/vendor-prefixed/scoper-autoload.php' );
@@ -224,8 +229,8 @@ final class ScopePhpDependenciesTest extends TestCase {
 			ScopePhpDependencies::scope( $project );
 			self::fail( 'The scope run did not fail.' );
 		} catch ( \RuntimeException $exception ) {
-			self::assertStringContainsString( $name, $exception->getMessage() );
-			self::assertStringContainsString( 'SettingsSection.php', $exception->getMessage() );
+			self::assertStringStartsWith( 'No scoped package declares these prefixed names', $exception->getMessage() );
+			self::assertMatchesRegularExpression( '/\n' . \preg_quote( $name . ' in ', '/' ) . '.+SettingsSection\.php:\d+$/m', $exception->getMessage() );
 		}
 	}
 
@@ -241,6 +246,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 			'namespace-import-of-a-host'      => array( 'use Psr\Log\LoggerInterface;', "use Psr\\Log\\LoggerInterface;\nuse Automattic\\WooCommerce\\Future\\Feature;", 'Acme\Scoped\Automattic\WooCommerce\Future\Feature' ),
 			'escape-sequence-taken-for-class' => array( "\t// region METHODS", "\t// region METHODS\n\n\tpublic string \$line_break = '\\\\r\\\\n';", 'Acme\Scoped\r\n' ),
 			'code-in-a-php-nowdoc'            => array( $return, "\t\t\$code = <<<'PHP'\n\t\t\t<?php \\wc_get_future_feature();\n\t\t\tPHP;\n" . $return, 'Acme\Scoped\wc_get_future_feature' ),
+			'group-use-of-a-host'             => array( 'use Psr\Log\LoggerInterface;', "use Psr\\Log\\LoggerInterface;\nuse Automattic\\WooCommerce\\Future\\{Feature};", 'Acme\Scoped\Automattic\WooCommerce\Future\Feature' ),
 		);
 	}
 
@@ -263,6 +269,13 @@ final class ScopePhpDependenciesTest extends TestCase {
 		$this->expectExceptionMessageIsOrContains( 'src/Compiler/Template.php' );
 
 		ScopePhpDependencies::scope( $project );
+	}
+
+	public function test_scope_run_fails_without_the_project_directory(): void {
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageIsOrContains( 'does not exist' );
+
+		ScopePhpDependencies::scope( self::FIXTURE_DIR . '/absent' );
 	}
 
 	/**

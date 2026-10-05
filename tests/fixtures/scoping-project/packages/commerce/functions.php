@@ -8,6 +8,13 @@
 namespace Acme\Commerce;
 
 /**
+ * The default label of commerce sections.
+ *
+ * @var string
+ */
+const LABEL = 'Commerce';
+
+/**
  * Returns the prefix of commerce labels.
  *
  * @return  string
