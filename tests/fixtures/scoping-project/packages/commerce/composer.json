@@ -1,0 +1,30 @@
+{
+  "name": "acme/commerce",
+  "description": "A WooCommerce-shaped package that calls host symbols and ships translatable strings.",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.5",
+    "ext-json": "*",
+    "acme/loader": "*",
+    "php-di/php-di": "^7",
+    "psr/log": "^3"
+  },
+  "autoload": {
+    "psr-4": {
+      "Acme\\Commerce\\": "src/"
+    },
+    "classmap": [
+      "lib/"
+    ],
+    "files": [
+      "functions.php"
+    ]
+  },
+  "extra": {
+    "scoping-stubs": [
+      "php-stubs/woocommerce-stubs",
+      "php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php"
+    ],
+    "scoping-text-domain": "acme-commerce"
+  }
+}

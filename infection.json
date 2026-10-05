@@ -12,6 +12,7 @@
         "html": "build/infection/infection.html",
         "summary": "build/infection/summary.log"
     },
+    "testFrameworkOptions": "--exclude-group=slow",
     "mutators": {
         "@default": true
     },

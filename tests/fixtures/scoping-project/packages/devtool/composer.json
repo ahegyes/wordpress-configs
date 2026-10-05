@@ -1,0 +1,10 @@
+{
+  "name": "acme/devtool",
+  "description": "An installed package nothing requires at runtime, such as a development tool.",
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "Acme\\Devtool\\": "src/"
+    }
+  }
+}

@@ -5,7 +5,7 @@
  * @package DeepWebSolutions\Config\Tests
  */
 
-namespace DeepWebSolutions\Framework\Commerce;
+namespace Acme\Commerce;
 
 /**
  * Returns the prefix of commerce labels.

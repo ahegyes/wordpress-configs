@@ -10,6 +10,9 @@
   },
   "extra": {
     "scoping-prefix": "Acme\\Scoped",
+    "scoping-stubs": [
+      "./stubs/host-plugin.php"
+    ],
     "text-domain": "acme-text-domain"
   }
 }

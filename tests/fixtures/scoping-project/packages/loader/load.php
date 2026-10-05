@@ -5,7 +5,7 @@
  * @package DeepWebSolutions\Config\Tests
  */
 
-namespace DeepWebSolutions\Framework\Loader;
+namespace Acme\Loader;
 
 /**
  * Returns whether the loader ran.

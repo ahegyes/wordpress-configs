@@ -1,0 +1,8 @@
+{
+  "name": "acme/loader",
+  "description": "A by-path package with no autoload key.",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.5"
+  }
+}

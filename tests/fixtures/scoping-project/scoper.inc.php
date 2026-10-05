@@ -5,4 +5,4 @@
  * @package DeepWebSolutions\Config\Tests
  */
 
-return ( require Composer\InstalledVersions::getInstallPath( 'ahegyes/wordpress-configs' ) . '/php/php-scoper/scoper-base.inc.php' )( __DIR__ );
+return ( require Composer\InstalledVersions::getInstallPath( 'ahegyes/wordpress-configs' ) . '/php/php-scoper/scoper-base.inc.php' )( __DIR__, 'acme/commerce', 'acme/legacy' );

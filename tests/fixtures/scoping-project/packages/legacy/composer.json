@@ -1,0 +1,16 @@
+{
+  "name": "acme/legacy",
+  "description": "A PEAR-style psr-0 package with a path excluded from its classmap.",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.5"
+  },
+  "autoload": {
+    "psr-0": {
+      "AcmeLegacy": "library/"
+    },
+    "exclude-from-classmap": [
+      "/library/AcmeLegacy/Language/"
+    ]
+  }
+}
