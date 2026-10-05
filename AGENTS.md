@@ -19,12 +19,15 @@ wordpress-configs/
 │   │   ├── phpstan.dist.neon        # PHPStan profile: the base plus the minimum WordPress version
 │   │   └── phpstan.dist.neon.php    # opt-in discovery of a plugin's conventional paths
 │   ├── php-scoper/
-│   │   └── scoper-base.inc.php      # the php-scoper config: the closure in the project's vendor/, host-symbol exclusions, PHP-DI and text-domain patchers
+│   │   ├── scoper-base.inc.php      # the php-scoper config: the named packages, host-symbol exclusions, recipes, and the string and text-domain patchers
+│   │   └── recipes/                 # per-library fixes, as <vendor>/<package>.inc.php, applied when that package is scoped
 │   └── composer/
-│       ├── CollectScopingStubs.php  # the WordPress (sniccowp), Action Scheduler and extra.scoping-stubs symbols scoping leaves global
-│       ├── ScopePhpDependencies.php # Composer scripts and scope(): runs php-scoper into vendor-prefixed/, nests it as <vendor>/<package>/ and writes scoper-autoload.php
+│       ├── CollectScopingStubs.php  # the WordPress (sniccowp), Action Scheduler, extra.scoping-stubs and dropped-package symbols scoping leaves global
+│       ├── ScopedPackages.php       # the named packages and their runtime dependencies, read from Composer's installed.json
+│       ├── ScopePhpDependencies.php # postAutoloadDump and scope(): runs php-scoper into vendor-prefixed/, checks every prefixed name is declared, writes the class-map autoloader
 │       └── Internal/
-│           └── StubSymbolCollector.php # AST visitor that harvests stubs symbols
+│           ├── ScopedSymbolCollector.php # AST visitor behind the declared-name check
+│           └── StubSymbolCollector.php   # AST visitor that harvests stubs symbols
 ├── node/
 │   ├── tsconfig.base.json
 │   ├── eslint.config.base.mjs

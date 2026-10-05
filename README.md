@@ -1,6 +1,6 @@
 # WordPress Configs
 
-A collection of shared configuration files for WordPress projects. Provides base configs for PHPCS and PHPStan, a php-scoper pipeline that prefixes a plugin's framework packages and their dependencies, and a transitive `roave/security-advisories` install that fails a dev-mode `composer install` on any known CVE in the dep graph.
+A collection of shared configuration files for WordPress projects. Provides base configs for PHPCS and PHPStan, a php-scoper pipeline that prefixes the packages a plugin bundles and their dependencies, and a transitive `roave/security-advisories` install that fails a dev-mode `composer install` on any known CVE in the dep graph.
 
 ## Requirements
 
@@ -211,7 +211,7 @@ includes:
 
 ### Dependency scoping
 
-`php/php-scoper/scoper-base.inc.php` and `php/composer/ScopePhpDependencies.php` prefix a plugin's framework packages and their dependencies with the plugin's own namespace, so plugins that bundle different versions of them run side by side.
+`php/php-scoper/scoper-base.inc.php` and `php/composer/ScopePhpDependencies.php` prefix the packages a WordPress plugin bundles with the plugin's own namespace, so plugins that bundle different versions of the same library run side by side.
 
 Require php-scoper in the plugin itself, because Composer does not install this package's dev requirements:
 
@@ -223,7 +223,7 @@ Require php-scoper in the plugin itself, because Composer does not install this 
 }
 ```
 
-Declare the scoping prefix and the plugin's text domain, load the generated autoloader, and scope after every development install:
+Declare the scoping prefix, load the generated autoloader, and scope after every development install:
 
 ```json
 {
@@ -235,51 +235,65 @@ Declare the scoping prefix and the plugin's text domain, load the generated auto
   "scripts": {
     "post-autoload-dump": [
       "DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::postAutoloadDump"
-    ],
-    "scope-php-dependencies": "DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::run"
+    ]
   },
   "extra": {
-    "scoping-prefix": "DeepWebSolutions\\YourPlugin\\Scoped",
-    "text-domain": "your-text-domain"
+    "scoping-prefix": "YourVendor\\YourPlugin\\Scoped"
   }
 }
 ```
 
-Create `scoper.inc.php` at the project root:
+Create `scoper.inc.php` at the project root and name the packages to scope:
 
 ```php
 <?php declare( strict_types=1 );
 
-return ( require __DIR__ . '/vendor/ahegyes/wordpress-configs/php/php-scoper/scoper-base.inc.php' )( __DIR__ );
+return ( require __DIR__ . '/vendor/ahegyes/wordpress-configs/php/php-scoper/scoper-base.inc.php' )( __DIR__, 'dompdf/dompdf', 'php-di/php-di' );
 ```
 
-To scope another installed library, such as dompdf, pass its package and each package it requires after `__DIR__`. A library that builds class names in strings also needs patchers of its own, appended to the returned config's `patchers`.
+A name is a package name or an `fnmatch()` pattern, such as `'your-vendor/*'`. The runtime dependencies of each named package follow from Composer's `installed.json`, through `require` and never `require-dev`, so naming a library scopes what it needs. A name that starts with `!` keeps the packages it matches unscoped, such as a polyfill whose global functions must stay reachable (`'!symfony/polyfill-php80'`); the symbols they declare stay global too. Keep the scoped packages in `require-dev`, so a production install never loads their unprefixed copies.
 
 A scope run:
 
-- scopes every installed `ahegyes/wp-framework-*` package, by-path files included, with `php-di/*`, `laravel/serializable-closure`, `psr/container` and `psr/log`, all read from the project's own `vendor/`;
-- writes each package to `vendor-prefixed/<vendor>/<package>/`, after emptying `vendor-prefixed/` and refusing one that is a symbolic link;
-- prefixes the `Psr\` interfaces with the rest, so the plugin's container and logger implement the same prefixed interfaces;
-- leaves global the WordPress symbols of `sniccowp/php-scoper-wordpress-excludes`, Action Scheduler (`as_*` and `ActionScheduler*`) and every symbol of the stubs files a scoped package declares under `extra.scoping-stubs`;
-- rewrites the reserved `'wp-framework'` text domain to `extra.text-domain`, and PHP-DI's class-name literals to their prefixed names;
-- writes `vendor-prefixed/scoper-autoload.php`, which registers each scoped package's `psr-4`, `classmap` and `files` entries.
+- copies every file of each scoped package to `vendor-prefixed/<vendor>/<package>/`, after emptying `vendor-prefixed/` and refusing one that is a symbolic link;
+- leaves global the WordPress symbols of `sniccowp/php-scoper-wordpress-excludes`, Action Scheduler (`as_*` and `ActionScheduler*`), every symbol of the stubs files the project or a scoped package declares under `extra.scoping-stubs`, and their namespaces;
+- prefixes the strings that start with a scoped package's own namespace, which libraries use to build class names;
+- applies the recipe of each scoped package that has one in `php/php-scoper/recipes/<vendor>/<package>.inc.php`;
+- rewrites the text domain a scoped package declares under `extra.scoping-text-domain` to the project's `extra.text-domain`;
+- fails, naming each one, when the scoped code references a prefixed name it does not declare: a host symbol no stubs file declares, a dependency outside the scoped packages, or a string php-scoper took for a class name;
+- writes `vendor-prefixed/scoper-autoload.php`, a class map over each scoped package's `psr-4`, `psr-0` and `classmap` paths that honors `exclude-from-classmap`, followed by its `files` entries.
 
-The run fails when `extra.scoping-prefix` or `extra.text-domain` is missing or empty, when no package to scope is installed, when a declared stubs file is not installed, and when a scoped framework file keeps a prefixed WooCommerce or Action Scheduler symbol or the reserved text domain. Set `"text-domain": false` only when no scoped package ships a framework string, such as a plugin built on the bootstrap package alone.
+The run also fails when `extra.scoping-prefix` is missing or empty, when a name matches no installed package, when a scoped package requires one that is not installed, when a declared stubs file is missing, when a scoped package declares a text domain and the project declares none, when a declared text domain survives outside a string literal of its own, and when a recipe's target is gone.
 
-A package declares the stubs files that cover the host symbols it calls, each as `vendor/package`, for that package's `<package>.php`, or as `vendor/package:path/to/file.php`:
+The project or a scoped package declares the stubs files of the host symbols the scoped code calls, each as `./path/to/file.php` relative to its `composer.json`, as `vendor/package` for that package's `<package>.php`, or as `vendor/package:path/to/file.php`:
 
 ```json
 {
   "extra": {
     "scoping-stubs": [
       "php-stubs/woocommerce-stubs",
-      "php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php"
+      "php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php",
+      "./stubs/host-plugin.php"
     ]
   }
 }
 ```
 
-`postAutoloadDump` scopes only in development mode, so a production install keeps the scoped output it ships. `ScopePhpDependencies::scope()` takes a project directory and scopes it with the php-scoper and stubs installed beside this package, so a project without dev requirements, such as a test fixture, can be scoped from another vendor directory.
+A package whose strings take the host plugin's text domain declares the domain it uses, and the project declares its own:
+
+```json
+{
+  "extra": {
+    "scoping-text-domain": "your-library"
+  }
+}
+```
+
+`scoper.inc.php` returns an ordinary php-scoper config, so a project can add exclusions or patchers before returning it. Write namespace exclusions as anchored regular expressions, such as `'/^YourVendor\\\\Name(?:\\\\|$)/i'`, because php-scoper matches a plain namespace string anywhere in a name.
+
+A recipe returns php-scoper settings for one package, with paths relative to it: `exclude-files`, anchored `exclude-namespaces`, and `replacements`, a map of search to replace strings per file of the scoped code, in which `{prefix}` stands for the scoping prefix. A replacement whose search string is missing fails the run, so a library update that invalidates a recipe surfaces when scoping.
+
+`postAutoloadDump` scopes only in development mode, so a production install keeps the scoped output it ships; `composer dump-autoload` scopes again by hand.
 
 ### Distribution Ignore
 
@@ -409,7 +423,7 @@ Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Pl
 | `reusable-block-json-check.yml`       | Validates block.json against wp.org schema       | `project-path`, `node-version`                              |
 | `reusable-plugin-check.yml`           | WordPress Plugin Check against a built plugin directory | `artifact`, `plugin-slug`, `php-version`, `wp-org`     |
 | `reusable-supply-chain-audit.yml`     | `composer audit` and `npm audit` of the committed lockfiles (parallel jobs) | `project-path`, `composer-audit`, `npm-audit`, plus `*-flags` |
-| `reusable-release.yml`                | Build zip/assets → verify/test zip → deploy verified artifacts to wp.org | `plugin-slug`, `project-path`, `scoped-dependencies-dir`, `php-version`, `requires-scoped-dependencies`, `plugin-check`, `generate-pot`, `pot-domain` (no secrets) |
+| `reusable-release.yml`                | Build zip/assets → verify/test zip → deploy verified artifacts to wp.org | `plugin-slug`, `project-path`, `php-version`, `plugin-check`, `generate-pot`, `pot-domain` (no secrets) |
 | `reusable-workflow-checks.yml`        | actionlint + zizmor with a blocking SARIF gate   | — (no inputs)                                                |
 | `reusable-codeql.yml`                 | CodeQL analysis across a language matrix         | `languages[]`                                                |
 
@@ -524,7 +538,7 @@ The workflow enforces two release contracts on the consumer:
 - **Main file named after the slug** — `<plugin-slug>.php` at the project root, with a `Version:` header equal to the tag's version; `readme.txt`'s `Stable tag:` must match too. Tags must be `v<major>.<minor>.<patch>` (no leading zeros); the version is taken from the tag exclusively and verified against both files, never stamped in.
 - **`.wp-env.json` maps `wp-content/plugins/<plugin-slug>`** — the artifact test remaps exactly that `mappings` key at the built zip (co-mounted plugins, port, and lifecycle scripts survive the per-key merge) and pins the environment to the latest stable WordPress core, so the E2E suite runs against what actually ships on what users actually run.
 
-`scoped-dependencies-dir` defaults to `vendor-prefixed`. `requires-scoped-dependencies` defaults to `true` and asserts `<scoped-dependencies-dir>/scoper-autoload.php` plus scoped package files in the archive and mounted test artifact; set it to `false` for plugins that do not run the scoping pipeline. `plugin-check` defaults to `true` and runs WordPress Plugin Check against the built zip's extracted tree. `generate-pot` defaults to `true`: release regenerates `languages/<domain>.pot` before archive creation, so the shipped zip always carries a current catalog — set it to `false` only for plugins with no translatable strings. The domain derives from `plugin-slug` (the wp.org convention Plugin Check enforces); `pot-domain` overrides it and accepts lowercase letters, numbers, underscores, and hyphens. When scoped dependencies are required and the scoped tree carries strings under the consumer domain, the step warns if the generated POT has no scoped-source references.
+When `composer.json` declares `extra.scoping-prefix`, the archive and the mounted test artifact must hold `vendor-prefixed/scoper-autoload.php` and the files of every scoped package. `plugin-check` defaults to `true` and runs WordPress Plugin Check against the built zip's extracted tree. `generate-pot` defaults to `true`: release regenerates `languages/<domain>.pot` before archive creation, so the shipped zip always carries a current catalog — set it to `false` only for plugins with no translatable strings. The domain derives from `plugin-slug` (the wp.org convention Plugin Check enforces); `pot-domain` overrides it and accepts lowercase letters, numbers, underscores, and hyphens. When the plugin scopes its dependencies and `vendor-prefixed/` carries strings under the consumer domain, the step warns if the generated POT has no `vendor-prefixed/` source references.
 
 ## Typical Composer Scripts
 
