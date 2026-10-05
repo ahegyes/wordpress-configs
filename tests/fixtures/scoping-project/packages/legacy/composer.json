@@ -14,7 +14,7 @@
     ],
     "exclude-from-classmap": [
       "/library/**/en.php",
-      "/library/AcmeLegacy/Locale"
+      "./library/AcmeLegacy/Locale"
     ]
   }
 }

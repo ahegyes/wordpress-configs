@@ -151,7 +151,8 @@ final class ScopePhpDependencies {
 		}
 
 		$classmap = array();
-		$files    = '';
+		$includes = array();
+		$requires = array();
 		foreach ( $manifests as $manifest ) {
 			$package_dir = \dirname( $manifest );
 			$relative    = \substr( $package_dir, \strlen( $output_dir ) );
@@ -174,9 +175,21 @@ final class ScopePhpDependencies {
 			foreach ( $generator->getClassMap()->getMap() as $class => $file ) {
 				$classmap[ $class ] = \substr( $file, \strlen( $output_dir ) );
 			}
+			$name              = self::package_name( $manifest );
+			$requires[ $name ] = \array_map( 'strval', \array_keys( (array) ( $decoded['require'] ?? array() ) ) );
+			$includes[ $name ] = '';
 			foreach ( self::strings( $autoload['files'] ?? array() ) as $path ) {
-				$files .= \sprintf( "require_once __DIR__ . %s;\n", \var_export( "$relative/$path", true ) );
+				$includes[ $name ] .= \sprintf( "require_once __DIR__ . %s;\n", \var_export( "$relative/$path", true ) );
 			}
+		}
+
+		// Composer includes a package's files after those of the packages it requires, which they may call when loaded.
+		$files = '';
+		while ( array() !== $includes ) {
+			$ready  = \array_filter( \array_keys( $includes ), static fn ( string $name ): bool => array() === \array_intersect( $requires[ $name ], \array_keys( $includes ) ) );
+			$name   = \current( $ready ) ?: \array_key_first( $includes ); // Packages that require each other keep their name order.
+			$files .= $includes[ $name ];
+			unset( $includes[ $name ] );
 		}
 
 		\ksort( $classmap );
@@ -202,7 +215,7 @@ final class ScopePhpDependencies {
 		}
 		$patterns = \array_map(
 			static fn ( string $path ): string => \strtr(
-				\preg_quote( \trim( \strtr( $path, '\\', '/' ), '/' ), '#' ),
+				\preg_quote( \trim( (string) \preg_replace( '#^(?:\./)+#', '', \strtr( $path, '\\', '/' ) ), '/' ), '#' ),
 				array(
 					'\\*\\*' => '.+?',
 					'\\*'    => '[^/]+?',

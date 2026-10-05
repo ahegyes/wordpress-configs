@@ -24,3 +24,5 @@ function get_label_prefix(): string {
 }
 
 \class_alias( Formats\Csv::class, Formats\Comma::class );
+
+\DI\value( LABEL );
