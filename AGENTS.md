@@ -2,8 +2,6 @@
 
 Shared PHPCS, PHPStan and php-scoper configurations, Node tool baselines and reusable GitHub Actions workflows for WordPress projects. It is a standalone library: generic knobs anyone can use, no knowledge of a particular framework or plugin, and no knob without a feasible consumer need. Composer `ahegyes/wordpress-configs`, npm `@ahegyes/wordpress-configs`, PHP namespace `DeepWebSolutions\Config\`, MIT. Consumers install `dev-trunk` and pin reusable workflows and the npm package to commit SHAs; there are no tags or releases.
 
-Code, comment, documentation and commit style follow the maintainer's v2 style guide, `references/v2-style-guide.md` in the project vault.
-
 ## Layout
 
 ```
@@ -46,6 +44,11 @@ zizmor --config .github/zizmor.yml .github/
 - Every reusable-workflow input has a `description:`; shipped input names, types and defaults change only as a coordinated migration (CONTRIBUTING.md).
 - Self-CI calls the reusable workflows through `./`, and `.github/zizmor.yml` turns off zizmor's `self-repository` audit until actionlint accepts `$/`.
 - The README is an index; workflow inputs live in `docs/workflows.md`, script and file contracts in `docs/scripts-contract.md`, test tiers in `tests/README.md`. A behavior change updates them in the same change.
+- The README's Requirements state the PHP, WordPress, Node and npm floors; a floor change updates them in the same commit as `composer.json`, `package.json`, `phpcs.base.dist.xml` and `phpstan.dist.neon`.
+- PHP docblocks open with one third-person sentence naming the role, such as "Returns …", and add a second paragraph only for a non-obvious why. Each `@param` stays on one line, `@throws` reads "Thrown when …", members are `protected` rather than `private`, and class bodies group members in `// region NAME` blocks.
+- Inline comments state a non-obvious why in one capitalized sentence, and every file describes the present, never the change.
+- Markdown keeps one line per paragraph, sentence-case headings and an impersonal, present-tense voice.
+- Commit subjects are capitalized imperatives of 72 characters or fewer, with no `type(scope):` prefix and no trailing period. The body says what was wrong and why before what changed, and an agent-assisted commit ends with `Assisted-by: <agent>:<model-id>`, never `Co-Authored-By`.
 
 ## Limitations
 
