@@ -510,6 +510,8 @@ jobs:
     env:
       PLUGIN_SLUG: ${{ inputs.plugin-slug }}
       WP_ENV_CONFIG_FILE: ${{ inputs.wp-env-config-file != '' && inputs.wp-env-config-file || '.wp-env.json' }}
+      # wp-env lets this variable win over the config's phpVersion, so the artifact runs on the PHP the build was checked on.
+      WP_ENV_PHP_VERSION: ${{ inputs.php-version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
