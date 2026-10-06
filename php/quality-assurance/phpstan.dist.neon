@@ -1,4 +1,4 @@
-# Shared PHPStan profile: every consumer repo's phpstan.dist.neon extends this, so edits here reach all DWS repos.
+# Shared PHPStan profile: every consumer's phpstan.dist.neon extends this, so edits here reach every consumer project.
 includes:
     - phpstan.base.dist.neon
 
