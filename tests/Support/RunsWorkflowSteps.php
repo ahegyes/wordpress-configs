@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace WordPressConfigs\Tests\Support;
+namespace DeepWebSolutions\Config\Tests\Support;
 
 use PHPUnit\Framework\Attributes\After;
 use PHPUnit\Framework\Attributes\Before;

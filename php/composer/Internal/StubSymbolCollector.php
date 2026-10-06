@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace WordPressConfigs\Composer\Internal;
+namespace DeepWebSolutions\Config\Composer\Internal;
 
 use PhpParser\Node;
 use PhpParser\NodeVisitor;

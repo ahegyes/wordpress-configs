@@ -1,10 +1,10 @@
 <?php declare( strict_types=1 );
 
-namespace WordPressConfigs\Tests\Unit;
+namespace DeepWebSolutions\Config\Tests\Unit;
 
+use DeepWebSolutions\Config\Tests\Support\RunsWorkflowSteps;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use WordPressConfigs\Tests\Support\RunsWorkflowSteps;
 
 final class SupplyChainAuditWorkflowTest extends TestCase {
 

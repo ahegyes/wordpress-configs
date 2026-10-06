@@ -2,7 +2,7 @@
 /**
  * Adds a plugin's conventional root files and source directories to the analyzed paths, and its scoped dependencies to the scanned ones.
  *
- * @package WordPressConfigs
+ * @package DeepWebSolutions\Config
  */
 
 $project_dir = getcwd() ?: throw new RuntimeException( 'The current working directory is unreadable.' );

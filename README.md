@@ -151,7 +151,7 @@ Declare the scoping prefix, load the generated autoloader, and scope after every
   },
   "scripts": {
     "post-autoload-dump": [
-      "WordPressConfigs\\Composer\\ScopePhpDependencies::postAutoloadDump"
+      "DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::postAutoloadDump"
     ]
   },
   "extra": {

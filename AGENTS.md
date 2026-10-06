@@ -1,6 +1,6 @@
 # wordpress-configs
 
-Shared PHPCS, PHPStan and php-scoper configurations, Node tool baselines and reusable GitHub Actions workflows for WordPress projects. It is a standalone library: generic knobs anyone can use, no knowledge of a particular framework or plugin, and no knob without a feasible consumer need. Composer `ahegyes/wordpress-configs`, npm `@ahegyes/wordpress-configs`, PHP namespace `WordPressConfigs\`, MIT. Consumers install `dev-trunk` and pin reusable workflows and the npm package to commit SHAs; there are no tags or releases.
+Shared PHPCS, PHPStan and php-scoper configurations, Node tool baselines and reusable GitHub Actions workflows for WordPress projects. It is a standalone library: generic knobs anyone can use, no knowledge of a particular framework or plugin, and no knob without a feasible consumer need. Composer `ahegyes/wordpress-configs`, npm `@ahegyes/wordpress-configs`, PHP namespace `DeepWebSolutions\Config\`, MIT. Consumers install `dev-trunk` and pin reusable workflows and the npm package to commit SHAs; there are no tags or releases.
 
 ## Layout
 

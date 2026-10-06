@@ -2,10 +2,10 @@
 /**
  * Example fixture class for smoke-testing the shared PHPCS baseline.
  *
- * @package WordPressConfigs\Tests
+ * @package DeepWebSolutions\Config\Tests
  */
 
-namespace WordPressConfigs\Tests;
+namespace DeepWebSolutions\Config\Tests;
 
 /**
  * A minimal, standards-compliant class used only to prove the shipped

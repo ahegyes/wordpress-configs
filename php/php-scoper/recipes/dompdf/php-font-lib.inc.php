@@ -2,7 +2,7 @@
 /**
  * Returns the fixes php-font-lib needs to work under a prefix.
  *
- * @package WordPressConfigs
+ * @package DeepWebSolutions\Config
  */
 
 return array(

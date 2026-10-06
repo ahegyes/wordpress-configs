@@ -2,7 +2,7 @@
 /**
  * Returns the fixes PHP-DI needs to work under a prefix.
  *
- * @package WordPressConfigs
+ * @package DeepWebSolutions\Config
  */
 
 return array(

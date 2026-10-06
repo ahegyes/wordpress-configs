@@ -1,13 +1,13 @@
 <?php declare( strict_types=1 );
 
-namespace WordPressConfigs\Composer;
+namespace DeepWebSolutions\Config\Composer;
 
 use Composer\InstalledVersions;
+use DeepWebSolutions\Config\Composer\Internal\StubSymbolCollector;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\ParserFactory;
 use Symfony\Component\Finder\Finder;
-use WordPressConfigs\Composer\Internal\StubSymbolCollector;
 
 /**
  * Collects the WordPress, Action Scheduler, stub-declared and dropped-package symbols that scoping leaves global.

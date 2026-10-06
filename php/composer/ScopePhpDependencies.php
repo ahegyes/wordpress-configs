@@ -1,18 +1,18 @@
 <?php declare( strict_types=1 );
 
-namespace WordPressConfigs\Composer;
+namespace DeepWebSolutions\Config\Composer;
 
 use Composer\ClassMapGenerator\ClassMapGenerator;
 use Composer\Factory;
 use Composer\InstalledVersions;
 use Composer\Script\Event;
+use DeepWebSolutions\Config\Composer\Internal\ScopedSymbolCollector;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\NodeVisitor\ParentConnectingVisitor;
 use PhpParser\ParserFactory;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Finder\Finder;
-use WordPressConfigs\Composer\Internal\ScopedSymbolCollector;
 
 /**
  * Scopes a project's dependencies into its vendor-prefixed directory with php-scoper and writes their autoloader.
