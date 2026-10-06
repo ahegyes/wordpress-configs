@@ -2,80 +2,83 @@
 
 namespace DeepWebSolutions\Config\Composer\Internal;
 
+use PhpParser\Node;
+use PhpParser\NodeVisitor;
+use PhpParser\NodeVisitorAbstract;
+
 /**
- * PhpParser visitor that harvests fully-qualified class, function, and constant names from a
- * parsed stubs file. Class-likes (class/interface/trait/enum) all flow into `$classes` —
- * php-scoper's `exclude-classes` covers them uniformly. A `NameResolver` must run ahead of this
- * visitor in the same traversal so `namespacedName` is populated on the collected nodes.
+ * Collects the fully-qualified class, function and constant names a stubs file declares.
+ *
+ * It reads the namespacedName attribute that a NameResolver sets earlier in the same traversal, and files every class-like into the class list, because php-scoper's exclude-classes covers them all.
  *
  * @internal
  */
-final class StubSymbolCollector extends \PhpParser\NodeVisitorAbstract {
-	/**
-	 * PHP symbol-name shape accepted by php-scoper's exclusion lists.
-	 *
-	 * @var string
-	 */
-	private const SYMBOL_NAME_REGEX = '/^\\\\?[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff\\\\]*$/';
+final class StubSymbolCollector extends NodeVisitorAbstract {
+	// region FIELDS AND CONSTANTS
 
 	/**
-	 * Fully-qualified class names collected from the parsed stubs, including `class_alias()` targets.
+	 * The symbol-name shape php-scoper's exclusion lists accept.
 	 *
-	 * @var list<string>
+	 * @var     string
+	 */
+	protected const SYMBOL_NAME_REGEX = '/^\\\\?[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff\\\\]*$/';
+
+	/**
+	 * The class names the stubs declare, including class_alias() targets.
+	 *
+	 * @var     list<string>
 	 */
 	public array $classes = array();
 
 	/**
-	 * Fully-qualified function names collected from the parsed stubs.
+	 * The function names the stubs declare.
 	 *
-	 * @var list<string>
+	 * @var     list<string>
 	 */
 	public array $functions = array();
 
 	/**
-	 * Fully-qualified constant names collected from the parsed stubs.
-	 * Includes both `const FOO = ...;` declarations and `define('FOO', ...)` calls.
+	 * The constant names the stubs declare, through const statements and define() calls.
 	 *
-	 * @var list<string>
+	 * @var     list<string>
 	 */
 	public array $constants = array();
 
+	// endregion
+
+	// region INHERITED METHODS
+
 	/**
 	 * {@inheritDoc}
-	 *
-	 * @param \PhpParser\Node $node Node being visited.
 	 */
 	#[\Override]
-	public function enterNode( \PhpParser\Node $node ): int|null {
+	public function enterNode( Node $node ): int|null {
 		switch ( \get_class( $node ) ) {
-			// Class-like declarations all flow into `$classes` — php-scoper's `exclude-classes` covers all of them.
-			case \PhpParser\Node\Stmt\Class_::class:
-			case \PhpParser\Node\Stmt\Interface_::class:
-			case \PhpParser\Node\Stmt\Trait_::class:
-			case \PhpParser\Node\Stmt\Enum_::class:
+			case Node\Stmt\Class_::class:
+			case Node\Stmt\Interface_::class:
+			case Node\Stmt\Trait_::class:
+			case Node\Stmt\Enum_::class:
 				if ( null !== $node->namespacedName ) {
 					$this->collect( $this->classes, $node->namespacedName->toString() );
 				}
-				return \PhpParser\NodeVisitor::DONT_TRAVERSE_CHILDREN;
-			case \PhpParser\Node\Stmt\Function_::class:
+				return NodeVisitor::DONT_TRAVERSE_CHILDREN;
+			case Node\Stmt\Function_::class:
 				if ( null !== $node->namespacedName ) {
 					$this->collect( $this->functions, $node->namespacedName->toString() );
 				}
 				break;
-			case \PhpParser\Node\Stmt\Const_::class:
+			case Node\Stmt\Const_::class:
 				foreach ( $node->consts as $const ) {
 					if ( null !== $const->namespacedName ) {
 						$this->collect( $this->constants, $const->namespacedName->toString() );
 					}
 				}
 				break;
-			case \PhpParser\Node\Expr\FuncCall::class:
-				if ( ! $node->name instanceof \PhpParser\Node\Name ) {
+			case Node\Expr\FuncCall::class:
+				if ( ! $node->name instanceof Node\Name ) {
 					break;
 				}
-				// `define('NAME', ...)` registers a global constant and `class_alias('Real', 'Alias')`
-				// registers `Alias` as a real referenceable class name; both must be excluded so scoped
-				// code that references them is not prefixed into a runtime "not found".
+				// A define() name and a class_alias() alias are real symbols, so scoped code that references them must keep them unprefixed.
 				$function = $node->name->toString();
 				if ( 'define' === $function ) {
 					$this->collect_string_argument( $this->constants, $node, 0 );
@@ -84,39 +87,42 @@ final class StubSymbolCollector extends \PhpParser\NodeVisitorAbstract {
 				}
 				break;
 		}
+
 		return null;
 	}
 
+	// endregion
+
+	// region HELPERS
+
 	/**
-	 * Adds a symbol only when it matches php-scoper's exclusion-name shape.
+	 * Adds a symbol when it has the name shape php-scoper's exclusion lists accept.
 	 *
-	 * @param list<string> $symbols Symbol list to append to.
-	 * @param string       $symbol  Harvested symbol name.
-	 *
-	 * @return void
+	 * @param   list<string> $symbols The symbol list to append to.
+	 * @param   string       $symbol  The symbol name.
 	 */
-	private function collect( array &$symbols, string $symbol ): void {
+	protected function collect( array &$symbols, string $symbol ): void {
 		if ( 1 === \preg_match( self::SYMBOL_NAME_REGEX, $symbol ) ) {
 			$symbols[] = $symbol;
 		}
 	}
 
 	/**
-	 * Collects the string value of a function-call argument at a given position, when present.
+	 * Adds the string literal a function call passes at a position, when there is one.
 	 *
-	 * @param list<string>                  $symbols Symbol list to append to.
-	 * @param \PhpParser\Node\Expr\FuncCall $node    Function-call node.
-	 * @param int                           $index   Zero-based argument position to read.
-	 *
-	 * @return void
+	 * @param   list<string>       $symbols The symbol list to append to.
+	 * @param   Node\Expr\FuncCall $node    The function call.
+	 * @param   int                $index   The zero-based argument position.
 	 */
-	private function collect_string_argument( array &$symbols, \PhpParser\Node\Expr\FuncCall $node, int $index ): void {
+	protected function collect_string_argument( array &$symbols, Node\Expr\FuncCall $node, int $index ): void {
 		if (
 			isset( $node->args[ $index ] )
-			&& $node->args[ $index ] instanceof \PhpParser\Node\Arg
-			&& $node->args[ $index ]->value instanceof \PhpParser\Node\Scalar\String_
+			&& $node->args[ $index ] instanceof Node\Arg
+			&& $node->args[ $index ]->value instanceof Node\Scalar\String_
 		) {
 			$this->collect( $symbols, $node->args[ $index ]->value->value );
 		}
 	}
+
+	// endregion
 }
