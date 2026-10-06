@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Config\Tests\Unit;
+namespace WordPressConfigs\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -13,7 +13,7 @@ final class PhpcsProfilesTest extends TestCase {
 
 	#[\Override]
 	protected function setUp(): void {
-		$this->scan_dir = ( \realpath( \sys_get_temp_dir() ) ?: \sys_get_temp_dir() ) . '/dws-wp-configs-phpcs-' . \uniqid();
+		$this->scan_dir = ( \realpath( \sys_get_temp_dir() ) ?: \sys_get_temp_dir() ) . '/wp-configs-phpcs-' . \uniqid();
 		\mkdir( $this->scan_dir );
 	}
 
@@ -81,13 +81,13 @@ final class PhpcsProfilesTest extends TestCase {
 		\mkdir( $this->scan_dir . '/theme' );
 		\file_put_contents( $this->scan_dir . '/theme/index.php', "<?php\n\nget_header();\necho get_query_var( 'paged' );\nget_footer();\n" );
 
-		self::assertContains( 'WordPress.Security.EscapeOutput.OutputNotEscaped', $this->scan( self::RULESET_DIR . '/phpcs.dist.xml' )['theme/index.php'] ?? array() );
+		self::assertArrayHasKey( 'WordPress.Security.EscapeOutput.OutputNotEscaped', $this->scan( self::RULESET_DIR . '/phpcs.dist.xml' )['theme/index.php'] ?? array() );
 	}
 
 	public function test_production_profile_reports_unsanitized_input(): void {
 		\file_put_contents( $this->scan_dir . '/input.php', "<?php declare( strict_types=1 );\n\n\$name = wp_unslash( \$_POST['name'] ?? '' );\n" );
 
-		self::assertContains( 'WordPress.Security.ValidatedSanitizedInput.InputNotSanitized', $this->scan( self::RULESET_DIR . '/phpcs.dist.xml' )['input.php'] ?? array() );
+		self::assertArrayHasKey( 'WordPress.Security.ValidatedSanitizedInput.InputNotSanitized', $this->scan( self::RULESET_DIR . '/phpcs.dist.xml' )['input.php'] ?? array() );
 	}
 
 	/**
@@ -113,14 +113,14 @@ final class PhpcsProfilesTest extends TestCase {
 		\file_put_contents( $this->scan_dir . '/phpcs.xml', '<?xml version="1.0"?><ruleset name="Consumer"><rule ref="' . self::RULESET_DIR . '/phpcs.dist.xml"/>' . $after_profile . '</ruleset>' );
 		\file_put_contents( $this->scan_dir . '/floors.php', "<?php declare( strict_types=1 );\n\nfunction acme_probe( mixed \$value ): void {\n\taddslashes_gpc( \$value );\n}\n" );
 
-		$sources = $this->scan( $this->scan_dir . '/phpcs.xml', '--warning-severity=0', ...$arguments )['floors.php'] ?? array();
+		$sources = $this->scan( $this->scan_dir . '/phpcs.xml', ...$arguments )['floors.php'] ?? array();
 
-		self::assertSame( $lowered, \in_array( 'PHPCompatibility.FunctionDeclarations.NewParamTypeDeclarations.mixedFound', $sources, true ) );
-		self::assertSame( ! $lowered, \in_array( 'WordPress.WP.DeprecatedFunctions.addslashes_gpcFound', $sources, true ) );
+		self::assertSame( $lowered ? 'ERROR' : null, $sources['PHPCompatibility.FunctionDeclarations.NewParamTypeDeclarations.mixedFound'] ?? null );
+		self::assertSame( $lowered ? 'WARNING' : 'ERROR', $sources['WordPress.WP.DeprecatedFunctions.addslashes_gpcFound'] ?? null );
 	}
 
 	/**
-	 * @return array<string, list<string>>
+	 * @return array<string, array<string, string>>
 	 */
 	protected function scan( string $standard, string ...$arguments ): array {
 		$command = \sprintf(
@@ -144,7 +144,8 @@ final class PhpcsProfilesTest extends TestCase {
 			foreach ( $result['messages'] as $message ) {
 				self::assertIsArray( $message );
 				self::assertIsString( $message['source'] );
-				$sources[ (string) $file ][] = $message['source'];
+				self::assertIsString( $message['type'] );
+				$sources[ (string) $file ][ $message['source'] ] = $message['type'];
 			}
 		}
 

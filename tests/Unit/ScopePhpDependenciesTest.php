@@ -1,12 +1,12 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Config\Tests\Unit;
+namespace WordPressConfigs\Tests\Unit;
 
-use DeepWebSolutions\Config\Composer\ScopePhpDependencies;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
+use WordPressConfigs\Composer\ScopePhpDependencies;
 
 final class ScopePhpDependenciesTest extends TestCase {
 
@@ -407,7 +407,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 	 * @param list<string>|null    $installed
 	 */
 	protected static function make_project( array $names = array( 'acme/commerce', 'acme/legacy' ), array $extra = array(), ?array $installed = null, string $vendor = 'vendor' ): string {
-		$project          = ( \realpath( \sys_get_temp_dir() ) ?: \sys_get_temp_dir() ) . '/dws wp-configs scoping ' . \uniqid();
+		$project          = ( \realpath( \sys_get_temp_dir() ) ?: \sys_get_temp_dir() ) . '/wp-configs scoping ' . \uniqid();
 		self::$projects[] = $project;
 		\mkdir( $project . '/' . $vendor . '/composer', 0777, true );
 		new Filesystem()->mirror( self::FIXTURE_DIR . '/stubs', $project . '/stubs' );

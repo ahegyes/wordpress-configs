@@ -2,7 +2,7 @@
 /**
  * Declares the API of a host plugin that publishes no stubs package.
  *
- * @package DeepWebSolutions\Config\Tests
+ * @package WordPressConfigs\Tests
  */
 
 /**

@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Config\Composer\Internal;
+namespace WordPressConfigs\Composer\Internal;
 
 use PhpParser\Node;
 use PhpParser\NodeTraverser;
@@ -12,7 +12,7 @@ use PhpParser\Parser;
 /**
  * Collects the symbols scoped code declares and the prefixed names it references.
  *
- * It reads the parent and namespacedName attributes that a ParentConnectingVisitor and a NameResolver set earlier in the same traversal.
+ * It reads the parent attribute that a ParentConnectingVisitor sets and the namespacedName property that a NameResolver sets, both earlier in the same traversal.
  *
  * @internal
  */

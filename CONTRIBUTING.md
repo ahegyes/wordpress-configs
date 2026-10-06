@@ -1,54 +1,35 @@
 # Contributing
 
-## Consumption model
+Consumers install `trunk` directly: Composer projects require `dev-trunk`, and workflow and npm consumers pin a `trunk` commit. Merge nothing to `trunk` that you would not release. A change to a Composer callback, a shared ruleset or a Node baseline reaches every Composer consumer at its next update, so state its consumer impact as for a workflow input.
 
-wordpress-configs is consumed via `dev-trunk` only — no version tags or releases are published. Every change to `trunk` propagates to downstream consumers' next `composer update` on the PHP side. This repo's internal third-party action refs are SHA-pinned and dependabot-tracked; reusable GitHub Actions workflows are consumed through SHA-pinned `uses:` refs tracked by dependabot, which carries `trunk` changes into consumers without mutable refs.
+## Before opening a pull request
 
-Practical consequences:
-- Treat `trunk` as if it were a tagged release. Don't merge anything to `trunk` that you wouldn't tag.
-- Breaking changes to Composer script signatures or ruleset behavior are immediately felt by every PHP consumer; reusable workflow changes are felt when consumers accept dependabot SHA bumps. Changes to the privileged `release` and `wp-org` jobs in `reusable-release.yml` are reviewed in consumers, never automerged.
+Install the dependencies on the PHP, Composer, Node and npm versions the README lists, then run the local equivalents of the CI checks:
 
-## Development setup
-
-Requires PHP 8.5+, Composer 2.x, and — for the Node baselines — Node 26+ / npm 11+.
-
-```bash
-composer install         # PHP deps + PHPUnit
-npm install              # Node configs' peer deps for local linting
-composer test            # PHPUnit unit suite
-```
-
-## Before opening a PR
-
-CI runs more than `composer test`: `quality.yml` runs the PHP-lint, PHP-syntax, PHPCS-dist-smoke, ESLint, Node-config-smoke, supply-chain, block.json-schema and Plugin Check gates, `tests.yml` runs the PHPUnit suite, and `workflow-checks.yml` runs actionlint and zizmor. The commands below mirror those with a local equivalent:
-
-```bash
-composer lint:php        # phpcs + phpstan
-composer test            # unit suite
+```sh
+composer install
+npm install
+composer validate --strict
+composer quality-check
 composer audit --abandoned=report
-npm run lint:scripts     # ESLint over node/ + the config-smoke harness
-npm run lint:config      # load-check the eslint / stylelint / postcss / tsconfig / playwright baselines
+npm run lint:scripts
+npm run lint:config
 npm audit --omit=dev --audit-level=high
-actionlint               # workflow YAML
-zizmor --config .github/zizmor.yml .github/   # workflow security
+actionlint
+zizmor --config .github/zizmor.yml .github/
 ```
 
-The scoping pipeline runs in a consumer's development install. This repository's end-to-end test scopes a fixture project instead, so there is no build step to run here.
-
-## Tests
-
-PHPUnit tests live under `tests/Unit/`. They run the real tools, PHPCS, PHPStan and php-scoper, on fixtures copied to a temporary directory rather than on mocks.
-
-Mutation testing is opt-in: `composer test:unit:mutation` runs Infection over `php/` and reports the mutation score, which no gate or floor enforces.
+`composer quality-check` runs both PHPCS profiles, PHPStan and the unit suite. CI also runs smokes with no local command, such as Plugin Check, the older-PHP syntax lane and CodeQL; [tests/README.md](tests/README.md) describes the test tiers.
 
 ## Reusable workflows are public API
 
-Anything in `.github/workflows/reusable-*.yml` is consumed by external repositories via SHA-pinned refs such as `uses: ahegyes/wordpress-configs/.github/workflows/X.yml@<sha>`, with dependabot tracking new `trunk` commits. Build-side reusable bumps may be automerged by consumer policy; changes to the privileged `release` and `wp-org` jobs in `reusable-release.yml` are reviewed, never automerged in consumers. Give every input a `description:` in the workflow's `inputs:` block — that's the authoritative reference — and add the input to its workflow's table in `docs/workflows.md`.
+Shipped `workflow_call` input names, types and semantics are frozen. An input may be added only when it is optional and its default keeps the current behavior. Renaming, removing or re-typing an input, or changing a default in a way callers can see, is a coordinated migration: land the change and move every consumer's pin in the same window, never by automerge, because a caller passing an input the workflow no longer declares fails at startup without a failed check on the pull request that moved the pin.
 
-The safe-evolution rule: shipped `workflow_call` input names, types, and semantics are frozen. Adding an input is compatible only when it is optional and its default preserves current behavior. Renaming, removing, or re-typing a shipped input — or changing a default in a behavior-visible way — is a coordinated migration: land the change and bump every consumer's pin in the same window, and never let that bump automerge. A caller passing an input the workflow no longer declares fails at startup, which GitHub does not surface as a failed check on the PR that took the bump.
+Give every input a `description:` in the workflow and a row in [docs/workflows.md](docs/workflows.md). Consumers review, never automerge, a pin bump that changes the release workflow's `release` or `wp-org` jobs.
 
 ## Filing changes
 
-- One PR per concern (don't bundle a Composer script change with a PHPCS ruleset bump).
-- Include a one-line summary of consumer impact in the PR description, especially for reusable workflows.
-- The PR template prompts for breaking-change disclosure — fill it in honestly.
+- Keep one concern per pull request.
+- State the consumer impact in the description, especially for a reusable workflow.
+- Fill in the template's breaking-changes section.
+- Follow the code, documentation and commit conventions in [AGENTS.md](AGENTS.md).

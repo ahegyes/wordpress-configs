@@ -38,7 +38,7 @@ jobs:
     uses: ./.github/workflows/reusable-php-syntax-check.yml
     with:
       php-versions: '["7.4"]'
-      paths: '["tests/fixtures/dws-build-fixture"]'
+      paths: '["tests/fixtures/build-fixture"]'
 
   phpcs-smoke:
     name: PHPCS dist-file smoke
@@ -120,8 +120,8 @@ jobs:
       - name: Upload the fixture build
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: dws-build-fixture
-          path: tests/fixtures/dws-build-fixture
+          name: build-fixture
+          path: tests/fixtures/build-fixture
           include-hidden-files: true
           retention-days: 1
 
@@ -133,5 +133,5 @@ jobs:
       contents: read
     uses: ./.github/workflows/reusable-plugin-check.yml
     with:
-      artifact: dws-build-fixture
-      plugin-slug: dws-build-fixture
+      artifact: build-fixture
+      plugin-slug: build-fixture
