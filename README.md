@@ -7,7 +7,7 @@ Shared PHPCS, PHPStan and php-scoper configurations, Node tool baselines and reu
 - PHP 8.5 or later, and Composer 2.
 - For the Node baselines only, Node 26 or later and npm 11 or later.
 
-The shared PHPCS and PHPStan profiles check code against PHP 8.5 or later and WordPress 7.1 or later; a project with lower floors [lowers them](docs/scripts-contract.md#lowering-the-floors).
+The shared PHPCS profiles check code against PHP 8.5 or later and WordPress 7.1 or later, and the PHPStan profile against WordPress 7.1 or later; a project with lower floors lowers them as [the scripts contract](docs/scripts-contract.md#lowering-the-floors) shows for PHPCS and [its PHPStan section](docs/scripts-contract.md#phpstan) for PHPStan.
 
 ## Installation
 

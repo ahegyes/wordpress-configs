@@ -9,7 +9,7 @@ use PhpParser\NodeVisitorAbstract;
 /**
  * Collects the fully-qualified class, function and constant names a stubs file declares.
  *
- * It reads the namespacedName attribute that a NameResolver sets earlier in the same traversal, and files every class-like into the class list, because php-scoper's exclude-classes covers them all.
+ * It reads the namespacedName property that a NameResolver sets earlier in the same traversal, and files every class-like into the class list, because php-scoper's exclude-classes covers them all.
  *
  * @internal
  */
@@ -24,7 +24,7 @@ final class StubSymbolCollector extends NodeVisitorAbstract {
 	protected const SYMBOL_NAME_REGEX = '/^\\\\?[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff\\\\]*$/';
 
 	/**
-	 * The class names the stubs declare, including class_alias() targets.
+	 * The class names the stubs declare, including the aliases class_alias() calls declare.
 	 *
 	 * @var     list<string>
 	 */

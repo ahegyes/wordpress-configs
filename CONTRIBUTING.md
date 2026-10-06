@@ -1,14 +1,15 @@
 # Contributing
 
-Consumers install `trunk` directly: Composer projects require `dev-trunk`, and workflow and npm consumers pin a `trunk` commit. Merge nothing to `trunk` that you would not release.
+Consumers install `trunk` directly: Composer projects require `dev-trunk`, and workflow and npm consumers pin a `trunk` commit. Merge nothing to `trunk` that you would not release. A change to a Composer callback, a shared ruleset or a Node baseline reaches every Composer consumer at its next update, so state its consumer impact as for a workflow input.
 
 ## Before opening a pull request
 
-Install the dependencies on the PHP, Composer, Node and npm versions the README lists, then run the checks CI runs:
+Install the dependencies on the PHP, Composer, Node and npm versions the README lists, then run the local equivalents of the CI checks:
 
 ```sh
 composer install
 npm install
+composer validate --strict
 composer quality-check
 composer audit --abandoned=report
 npm run lint:scripts
@@ -18,7 +19,7 @@ actionlint
 zizmor --config .github/zizmor.yml .github/
 ```
 
-`composer quality-check` runs both PHPCS profiles, PHPStan and the unit suite; [tests/README.md](tests/README.md) describes the test tiers.
+`composer quality-check` runs both PHPCS profiles, PHPStan and the unit suite. CI also runs smokes with no local command, such as Plugin Check, the older-PHP syntax lane and CodeQL; [tests/README.md](tests/README.md) describes the test tiers.
 
 ## Reusable workflows are public API
 
