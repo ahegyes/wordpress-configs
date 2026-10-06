@@ -74,7 +74,7 @@ trait RunsWorkflowSteps {
 		\file_put_contents( $this->work_dir . '/github-output', '' );
 		\file_put_contents( $log, '' );
 		$process = \proc_open(
-			array( 'bash', '--noprofile', '--norc', '-eo', 'pipefail', $this->work_dir . '/step.sh' ), // The default bash shell of GitHub Actions.
+			array( 'bash', '--noprofile', '--norc', '-eo', 'pipefail', $this->work_dir . '/step.sh' ), // The flags GitHub Actions runs a step's script with.
 			array(
 				1 => array( 'file', $log, 'a' ),
 				2 => array( 'file', $log, 'a' ),

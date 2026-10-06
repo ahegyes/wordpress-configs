@@ -11,6 +11,33 @@ final class ReleaseWorkflowTest extends TestCase {
 	use RunsWorkflowSteps;
 
 	/**
+	 * @return array<string, array{string, int}>
+	 */
+	public static function provide_entry_files(): array {
+		return array(
+			'root-file'      => array( 'main.php', 0 ),
+			'dot-prefixed'   => array( './main.php', 1 ),
+			'in-a-subfolder' => array( 'src/main.php', 1 ),
+		);
+	}
+
+	#[DataProvider( 'provide_entry_files' )]
+	public function test_entry_file_must_be_a_file_at_the_project_root( string $entry_file, int $expected_status ): void {
+		$result = $this->run_build_step(
+			'Enforce release inputs',
+			array(
+				'ENTRY_FILE'   => $entry_file,
+				'REF_TYPE'     => 'branch',
+				'REF_NAME'     => 'trunk',
+				'PUBLISH'      => 'false',
+				'PROJECT_PATH' => '.',
+			)
+		);
+
+		self::assertSame( $expected_status, $result['status'], $result['output'] );
+	}
+
+	/**
 	 * @return array<string, array{string, string, ?string, int}>
 	 */
 	public static function provide_versions(): array {
@@ -27,7 +54,7 @@ final class ReleaseWorkflowTest extends TestCase {
 	#[DataProvider( 'provide_versions' )]
 	public function test_versions_must_agree( string $tag_version, string $wp_org, ?string $stable_tag, int $expected_status ): void {
 		$files = array( 'main.php' => self::plugin_header( array( 'Version' => '1.2.3' ) ) );
-		if ( null !== $stable_tag ) {
+		if ( ! \is_null( $stable_tag ) ) {
 			$files['readme.txt'] = "=== Acme Plugin ===\nStable tag: $stable_tag\n";
 		}
 		$this->write_project( $files );
@@ -60,7 +87,7 @@ final class ReleaseWorkflowTest extends TestCase {
 
 	#[DataProvider( 'provide_text_domains' )]
 	public function test_text_domain_must_equal_the_slug( string $header, ?string $composer, int $expected_status ): void {
-		$extra = null === $composer ? array() : array( 'text-domain' => $composer );
+		$extra = \is_null( $composer ) ? array() : array( 'text-domain' => $composer );
 		$this->write_project(
 			array(
 				'main.php'      => self::plugin_header( array( 'Text Domain' => $header ) ),
@@ -157,6 +184,15 @@ final class ReleaseWorkflowTest extends TestCase {
 				array( 'acme/framework' => $framework ),
 				1,
 				'woocommerce',
+			),
+			'constraint-forms-composer-reads'           => array(
+				array( 'Requires PHP' => '7.4' ),
+				array(
+					'acme/range'   => array( 'require' => array( 'php' => '7.4 - 8.3' ) ),
+					'acme/preview' => array( 'require' => array( 'php' => '>=7.2.0-dev' ) ),
+				),
+				0,
+				'',
 			),
 			'php-header-below-a-vendor-package'         => array(
 				array( 'Requires PHP' => '7.1' ),

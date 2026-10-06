@@ -129,7 +129,11 @@ jobs:
             exit 1
           fi
           validate_path_input 'project-path' "$PROJECT_PATH"
-          validate_path_input 'entry-file' "$ENTRY_FILE"
+          # WordPress reads plugin headers only from files at the plugin's root.
+          if ! printf '%s' "$ENTRY_FILE" | grep -Eq '^[A-Za-z0-9._-]+\.php$'; then
+            echo "::error::entry-file must be a PHP file name at the project root — got '$ENTRY_FILE'."
+            exit 1
+          fi
 
           echo "tag-version=$tag_version" >> "$GITHUB_OUTPUT"
 
@@ -265,11 +269,12 @@ jobs:
               $lowest = null;
               foreach (preg_split('/\s*\|\|?\s*/', trim($constraint)) as $alternative) {
                   $bound = '0.0.0';
-                  foreach (preg_split('/[\s,]+/', (string) preg_replace('/(?<=[<>=~^!])\s+/', '', $alternative)) as $part) {
+                  $alternative = (string) preg_replace(['/(?<=[<>=~^!])\s+/', '/\s+-\s+\S+/'], '', $alternative);
+                  foreach (preg_split('/[\s,]+/', $alternative) as $part) {
                       if ('*' === $part || preg_match('/^(?:<|<=|!=)/', $part)) {
                           continue;
                       }
-                      if (!preg_match('/^(?:>=|>|==?|\^|~)?v?(\d+(?:\.\d+)*)(?:\.[*x])?(?:@\w+)?$/i', $part, $match)) {
+                      if (!preg_match('/^(?:>=|>|==?|\^|~)?v?(\d+(?:\.\d+)*)(?:\.[*x])?(?:-[a-z]+[.\d]*)?(?:@\w+)?$/i', $part, $match)) {
                           return null;
                       }
                       if (version_compare($normalize($match[1]), $bound, '>')) {
@@ -627,6 +632,7 @@ jobs:
 
   provenance:
     name: Verify release provenance
+    if: ${{ inputs.publish }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -723,7 +729,7 @@ jobs:
 
   wp-org:
     name: Deploy to wp.org
-    needs: [build, test, provenance]
+    needs: [build, test, provenance, release]
     if: ${{ inputs.publish && inputs.wp-org }}
     runs-on: ubuntu-latest
     timeout-minutes: 30

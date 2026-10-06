@@ -437,7 +437,7 @@ Each workflow's `inputs:` block (every input carries a `description:`) is the au
 
 **Node and PHP versions:** `reusable-scripts-styles-lint.yml`, `reusable-phpunit.yml` and `reusable-playwright-e2e.yml` install the Node version the project's `package.json` declares, in `engines.node` or in the `volta` or `devEngines` field `actions/setup-node` reads, and fail when it declares none. `reusable-phpunit.yml` and `reusable-playwright-e2e.yml` also pass `php-version` to wp-env as `WP_ENV_PHP_VERSION`, which wins over the `phpVersion` of its config files.
 
-**`reusable-supply-chain-audit.yml` and `fail-on-findings`:** `false` turns advisories and abandoned packages into warnings. A package on a Composer filter list, such as the malware list, still fails the audit, and the error names it.
+**`reusable-supply-chain-audit.yml` and `fail-on-findings`:** `false` turns advisories and abandoned packages into warnings. A package on a Composer filter list whose policy fails the audit, such as the malware list, still fails it, and the error names it.
 
 **`reusable-plugin-check.yml`:** checks a built plugin directory, uploaded as an artifact earlier in the calling workflow, with WordPress Plugin Check in a fresh wp-env, after activating the plugin on `php-version`. The default GitHub profile skips `plugin_updater` and `plugin_readme`, which report two by-design traits of a GitHub-distributed build, its `Update URI` header and its missing `readme.txt`; `wp-org: true` runs the full set. Plugin Check skips `vendor-prefixed/`, so scoped dependencies are checked at their source instead. The job fails on any error, while warnings only annotate. The action installs the newest Plugin Check release from wp.org, not a pinned one.
 
@@ -540,11 +540,11 @@ The reusable runs five jobs:
 
 - `build` (read-only, no secrets) checks the release metadata, installs Composer and npm dependencies on the Node version `package.json` declares, regenerates the POT, prunes to production dependencies, builds the zip, asserts its contents, runs Plugin Check, and outputs the version and the zip's SHA-256.
 - `test` (read-only, no secrets) mounts the extracted zip in the project's own wp-env, activates it with `wp plugin activate`, requests the home page, and runs `npm run test:e2e` when the project defines it, after installing Chromium when `@playwright/test` is installed.
-- `provenance` (`actions: read`) requires a successful push run of every file in `required-workflows`, by default `.github/workflows/quality.yml` and `.github/workflows/tests.yml`, on the released commit, so a release reuses the suites proven there.
+- `provenance` (`actions: read`) requires a successful push run of every file in `required-workflows`, by default `.github/workflows/quality.yml` and `.github/workflows/tests.yml`, on the released commit, so a release reuses the suites proven there; tag a commit once they pass. It runs only when `publish` is on.
 - `release` (`contents: write`) verifies the zip's digest and creates the GitHub release with the zip attached. Its notes are the version's section of `CHANGELOG.md` when that file exists, and GitHub's generated notes otherwise.
-- `wp-org` runs only with `wp-org: true`. It deploys the same zip and the `.wordpress-org` assets to wp.org SVN from the `wp-org-release` environment, the only job that holds the SVN credentials.
+- `wp-org` runs only with `wp-org: true`, after `release`. It deploys the same zip and the `.wordpress-org` assets to wp.org SVN from the `wp-org-release` environment, the only job that holds the SVN credentials.
 
-`publish: false` skips `release` and `wp-org` and runs the other jobs on any ref, which exercises the release path without a tag.
+`publish: false` skips `provenance`, `release` and `wp-org` and runs `build` and `test` on any ref, which exercises the release path without a tag.
 
 No `secrets:` block: the `wp-org` job reads `SVN_USERNAME` / `SVN_PASSWORD` from the **calling repository's** `wp-org-release` environment secrets directly (environment secrets cannot be passed through `workflow_call`). Create that environment in your plugin repo, store the two secrets there — and only there — and attach whatever deployment-protection rules you want (required reviewers, wait timers, allowed branches); a preflight step fails the deploy with instructions when they are missing.
 
@@ -570,7 +570,7 @@ A package declares the WordPress version and the plugins it needs in its own `co
 }
 ```
 
-The entry file is `<plugin-slug>.php` at the project root unless `entry-file` names another. The version is taken from the tag and verified against the files, never stamped in. The artifact test needs the wp-env config, `.wp-env.json` or `wp-env-config-file`, to map `wp-content/plugins/<plugin-slug>` to the plugin source: it remaps exactly that `mappings` key at the built zip (co-mounted plugins, port, and lifecycle scripts survive the per-key merge) and pins the environment to the latest stable WordPress core, so the E2E suite runs against what actually ships on what users actually run.
+The entry file is `<plugin-slug>.php` at the project root unless `entry-file` names another file there. The version is taken from the tag and verified against the files, never stamped in. The artifact test needs the wp-env config, `.wp-env.json` or `wp-env-config-file`, to map `wp-content/plugins/<plugin-slug>` to the plugin source: it remaps exactly that `mappings` key at the built zip (co-mounted plugins, port, and lifecycle scripts survive the per-key merge) and pins the environment to the latest stable WordPress core, so the E2E suite runs against what actually ships on what users actually run.
 
 `plugin-check` defaults to `true`; a GitHub release skips `plugin_updater` and `plugin_readme`, as `reusable-plugin-check.yml` does, and `wp-org: true` runs the full set. `generate-pot` defaults to `true`: release regenerates `languages/<plugin-slug>.pot` before archive creation, so the shipped zip always carries a current catalog — set it to `false` only for plugins with no translatable strings.
 
