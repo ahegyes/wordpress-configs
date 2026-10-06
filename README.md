@@ -519,6 +519,7 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 concurrency:
   group: release
@@ -534,6 +535,8 @@ jobs:
     uses: ahegyes/wordpress-configs/.github/workflows/reusable-release.yml@<sha>
     with:
       plugin-slug: your-plugin-slug
+      # A dispatch on a branch rehearses the release without publishing it.
+      publish: ${{ github.ref_type == 'tag' }}
 ```
 
 The reusable runs five jobs:

@@ -357,7 +357,7 @@ jobs:
           fi
           status=0
           for file in "${required[@]}"; do
-            if ! printf '%s\n' "$entries" | grep -qxF "$file"; then
+            if ! grep -qxF -- "$file" <<< "$entries"; then
               echo "::error::Archive is missing $file."
               status=1
             fi
@@ -371,7 +371,7 @@ jobs:
           entries=$(unzip -Z1 "$PLUGIN_SLUG.zip")
           status=0
 
-          if ! printf '%s\n' "$entries" | grep -qxF "$PLUGIN_SLUG/vendor-prefixed/scoper-autoload.php"; then
+          if ! grep -qxF -- "$PLUGIN_SLUG/vendor-prefixed/scoper-autoload.php" <<< "$entries"; then
             echo "::error::Archive is missing $PLUGIN_SLUG/vendor-prefixed/scoper-autoload.php."
             status=1
           fi
@@ -383,7 +383,7 @@ jobs:
           fi
           while IFS= read -r pkg; do
             [ -n "$pkg" ] || continue
-            if ! printf '%s\n' "$entries" | grep -F -- "$PLUGIN_SLUG/$pkg/" | grep -q '[^/]$'; then
+            if ! grep -F -- "$PLUGIN_SLUG/$pkg/" <<< "$entries" | grep -q '[^/]$'; then
               echo "::error::Archive is missing scoped package $pkg/."
               status=1
             fi
