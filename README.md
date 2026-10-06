@@ -22,7 +22,7 @@ Add the VCS repository and require the package as a development dependency:
 }
 ```
 
-The root `composer.json` also declares `minimum-stability: dev` with `prefer-stable: true`, because this package requires `roave/security-advisories: dev-latest`, which fails a development install on any known advisory in the dependency graph, and `phpcompatibility/phpcompatibility-wp: ^3@alpha`. Composer honors stability flags only in the root package. The root package also allows the two Composer plugins that register the PHPCS standards and the PHPStan extensions; a non-interactive install fails without them:
+The root `composer.json` also declares `minimum-stability: dev` with `prefer-stable: true`, because this package requires the development branch of `roave/security-advisories`, which fails a development install on any known advisory in the dependency graph, and an alpha release of `phpcompatibility/phpcompatibility-wp`. Composer honors stability flags only in the root package. The root package also allows the two Composer plugins that register the PHPCS standards and the PHPStan extensions; a non-interactive install fails without them:
 
 ```json
 {
@@ -262,7 +262,7 @@ const baseConfig = require( '@ahegyes/wordpress-configs/node/playwright.config.b
 module.exports = defineConfig( { ...baseConfig, use: { ...baseConfig.use } } );
 ```
 
-The Playwright factory sets `testDir` to `tests/e2e/` and artifacts under `tests/.cache/artifacts/`, and returns the `@wordpress/scripts` `webServer` on the given port, which runs `npm run wp-env start`; a project that starts wp-env through its own script spreads `webServer` and sets `command`. For WordPress fixtures, import from `@wordpress/e2e-test-utils-playwright`; for accessibility scans, add `@axe-core/playwright` to the project's own devDependencies.
+The Playwright factory sets `testDir` to `tests/e2e/` and artifacts under `tests/.cache/artifacts/`, and returns the `@wordpress/scripts` `webServer` on the given port, which runs `npm run wp-env start`. It sets `WP_BASE_URL` and `WP_ARTIFACTS_PATH` only when they are unset, before loading the `@wordpress/scripts` config, which reads them once, so an exported value wins over `port` and a second call in the same process reuses the first configuration; a project that starts wp-env through its own script spreads `webServer` and sets `command`. For WordPress fixtures, import from `@wordpress/e2e-test-utils-playwright`; for accessibility scans, add `@axe-core/playwright` to the project's own devDependencies.
 
 ## Reusable workflows
 

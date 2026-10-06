@@ -12,7 +12,7 @@ The tests prove that the shared configs, the scoping pipeline and the reusable w
 - **CI smokes** (`.github/workflows/quality.yml`). Checks that run a shared config as a consumer would:
   - the PHPCS production profile explains itself with `phpcs -e` and scans `fixtures/plugin-stub/`;
   - `npm run lint:config` loads each Node baseline against the installed toolchain through `fixtures/node-config/smoke.mjs`;
-  - the PHP 7.4 syntax lane and Plugin Check run on `fixtures/dws-build-fixture/`;
+  - the syntax lane for files that must parse on an older PHP, and Plugin Check, run on `fixtures/dws-build-fixture/`;
   - the block.json check runs on `fixtures/block-json/`;
   - the supply-chain audit runs on this repository's own lockfiles.
 
@@ -32,7 +32,7 @@ This repository's own CI runs the PHP lint, PHP syntax, PHPUnit, scripts lint, s
 | --- | --- |
 | `block-json/` | The block.json check: one schema-valid block. |
 | `composer-audit/` | `SupplyChainAuditWorkflowTest`: reports captured from real Composer runs, one with a malware filter-list match and one with an advisory. |
-| `dws-build-fixture/` | The PHP 7.4 syntax lane and Plugin Check: a GitHub-distributed build with a scoped package under `vendor-prefixed/`. |
+| `dws-build-fixture/` | The older-PHP syntax lane and Plugin Check: a GitHub-distributed build with a scoped package under `vendor-prefixed/`. |
 | `node-config/` | `npm run lint:config`: the smoke harness and its probe inputs. |
 | `phpstan/` | `PhpstanConfigTest`: a level 10 probe and a project with nested vendor directories. |
 | `plugin-stub/` | The PHPCS smoke: a minimal, standards-compliant plugin. |

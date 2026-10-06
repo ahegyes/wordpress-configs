@@ -2,12 +2,12 @@
 
 This document is the reference for the reusable workflows in `.github/workflows/reusable-*.yml`: what each one runs, its `workflow_call` inputs, and the permissions a caller grants. Each input's `description:` in the workflow file is the authoritative wording; the tables below summarize it.
 
-A caller references a workflow by its full commit SHA, with the commit as a comment, because zizmor, which Workflow Checks runs, rejects any `uses:` reference that is not pinned to a commit SHA:
+A caller references a workflow by its full commit SHA, because zizmor, which Workflow Checks runs, rejects any `uses:` reference that is not pinned to a commit SHA:
 
 ```yaml
 jobs:
   phpunit:
-    uses: ahegyes/wordpress-configs/.github/workflows/reusable-phpunit.yml@<sha> # trunk
+    uses: ahegyes/wordpress-configs/.github/workflows/reusable-phpunit.yml@<sha>
 ```
 
 A reusable workflow cannot elevate above the caller's token, so a caller grants every permission the called jobs declare, or the call fails at startup. Each section names those permissions.
@@ -15,13 +15,13 @@ A reusable workflow cannot elevate above the caller's token, so a caller grants 
 ## Shared behavior
 
 - **Node.** `reusable-scripts-styles-lint.yml`, `reusable-phpunit.yml` (when it starts wp-env), `reusable-playwright-e2e.yml` and `reusable-release.yml` install the Node version the project's `package.json` declares, in `engines.node` or in the `volta` or `devEngines.runtime` fields that `actions/setup-node` reads, and fail when it declares none. `reusable-supply-chain-audit.yml` and `reusable-block-json-check.yml` run no project npm code and use a fixed Node.
-- **wp-env.** The workflows that start WordPress run the project's own `@wordpress/env`, the version its `package-lock.json` pins, so the project declares it in `devDependencies`. They export `php-version` as `WP_ENV_PHP_VERSION`, which wp-env applies over the `phpVersion` of its config files.
+- **wp-env.** The PHPUnit and Playwright workflows and the release's artifact test run the project's own `@wordpress/env`, the version its `package-lock.json` pins, so the project declares it in `devDependencies`. They export `php-version` as `WP_ENV_PHP_VERSION`, which wp-env applies over the `phpVersion` of its config files. Plugin Check, in `reusable-plugin-check.yml` and in the release build, starts its own environment through `WordPress/plugin-check-action`, without the project's wp-env config.
 - **Composer.** Installs pass `--ignore-platform-req=php+`, which ignores only the PHP upper bound, so a PHP newer than a package declares still installs while extension requirements and floors stay checked.
 - **Matrix inputs.** A JSON-array input that fans out into a matrix (`scripts`, `php-versions`, `languages`) must be non-empty: an empty array would expand to zero jobs and report success.
 
 ## block.json schema check — `reusable-block-json-check.yml`
 
-Finds every `block.json` under the project path, skipping `node_modules/` and `vendor/`, and validates each against the trunk schema from `schemas.wp.org`. It succeeds with a message when it finds none.
+Finds every `block.json` under the project path, skipping the `node_modules/` and `vendor/` directories at its top level, and validates each against the trunk schema from `schemas.wp.org`. It succeeds with a message when it finds none.
 
 | Input | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
@@ -214,10 +214,10 @@ The workflow runs five jobs:
 - `build` (`contents: read`, no secrets) checks the release metadata, installs Composer and npm dependencies without restoring a dependency cache, regenerates the POT, prunes to production dependencies, builds the zip, checks its contents, runs Plugin Check, and outputs the version and the zip's SHA-256.
 - `test` (`contents: read`, no secrets) mounts the extracted zip in the project's own wp-env, activates it with `wp plugin activate`, requests the home page, and runs `npm run test:e2e` when the project defines it, after installing Chromium when `@playwright/test` is installed.
 - `provenance` (`actions: read`) requires a successful push run of every file in `required-workflows` on the released commit, so a release reuses the suites proven there; tag a commit once they pass.
-- `release` (`contents: write`) verifies the zip's digest and creates the GitHub release with the zip attached. Its notes are the version's section of `CHANGELOG.md` when that file exists, and GitHub's generated notes otherwise.
+- `release` (`contents: write`) verifies the zip's digest and creates the GitHub release with the zip attached. Its notes are the version's section of `CHANGELOG.md` when that file exists, and the job fails when that section is missing; without the file, the notes are GitHub's generated notes.
 - `wp-org` runs only with `wp-org: true`, after `release`. It deploys the same zip and the `.wordpress-org` assets to wp.org SVN from the `wp-org-release` environment, the only job that holds the SVN credentials.
 
-`publish: false` skips `release` and `wp-org` and runs `build` and `test` on any ref, which exercises the release path without a tag. A dry run started with `workflow_dispatch`, such as one on trunk after CI passes, also runs `provenance`; a dry run on a pull request or a push skips it, because a pull request's merge commit has no push runs and a push would race the runs it looks up.
+`publish: false` skips `release` and `wp-org` and runs `build` and `test` on any branch or version tag, which exercises the release path without a tag. A dry run started with `workflow_dispatch`, such as one on trunk after CI passes, also runs `provenance`; a dry run on a pull request or a push skips it, because a pull request's merge commit has no push runs and a push would race the runs it looks up.
 
 The `build` job fails when:
 

@@ -50,5 +50,5 @@ zizmor --config .github/zizmor.yml .github/
 ## Limitations
 
 - `reusable-playwright-e2e.yml` and a full `reusable-release.yml` run have no target here: CI checks them with actionlint and zizmor, and the unit tests run the release's assertion steps.
-- `symfony/filesystem` and `symfony/finder` stay on 7.4, because `humbug/php-scoper` 0.18 caps them.
+- `symfony/filesystem` and `symfony/finder` stay a major behind their latest release, because `humbug/php-scoper` caps them.
 - The release's PHP-floor check reads a strict `>` lower bound as inclusive.

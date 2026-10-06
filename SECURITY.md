@@ -16,7 +16,7 @@ The reusable release workflow (`reusable-release.yml`) is SHA-pinned by downstre
 
 Its privileged jobs are gated by:
 - A version-tag guard: publishing requires a tag matching `^v(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}$`, checked at the top of the build job and again in the `wp-org` job before it deploys.
-- The `wp-org-release` GitHub Environment applies the consumer repository's deployment-protection rules.
+- The `wp-org-release` GitHub Environment applies the consumer repository's deployment-protection rules to the `wp-org` job; the `release` job runs without an environment.
 - `SVN_USERNAME` / `SVN_PASSWORD` exist only as `wp-org-release` environment secrets in the calling repository, never as `workflow_call` secrets.
 - The immutable SHA-pinned ref prevents credentialed release code from changing in a consumer without a reviewed pin bump.
 

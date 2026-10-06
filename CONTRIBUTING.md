@@ -20,7 +20,7 @@ composer test            # PHPUnit unit suite
 
 ## Before opening a PR
 
-CI runs more than `composer test`: `quality.yml` runs the PHP-lint, PHP-syntax, PHPCS-dist-smoke, ESLint, Node-config-smoke, supply-chain, and block.json-schema gates, while `tests.yml` runs the PHPUnit suite. The commands below mirror those with a local equivalent:
+CI runs more than `composer test`: `quality.yml` runs the PHP-lint, PHP-syntax, PHPCS-dist-smoke, ESLint, Node-config-smoke, supply-chain, block.json-schema and Plugin Check gates, `tests.yml` runs the PHPUnit suite, and `workflow-checks.yml` runs actionlint and zizmor. The commands below mirror those with a local equivalent:
 
 ```bash
 composer lint:php        # phpcs + phpstan
@@ -29,6 +29,8 @@ composer audit --abandoned=report
 npm run lint:scripts     # ESLint over node/ + the config-smoke harness
 npm run lint:config      # load-check the eslint / stylelint / postcss / tsconfig / playwright baselines
 npm audit --omit=dev --audit-level=high
+actionlint               # workflow YAML
+zizmor --config .github/zizmor.yml .github/   # workflow security
 ```
 
 The scoping pipeline runs in a consumer's development install. This repository's end-to-end test scopes a fixture project instead, so there is no build step to run here.
