@@ -423,7 +423,7 @@ Reusable GitHub Actions workflows live in `.github/workflows/reusable-*.yml`. Pl
 | `reusable-block-json-check.yml`       | Validates block.json against wp.org schema       | `project-path`                                               |
 | `reusable-plugin-check.yml`           | WordPress Plugin Check against a built plugin directory | `artifact`, `plugin-slug`, `php-version`, `wp-org`     |
 | `reusable-supply-chain-audit.yml`     | `composer audit` and `npm audit` of the committed lockfiles (parallel jobs) | `project-path`, `composer-audit`, `npm-audit`, `fail-on-findings`, plus `*-flags` |
-| `reusable-release.yml`                | Build the zip → test it in wp-env → verify provenance → publish a GitHub release, and optionally deploy to wp.org | `plugin-slug`, `project-path`, `entry-file`, `php-version`, `wp-env-config-file`, `wp-org`, `required-workflows`, `publish` (no secrets) |
+| `reusable-release.yml`                | Build the zip, test it in wp-env, verify provenance, and publish a GitHub release, with optional deployment to wp.org | `plugin-slug`, `project-path`, `entry-file`, `php-version`, `wp-env-config-file`, `wp-org`, `required-workflows`, `publish` (no secrets) |
 | `reusable-workflow-checks.yml`        | actionlint + zizmor with a blocking SARIF gate   | — (no inputs)                                                |
 | `reusable-codeql.yml`                 | CodeQL analysis across a language matrix         | `languages[]`                                                |
 
