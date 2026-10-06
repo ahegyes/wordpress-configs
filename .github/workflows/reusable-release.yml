@@ -49,7 +49,7 @@ on:
         required: false
         default: '[".github/workflows/quality.yml", ".github/workflows/tests.yml"]'
       publish:
-        description: 'Whether to create the GitHub release, and the wp.org deploy when wp-org is true. True requires a version tag; false runs every other job on any ref.'
+        description: 'Whether to create the GitHub release, and the wp.org deploy when wp-org is true. True requires a version tag; false builds and tests the release on any ref, and also checks provenance when the caller ran on workflow_dispatch.'
         type: boolean
         required: false
         default: true
@@ -218,11 +218,10 @@ jobs:
           node-version-file: ${{ inputs.project-path }}/package.json
           package-manager-cache: false
 
+      # A plain install restores no dependency cache, which another workflow could have written and Composer cannot check without dist checksums.
       - name: Install Composer dependencies (dev — runs the scoping pipeline)
-        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
-        with:
-          working-directory: ${{ inputs.project-path }}
-          composer-options: '--prefer-dist --ignore-platform-req=php+'
+        working-directory: ${{ inputs.project-path }}
+        run: composer install --no-interaction --no-progress --prefer-dist --ignore-platform-req=php+
 
       - name: Build assets
         working-directory: ${{ inputs.project-path }}
@@ -509,7 +508,7 @@ jobs:
       contents: read
     env:
       PLUGIN_SLUG: ${{ inputs.plugin-slug }}
-      WP_ENV_CONFIG_FILE: ${{ inputs.wp-env-config-file != '' && inputs.wp-env-config-file || '.wp-env.json' }}
+      WP_ENV_CONFIG_FILE: ${{ inputs.wp-env-config-file }}
       # wp-env lets this variable win over the config's phpVersion, so the artifact runs on the PHP the build was checked on.
       WP_ENV_PHP_VERSION: ${{ inputs.php-version }}
     steps:
@@ -559,10 +558,8 @@ jobs:
           package-manager-cache: false
 
       - name: Install Composer dependencies (E2E harness)
-        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
-        with:
-          working-directory: ${{ inputs.project-path }}
-          composer-options: '--prefer-dist --ignore-platform-req=php+'
+        working-directory: ${{ inputs.project-path }}
+        run: composer install --no-interaction --no-progress --prefer-dist --ignore-platform-req=php+
 
       - name: Install npm dependencies (E2E runner)
         working-directory: ${{ inputs.project-path }}
@@ -579,19 +576,25 @@ jobs:
           BUILT_PATH: ${{ github.workspace }}/built-test/${{ inputs.plugin-slug }}
         run: |
           key="wp-content/plugins/$PLUGIN_SLUG"
-          if [ ! -f "$WP_ENV_CONFIG_FILE" ] || ! jq -e --arg key "$key" '.mappings | has($key)' "$WP_ENV_CONFIG_FILE" > /dev/null; then
-            echo "::error::Release contract violation — $WP_ENV_CONFIG_FILE must exist and map \"$key\" to the plugin source; found mappings: $(jq -c '.mappings // {}' "$WP_ENV_CONFIG_FILE" 2> /dev/null || echo 'none')."
+          config="${WP_ENV_CONFIG_FILE:-.wp-env.json}"
+          if [ ! -f "$config" ] || ! jq -e --arg key "$key" '.mappings | has($key)' "$config" > /dev/null; then
+            echo "::error::Release contract violation — $config must exist and map \"$key\" to the plugin source; found mappings: $(jq -c '.mappings // {}' "$config" 2> /dev/null || echo 'none')."
             exit 1
           fi
           # wp-env layers env-scoped mappings over root, so cover root plus development and tests — otherwise a consumer's env.tests mapping shadows the built artifact and the E2E runs against source.
-          override="${WP_ENV_CONFIG_FILE%.json}.override.json"
+          override="${config%.json}.override.json"
           jq -n --arg key "$key" --arg built "$BUILT_PATH" '{core: null, mappings: {($key): $built}, env: {development: {mappings: {($key): $built}}, tests: {mappings: {($key): $built}}}}' > "$override"
           echo "Generated $override:"
           cat "$override"
 
       - name: Start wp-env
         working-directory: ${{ inputs.project-path }}
-        run: ./node_modules/.bin/wp-env --config "$WP_ENV_CONFIG_FILE" start
+        run: |
+          args=()
+          if [ -n "$WP_ENV_CONFIG_FILE" ]; then
+            args+=(--config "$WP_ENV_CONFIG_FILE")
+          fi
+          ./node_modules/.bin/wp-env "${args[@]}" start
 
       - name: Activate the built artifact
         working-directory: ${{ inputs.project-path }}
@@ -600,7 +603,11 @@ jobs:
           VERSION: ${{ needs.build.outputs.version }}
         run: |
           target="wp-content/plugins/$PLUGIN_SLUG"
-          run_cli() { ./node_modules/.bin/wp-env --config "$WP_ENV_CONFIG_FILE" run cli "$@"; }
+          args=()
+          if [ -n "$WP_ENV_CONFIG_FILE" ]; then
+            args+=(--config "$WP_ENV_CONFIG_FILE")
+          fi
+          run_cli() { ./node_modules/.bin/wp-env "${args[@]}" run cli "$@"; }
           if [ "$REQUIRES_SCOPED" = "true" ]; then
             run_cli test -f "$target/vendor-prefixed/scoper-autoload.php"
           fi
@@ -621,7 +628,7 @@ jobs:
         run: |
           # A boot-path fatal that survives activation surfaces on the next request. The consumer's
           # config governs the development port — the override file never touches it.
-          port=$(jq -r '.env.development.port // .port // 8888' "$WP_ENV_CONFIG_FILE")
+          port=$(jq -r '.env.development.port // .port // 8888' "${WP_ENV_CONFIG_FILE:-.wp-env.json}")
           curl --fail --silent --show-error --output /dev/null "http://localhost:${port}/"
 
       - name: Run E2E tests against built artifact
@@ -634,7 +641,8 @@ jobs:
 
   provenance:
     name: Verify release provenance
-    if: ${{ inputs.publish }}
+    # A dispatched dry run rehearses this check; a pull request's merge commit has no push runs, and a push-triggered dry run would race the runs it looks up.
+    if: ${{ inputs.publish || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
