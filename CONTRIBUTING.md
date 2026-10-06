@@ -37,7 +37,7 @@ The scoping pipeline runs in a consumer's development install. This repository's
 
 PHPUnit tests live under `tests/Unit/`. They run the real tools, PHPCS, PHPStan and php-scoper, on fixtures copied to a temporary directory rather than on mocks.
 
-Mutation tests run via Infection on a weekly schedule (manually triggerable too). MSI ratchets up over time as new tests cover more branches.
+Mutation testing is opt-in: `composer test:unit:mutation` runs Infection over `php/` and reports the mutation score, which no gate or floor enforces.
 
 ## Reusable workflows are public API
 

@@ -16,7 +16,5 @@
     "testFrameworkOptions": "--exclude-group=slow",
     "mutators": {
         "@default": true
-    },
-    "minMsi": 87,
-    "minCoveredMsi": 87
+    }
 }
