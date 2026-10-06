@@ -16,8 +16,8 @@ composer.json
 composer.lock
 package.json
 package-lock.json
-.phpcs.xml
-phpcs.dist.xml
+.phpcs*.xml*
+phpcs*.xml*
 .phpstan.neon
 phpstan.dist.neon
 phpunit.xml*
