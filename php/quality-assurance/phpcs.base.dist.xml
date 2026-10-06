@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- Shared PHPCS rules: phpcs.dist.xml and phpcs.tests.dist.xml both include this file, so edits here reach production and test code in every DWS repo. -->
+<!-- Shared PHPCS rules: phpcs.dist.xml and phpcs.tests.dist.xml both include this file, so edits here reach production and test code in every consumer project. -->
 <ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../vendor/squizlabs/php_codesniffer/phpcs.xsd">
 	<!-- What NOT to scan. -->
 	<!-- PHPCS matches each pattern as a case-insensitive regex over the absolute path: (?-i) keeps source folders such as src/Vendor/ in the scan, and literal dots are escaped. -->

@@ -6,7 +6,7 @@ wordpress-configs is consumed via `dev-trunk` only — no version tags or releas
 
 Practical consequences:
 - Treat `trunk` as if it were a tagged release. Don't merge anything to `trunk` that you wouldn't tag.
-- Breaking changes to Composer script signatures or ruleset behavior are immediately felt by every PHP consumer; reusable workflow changes are felt when consumers accept dependabot SHA bumps. Changes to the credentialed `deploy` path in `reusable-release.yml` are reviewed in consumers, never automerged.
+- Breaking changes to Composer script signatures or ruleset behavior are immediately felt by every PHP consumer; reusable workflow changes are felt when consumers accept dependabot SHA bumps. Changes to the privileged `release` and `wp-org` jobs in `reusable-release.yml` are reviewed in consumers, never automerged.
 
 ## Development setup
 
@@ -20,7 +20,7 @@ composer test            # PHPUnit unit suite
 
 ## Before opening a PR
 
-CI runs more than `composer test`: `quality.yml` runs the PHP-lint, PHP-syntax, PHPCS-dist-smoke, ESLint, Node-config-smoke, supply-chain, and block.json-schema gates, while `tests.yml` runs the PHPUnit suite. The commands below mirror those with a local equivalent:
+CI runs more than `composer test`: `quality.yml` runs the PHP-lint, PHP-syntax, PHPCS-dist-smoke, ESLint, Node-config-smoke, supply-chain, block.json-schema and Plugin Check gates, `tests.yml` runs the PHPUnit suite, and `workflow-checks.yml` runs actionlint and zizmor. The commands below mirror those with a local equivalent:
 
 ```bash
 composer lint:php        # phpcs + phpstan
@@ -29,6 +29,8 @@ composer audit --abandoned=report
 npm run lint:scripts     # ESLint over node/ + the config-smoke harness
 npm run lint:config      # load-check the eslint / stylelint / postcss / tsconfig / playwright baselines
 npm audit --omit=dev --audit-level=high
+actionlint               # workflow YAML
+zizmor --config .github/zizmor.yml .github/   # workflow security
 ```
 
 The scoping pipeline runs in a consumer's development install. This repository's end-to-end test scopes a fixture project instead, so there is no build step to run here.
@@ -37,11 +39,11 @@ The scoping pipeline runs in a consumer's development install. This repository's
 
 PHPUnit tests live under `tests/Unit/`. They run the real tools, PHPCS, PHPStan and php-scoper, on fixtures copied to a temporary directory rather than on mocks.
 
-Mutation tests run via Infection on a weekly schedule (manually triggerable too). MSI ratchets up over time as new tests cover more branches.
+Mutation testing is opt-in: `composer test:unit:mutation` runs Infection over `php/` and reports the mutation score, which no gate or floor enforces.
 
 ## Reusable workflows are public API
 
-Anything in `.github/workflows/reusable-*.yml` is consumed by external repositories via SHA-pinned refs such as `uses: ahegyes/wordpress-configs/.github/workflows/X.yml@<sha>`, with dependabot tracking new `trunk` commits. Build-side reusable bumps may be automerged by consumer policy; changes to the credentialed `deploy` path in `reusable-release.yml` are reviewed, never automerged in consumers. Give every input a `description:` in the workflow's `inputs:` block — that's the authoritative reference; add it to the README table only if it's commonly set.
+Anything in `.github/workflows/reusable-*.yml` is consumed by external repositories via SHA-pinned refs such as `uses: ahegyes/wordpress-configs/.github/workflows/X.yml@<sha>`, with dependabot tracking new `trunk` commits. Build-side reusable bumps may be automerged by consumer policy; changes to the privileged `release` and `wp-org` jobs in `reusable-release.yml` are reviewed, never automerged in consumers. Give every input a `description:` in the workflow's `inputs:` block — that's the authoritative reference — and add the input to its workflow's table in `docs/workflows.md`.
 
 The safe-evolution rule: shipped `workflow_call` input names, types, and semantics are frozen. Adding an input is compatible only when it is optional and its default preserves current behavior. Renaming, removing, or re-typing a shipped input — or changing a default in a behavior-visible way — is a coordinated migration: land the change and bump every consumer's pin in the same window, and never let that bump automerge. A caller passing an input the workflow no longer declares fails at startup, which GitHub does not surface as a failed check on the PR that took the bump.
 

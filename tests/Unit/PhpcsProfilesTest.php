@@ -47,7 +47,7 @@ final class PhpcsProfilesTest extends TestCase {
 			\file_put_contents( $this->scan_dir . '/' . $dir . '/x.php', "<?php declare( strict_types=1 );\n\n\$a = [];\n" );
 		}
 
-		self::assertSame( array( 'src/Vendor/x.php' ), \array_keys( $this->scan( $profile ) ) );
+		self::assertSame( array( 'src/Vendor/x.php' ), \array_keys( $this->scan( self::RULESET_DIR . '/' . $profile ) ) );
 	}
 
 	public function test_production_profile_skips_docblock_sniffs_in_patterns_directories(): void {
@@ -56,7 +56,7 @@ final class PhpcsProfilesTest extends TestCase {
 			\file_put_contents( $this->scan_dir . '/' . $dir . '/x.php', "<?php declare( strict_types=1 );\n\nclass X {}\n" );
 		}
 
-		self::assertSame( array( 'src/Patterns/x.php' ), \array_keys( $this->scan( 'phpcs.dist.xml' ) ) );
+		self::assertSame( array( 'src/Patterns/x.php' ), \array_keys( $this->scan( self::RULESET_DIR . '/phpcs.dist.xml' ) ) );
 	}
 
 	/**
@@ -74,32 +74,62 @@ final class PhpcsProfilesTest extends TestCase {
 		\mkdir( $this->scan_dir . '/assets' );
 		\file_put_contents( $this->scan_dir . '/assets/index.php', $stub );
 
-		self::assertSame( array(), $this->scan( 'phpcs.dist.xml' ) );
+		self::assertSame( array(), $this->scan( self::RULESET_DIR . '/phpcs.dist.xml' ) );
 	}
 
 	public function test_production_profile_lints_a_theme_index_file(): void {
 		\mkdir( $this->scan_dir . '/theme' );
 		\file_put_contents( $this->scan_dir . '/theme/index.php', "<?php\n\nget_header();\necho get_query_var( 'paged' );\nget_footer();\n" );
 
-		self::assertContains( 'WordPress.Security.EscapeOutput.OutputNotEscaped', $this->scan( 'phpcs.dist.xml' )['theme/index.php'] ?? array() );
+		self::assertContains( 'WordPress.Security.EscapeOutput.OutputNotEscaped', $this->scan( self::RULESET_DIR . '/phpcs.dist.xml' )['theme/index.php'] ?? array() );
 	}
 
 	public function test_production_profile_reports_unsanitized_input(): void {
 		\file_put_contents( $this->scan_dir . '/input.php', "<?php declare( strict_types=1 );\n\n\$name = wp_unslash( \$_POST['name'] ?? '' );\n" );
 
-		self::assertContains( 'WordPress.Security.ValidatedSanitizedInput.InputNotSanitized', $this->scan( 'phpcs.dist.xml' )['input.php'] ?? array() );
+		self::assertContains( 'WordPress.Security.ValidatedSanitizedInput.InputNotSanitized', $this->scan( self::RULESET_DIR . '/phpcs.dist.xml' )['input.php'] ?? array() );
+	}
+
+	/**
+	 * @return array<string, array{string, list<string>, bool}>
+	 */
+	public static function provide_floor_overrides(): array {
+		$floors = '<config name="testVersion" value="7.4-"/><config name="minimum_wp_version" value="6.8"/>';
+
+		return array(
+			'shared-floors'                  => array( '', array(), false ),
+			'config-in-the-consumer-ruleset' => array( $floors, array(), false ),
+			'floors-ruleset-included-after'  => array( '<rule ref="./floors.xml"/>', array(), true ),
+			'runtime-set'                    => array( '', array( '--runtime-set', 'testVersion', '7.4-', '--runtime-set', 'minimum_wp_version', '6.8' ), true ),
+		);
+	}
+
+	/**
+	 * @param list<string> $arguments
+	 */
+	#[DataProvider( 'provide_floor_overrides' )]
+	public function test_a_consumer_lowers_the_floors_only_after_the_profile( string $after_profile, array $arguments, bool $lowered ): void {
+		\file_put_contents( $this->scan_dir . '/floors.xml', '<?xml version="1.0"?><ruleset name="Floors"><config name="testVersion" value="7.4-"/><config name="minimum_wp_version" value="6.8"/></ruleset>' );
+		\file_put_contents( $this->scan_dir . '/phpcs.xml', '<?xml version="1.0"?><ruleset name="Consumer"><rule ref="' . self::RULESET_DIR . '/phpcs.dist.xml"/>' . $after_profile . '</ruleset>' );
+		\file_put_contents( $this->scan_dir . '/floors.php', "<?php declare( strict_types=1 );\n\nfunction acme_probe( mixed \$value ): void {\n\taddslashes_gpc( \$value );\n}\n" );
+
+		$sources = $this->scan( $this->scan_dir . '/phpcs.xml', '--warning-severity=0', ...$arguments )['floors.php'] ?? array();
+
+		self::assertSame( $lowered, \in_array( 'PHPCompatibility.FunctionDeclarations.NewParamTypeDeclarations.mixedFound', $sources, true ) );
+		self::assertSame( ! $lowered, \in_array( 'WordPress.WP.DeprecatedFunctions.addslashes_gpcFound', $sources, true ) );
 	}
 
 	/**
 	 * @return array<string, list<string>>
 	 */
-	protected function scan( string $profile ): array {
+	protected function scan( string $standard, string ...$arguments ): array {
 		$command = \sprintf(
-			'%s %s -q --report=json --no-colors --no-cache --standard=%s --basepath=%s %s 2>&1',
+			'%s %s -q --report=json --no-colors --no-cache --standard=%s --basepath=%s %s %s 2>&1',
 			\escapeshellarg( \PHP_BINARY ),
 			\escapeshellarg( __DIR__ . '/../../vendor/bin/phpcs' ),
-			\escapeshellarg( self::RULESET_DIR . '/' . $profile ),
+			\escapeshellarg( $standard ),
 			\escapeshellarg( $this->scan_dir ),
+			\implode( ' ', \array_map( 'escapeshellarg', $arguments ) ),
 			\escapeshellarg( $this->scan_dir )
 		);
 		$output  = (string) \shell_exec( $command );

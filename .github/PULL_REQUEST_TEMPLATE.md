@@ -15,7 +15,7 @@
 
 - [ ] Tests added or updated (PHPUnit suites under `tests/Unit/`)
 - [ ] `composer test` passes locally
-- [ ] If this changes a reusable workflow's inputs/outputs, `README.md` is updated to reflect the new contract
+- [ ] If this changes a reusable workflow's inputs/outputs, `docs/workflows.md` is updated to reflect the new contract
 - [ ] If this changes a ruleset, downstream consumer behavior is considered (this repo ships to `dev-trunk` consumers immediately)
 
 ## Breaking changes for downstream consumers
