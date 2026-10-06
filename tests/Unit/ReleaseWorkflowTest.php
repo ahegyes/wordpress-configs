@@ -267,6 +267,61 @@ final class ReleaseWorkflowTest extends TestCase {
 		self::assertSame( $expected_status, $result['status'], $result['output'] );
 	}
 
+	public function test_required_files_are_found_in_a_large_archive(): void {
+		$stage = $this->work_dir . '/stage/acme-plugin';
+		\mkdir( "$stage/assets", 0777, true );
+		\file_put_contents( "$stage/main.php", "<?php\n" );
+		for ( $i = 0; $i < 2500; $i++ ) {
+			\file_put_contents( \sprintf( '%s/assets/%s-%04d.txt', $stage, \str_repeat( 'a', 40 ), $i ), '' );
+		}
+		$zip = \escapeshellarg( $this->work_dir . '/project/acme-plugin.zip' );
+		\exec( \sprintf( 'cd %s && zip -q %s acme-plugin/main.php && zip -qr %s acme-plugin/assets', \escapeshellarg( \dirname( $stage ) ), $zip, $zip ), $output, $zip_status );
+		self::assertSame( 0, $zip_status );
+
+		$result = $this->run_build_step( 'Assert required files present', array( 'WP_ORG' => 'false' ) );
+
+		self::assertSame( 0, $result['status'], $result['output'] );
+	}
+
+	/**
+	 * @return array<string, array{string, string}>
+	 */
+	public static function provide_wp_env_config_files(): array {
+		return array(
+			'default-config' => array( '', 'start' ),
+			'named-config'   => array( '.wp-env.tests.json', '--config .wp-env.tests.json start' ),
+		);
+	}
+
+	#[DataProvider( 'provide_wp_env_config_files' )]
+	public function test_wp_env_gets_a_config_flag_only_for_a_named_file( string $config_file, string $expected_arguments ): void {
+		$this->write_project( array( 'node_modules/.bin/wp-env' => "#!/usr/bin/env bash\necho \"\$*\" > wp-env-arguments\n" ) );
+		\chmod( $this->work_dir . '/project/node_modules/.bin/wp-env', 0755 );
+
+		$result = $this->run_step( 'reusable-release.yml', 'test', 'Start wp-env', array( 'WP_ENV_CONFIG_FILE' => $config_file ) );
+
+		self::assertSame( 0, $result['status'], $result['output'] );
+		self::assertSame( "$expected_arguments\n", \file_get_contents( $this->work_dir . '/project/wp-env-arguments' ) );
+	}
+
+	public function test_artifact_redirect_defaults_to_the_standard_config(): void {
+		$this->write_project( array( '.wp-env.json' => (string) \json_encode( array( 'mappings' => array( 'wp-content/plugins/acme-plugin' => '.' ) ) ) ) );
+
+		$result = $this->run_step(
+			'reusable-release.yml',
+			'test',
+			'Redirect wp-env at built artifact',
+			array(
+				'PLUGIN_SLUG'        => 'acme-plugin',
+				'WP_ENV_CONFIG_FILE' => '',
+				'BUILT_PATH'         => '/built/acme-plugin',
+			)
+		);
+
+		self::assertSame( 0, $result['status'], $result['output'] );
+		self::assertStringContainsString( '/built/acme-plugin', (string) \file_get_contents( $this->work_dir . '/project/.wp-env.override.json' ) );
+	}
+
 	/**
 	 * @param array<string, string> $env
 	 *

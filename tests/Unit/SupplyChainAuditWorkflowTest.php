@@ -35,6 +35,14 @@ final class SupplyChainAuditWorkflowTest extends TestCase {
 		self::assertMatchesRegularExpression( '/^::warning::/m', $result['output'] );
 	}
 
+	#[DataProvider( 'provide_fail_on_findings' )]
+	public function test_composer_audit_reports_an_unreadable_report( string $fail_on_findings ): void {
+		$result = $this->audit( null, $fail_on_findings );
+
+		self::assertNotSame( 0, $result['status'], $result['output'] );
+		self::assertMatchesRegularExpression( '/^::error::composer audit failed before producing a valid findings report\.$/m', $result['output'] );
+	}
+
 	public function test_failing_mode_fails_on_advisories(): void {
 		$result = $this->audit( 'advisory.json', 'true' );
 
@@ -44,8 +52,8 @@ final class SupplyChainAuditWorkflowTest extends TestCase {
 	/**
 	 * @return array{status: int, output: string, outputs: array<string, string>}
 	 */
-	protected function audit( string $fixture, string $fail_on_findings ): array {
-		$report = __DIR__ . '/../fixtures/composer-audit/' . $fixture;
+	protected function audit( ?string $fixture, string $fail_on_findings ): array {
+		$report = \is_null( $fixture ) ? '/dev/null' : __DIR__ . '/../fixtures/composer-audit/' . $fixture;
 		$this->write_executable( 'composer', "#!/usr/bin/env bash\ncat " . \escapeshellarg( $report ) . "\nexit 1\n" );
 
 		return $this->run_step(

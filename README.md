@@ -519,6 +519,7 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 concurrency:
   group: release
@@ -534,17 +535,19 @@ jobs:
     uses: ahegyes/wordpress-configs/.github/workflows/reusable-release.yml@<sha>
     with:
       plugin-slug: your-plugin-slug
+      # A dispatch on a branch rehearses the release without publishing it.
+      publish: ${{ github.ref_type == 'tag' }}
 ```
 
 The reusable runs five jobs:
 
-- `build` (read-only, no secrets) checks the release metadata, installs Composer and npm dependencies on the Node version `package.json` declares, regenerates the POT, prunes to production dependencies, builds the zip, asserts its contents, runs Plugin Check, and outputs the version and the zip's SHA-256.
+- `build` (read-only, no secrets) checks the release metadata, installs Composer and npm dependencies without restoring a dependency cache, on the Node version `package.json` declares, regenerates the POT, prunes to production dependencies, builds the zip, asserts its contents, runs Plugin Check, and outputs the version and the zip's SHA-256.
 - `test` (read-only, no secrets) mounts the extracted zip in the project's own wp-env, activates it with `wp plugin activate`, requests the home page, and runs `npm run test:e2e` when the project defines it, after installing Chromium when `@playwright/test` is installed.
-- `provenance` (`actions: read`) requires a successful push run of every file in `required-workflows`, by default `.github/workflows/quality.yml` and `.github/workflows/tests.yml`, on the released commit, so a release reuses the suites proven there; tag a commit once they pass. It runs only when `publish` is on.
+- `provenance` (`actions: read`) requires a successful push run of every file in `required-workflows`, by default `.github/workflows/quality.yml` and `.github/workflows/tests.yml`, on the released commit, so a release reuses the suites proven there; tag a commit once they pass. It runs when `publish` is on and on a dry run the caller started with `workflow_dispatch`.
 - `release` (`contents: write`) verifies the zip's digest and creates the GitHub release with the zip attached. Its notes are the version's section of `CHANGELOG.md` when that file exists, and GitHub's generated notes otherwise.
 - `wp-org` runs only with `wp-org: true`, after `release`. It deploys the same zip and the `.wordpress-org` assets to wp.org SVN from the `wp-org-release` environment, the only job that holds the SVN credentials.
 
-`publish: false` skips `provenance`, `release` and `wp-org` and runs `build` and `test` on any ref, which exercises the release path without a tag.
+`publish: false` skips `release` and `wp-org` and runs `build` and `test` on any ref, which exercises the release path without a tag. A dry run started with `workflow_dispatch`, such as one on trunk after CI passes, also runs `provenance`; a dry run on a pull request or a push skips it, because a pull request's merge commit has no push runs and a push would race the runs it looks up.
 
 No `secrets:` block: the `wp-org` job reads `SVN_USERNAME` / `SVN_PASSWORD` from the **calling repository's** `wp-org-release` environment secrets directly (environment secrets cannot be passed through `workflow_call`). Create that environment in your plugin repo, store the two secrets there — and only there — and attach whatever deployment-protection rules you want (required reviewers, wait timers, allowed branches); a preflight step fails the deploy with instructions when they are missing.
 

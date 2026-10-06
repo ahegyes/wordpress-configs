@@ -74,7 +74,7 @@ trait RunsWorkflowSteps {
 		\file_put_contents( $this->work_dir . '/github-output', '' );
 		\file_put_contents( $log, '' );
 		$process = \proc_open(
-			array( 'bash', '--noprofile', '--norc', '-eo', 'pipefail', $this->work_dir . '/step.sh' ), // Match GitHub Actions so script failures behave the same locally and in CI.
+			array( 'bash', '-e', $this->work_dir . '/step.sh' ), // GitHub Actions runs a step that names no shell this way, so a script fails here exactly as it fails in CI.
 			array(
 				1 => array( 'file', $log, 'a' ),
 				2 => array( 'file', $log, 'a' ),
