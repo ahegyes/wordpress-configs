@@ -29,7 +29,7 @@ on:
         required: false
         default: '--audit-level=high'
       fail-on-findings:
-        description: 'Fail the job when an audit reports findings. Set false to run the audit advisory-only — findings are surfaced in the logs without blocking.'
+        description: 'Fail the job when an audit reports findings. Set false to run the audit advisory-only — findings are surfaced in the logs without blocking, except a Composer filter-list match such as the malware list, which always fails.'
         type: boolean
         required: false
         default: true
@@ -75,7 +75,7 @@ jobs:
         run: |
           audit_json="$(mktemp)"
           set +e
-          # Composer has no distinct findings exit code; advisory mode softens only valid findings JSON.
+          # Composer has no distinct findings exit code, so the JSON report decides; advisory mode softens advisories and abandoned packages, never a filter-list match.
           # shellcheck disable=SC2086
           composer audit --locked $AUDIT_FLAGS --format=json > "$audit_json"
           status=$?
@@ -86,27 +86,39 @@ jobs:
             exit 0
           fi
 
-          if [ "$FAIL_ON_FINDINGS" = "true" ]; then
-            exit "$status"
-          fi
-
           # shellcheck disable=SC2016
-          AUDIT_JSON="$audit_json" php -r '
-          $data = json_decode(file_get_contents(getenv("AUDIT_JSON")), true);
+          findings=$(AUDIT_JSON="$audit_json" php -r '
+          $data = json_decode((string) file_get_contents(getenv("AUDIT_JSON")), true);
           if (!is_array($data) || !array_key_exists("advisories", $data)) {
               exit(1);
           }
-          $advisories = $data["advisories"];
-          $abandoned = $data["abandoned"] ?? [];
-          $hasAdvisories = is_array($advisories) && count($advisories) > 0;
-          $hasAbandoned = is_array($abandoned) && count($abandoned) > 0;
-          exit(($hasAdvisories || $hasAbandoned) ? 0 : 1);
-          ' || {
-            echo "::error::composer audit failed before producing a valid findings report."
-            exit "$status"
+          $filtered = [];
+          foreach ((array) ($data["filter"] ?? []) as $package => $entries) {
+              $filtered[] = $package . " (" . implode(", ", array_unique(array_column((array) $entries, "listName"))) . ")";
           }
+          if ($filtered !== []) {
+              echo "filter:", implode(", ", $filtered);
+          } elseif (count((array) $data["advisories"]) + count((array) ($data["abandoned"] ?? [])) > 0) {
+              echo "findings";
+          }
+          ') || findings="invalid"
 
-          echo "::warning::composer audit reported findings; fail-on-findings=false leaves this advisory-only."
+          case "$findings" in
+            filter:*)
+              echo "::error::composer audit found packages on a filter list, such as the malware list: ${findings#filter:}. A filter-list match fails the audit even with fail-on-findings off."
+              exit "$status"
+              ;;
+            findings)
+              if [ "$FAIL_ON_FINDINGS" = "true" ]; then
+                exit "$status"
+              fi
+              echo "::warning::composer audit reported findings; fail-on-findings=false leaves this advisory-only."
+              ;;
+            *)
+              echo "::error::composer audit failed before producing a valid findings report."
+              exit "$status"
+              ;;
+          esac
 
   npm-audit:
     if: ${{ inputs.npm-audit }}
