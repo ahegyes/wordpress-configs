@@ -4,8 +4,10 @@ Shared PHPCS, PHPStan and php-scoper configurations, Node tool baselines and reu
 
 ## Requirements
 
-- The PHP version `composer.json` requires, and Composer 2.
-- For the Node baselines only, the Node and npm versions `package.json` declares under `engines`.
+- PHP 8.5 or later, and Composer 2.
+- For the Node baselines only, Node 26 or later and npm 11 or later.
+
+The shared PHPCS and PHPStan profiles check code against PHP 8.5 or later and WordPress 7.1 or later; a project with lower floors [lowers them](docs/scripts-contract.md#lowering-the-floors).
 
 ## Installation
 
@@ -253,7 +255,7 @@ PostCSS re-exports the base; a project that needs another plugin appends it to t
 module.exports = require( '@ahegyes/wordpress-configs/node/postcss.config.base.js' );
 ```
 
-Playwright calls the factory with the port from the wp-env config and spreads nested keys individually, or the top-level spread drops the WordPress defaults:
+Playwright calls the factory with the port the wp-env config serves on (8888 when it sets none) and spreads nested keys individually, or the top-level spread drops the WordPress defaults:
 
 ```js
 const { defineConfig } = require( '@playwright/test' );

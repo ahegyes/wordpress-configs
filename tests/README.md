@@ -18,7 +18,7 @@ The tests prove that the shared configs, the scoping pipeline and the reusable w
 
 ## Mutation testing
 
-Mutation testing is opt-in. `composer test:unit:mutation` runs Infection over `php/` with the configuration in `infection.json`, skipping the `slow` group, and reports the mutation score; no gate or floor enforces it. `composer test:all` runs the unit suite and then Infection.
+Mutation testing is opt-in. `composer test:unit:mutation` runs Infection over `php/` with the configuration in `infection.json`, skipping the `slow` group, and reports the mutation score; no gate or floor enforces it. `composer test:all` runs the unit suite and then Infection, and `composer quality-check:all` runs the PHP lint before both.
 
 ## Not covered here
 
