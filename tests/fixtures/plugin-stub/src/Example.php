@@ -2,10 +2,10 @@
 /**
  * Example fixture class for smoke-testing the shared PHPCS baseline.
  *
- * @package WordPressConfigs\Tests
+ * @package Acme
  */
 
-namespace WordPressConfigs\Tests;
+namespace Acme\PluginStub;
 
 /**
  * A minimal, standards-compliant class used only to prove the shipped

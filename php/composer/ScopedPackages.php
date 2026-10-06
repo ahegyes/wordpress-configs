@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace WordPressConfigs\Composer;
+namespace DeepWebSolutions\Config\Composer;
 
 /**
  * Resolves the packages a project scopes from the names it gives and from Composer's record of the installed packages.

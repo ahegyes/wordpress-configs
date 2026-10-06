@@ -2,7 +2,7 @@
 /**
  * Declares a function plugins load by path, outside every autoload key.
  *
- * @package WordPressConfigs\Tests
+ * @package Acme
  */
 
 namespace Acme\Loader;

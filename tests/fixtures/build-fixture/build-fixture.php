@@ -11,7 +11,7 @@
  * Text Domain:       build-fixture
  * Update URI:        https://github.com/acme/build-fixture
  *
- * @package WordPressConfigs\Tests
+ * @package Acme
  */
 
 defined( 'ABSPATH' ) || exit;

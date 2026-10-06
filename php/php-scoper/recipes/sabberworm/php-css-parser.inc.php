@@ -2,7 +2,7 @@
 /**
  * Returns the fixes php-css-parser needs to work under a prefix.
  *
- * @package WordPressConfigs
+ * @package DeepWebSolutions\Config
  */
 
 return array(

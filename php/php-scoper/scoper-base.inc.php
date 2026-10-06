@@ -2,12 +2,12 @@
 /**
  * Returns the php-scoper config that prefixes the packages a project names, and their runtime dependencies, with the project's own namespace.
  *
- * @package WordPressConfigs
+ * @package DeepWebSolutions\Config
  */
 
+use DeepWebSolutions\Config\Composer\CollectScopingStubs;
+use DeepWebSolutions\Config\Composer\ScopedPackages;
 use Symfony\Component\Finder\Finder;
-use WordPressConfigs\Composer\CollectScopingStubs;
-use WordPressConfigs\Composer\ScopedPackages;
 
 /**
  * Returns the php-scoper config for a project.

@@ -61,7 +61,7 @@
   },
   "autoload-dev": {
     "psr-4": {
-      "WordPressConfigs\\Tests\\": "tests/"
+      "DeepWebSolutions\\Config\\Tests\\": "tests/"
     },
     "exclude-from-classmap": [
       "/tests/fixtures/"

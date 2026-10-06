@@ -2,7 +2,7 @@
 /**
  * Declares the package's functions, which Composer loads through autoload.files.
  *
- * @package WordPressConfigs\Tests
+ * @package Acme
  */
 
 namespace Acme\Commerce;
