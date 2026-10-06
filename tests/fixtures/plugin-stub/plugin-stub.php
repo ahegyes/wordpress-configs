@@ -8,5 +8,5 @@
  * Requires PHP: 8.5
  * Requires at least: 7.0
  *
- * @package DeepWebSolutions\Config\Tests
+ * @package WordPressConfigs\Tests
  */

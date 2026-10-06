@@ -1,12 +1,12 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Config\Tests\Unit;
+namespace WordPressConfigs\Tests\Unit;
 
-use DeepWebSolutions\Config\Composer\ScopePhpDependencies;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
+use WordPressConfigs\Composer\ScopePhpDependencies;
 
 final class ScopePhpDependenciesTest extends TestCase {
 

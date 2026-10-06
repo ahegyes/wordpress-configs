@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Config\Tests\Fixtures;
+namespace WordPressConfigs\Tests\Fixtures;
 
 class Greeting {
 	public function text(): string {
