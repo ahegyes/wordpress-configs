@@ -13,7 +13,7 @@ final class PhpcsProfilesTest extends TestCase {
 
 	#[\Override]
 	protected function setUp(): void {
-		$this->scan_dir = ( \realpath( \sys_get_temp_dir() ) ?: \sys_get_temp_dir() ) . '/dws-wp-configs-phpcs-' . \uniqid();
+		$this->scan_dir = ( \realpath( \sys_get_temp_dir() ) ?: \sys_get_temp_dir() ) . '/wp-configs-phpcs-' . \uniqid();
 		\mkdir( $this->scan_dir );
 	}
 

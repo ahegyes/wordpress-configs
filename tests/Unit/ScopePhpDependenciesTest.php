@@ -407,7 +407,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 	 * @param list<string>|null    $installed
 	 */
 	protected static function make_project( array $names = array( 'acme/commerce', 'acme/legacy' ), array $extra = array(), ?array $installed = null, string $vendor = 'vendor' ): string {
-		$project          = ( \realpath( \sys_get_temp_dir() ) ?: \sys_get_temp_dir() ) . '/dws wp-configs scoping ' . \uniqid();
+		$project          = ( \realpath( \sys_get_temp_dir() ) ?: \sys_get_temp_dir() ) . '/wp-configs scoping ' . \uniqid();
 		self::$projects[] = $project;
 		\mkdir( $project . '/' . $vendor . '/composer', 0777, true );
 		new Filesystem()->mirror( self::FIXTURE_DIR . '/stubs', $project . '/stubs' );
