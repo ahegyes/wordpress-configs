@@ -72,13 +72,13 @@ return static function ( string $project_dir, string ...$names ): array {
 		 */
 		$recipe  = require $recipe_file;
 		$targets = array_merge( $recipe['exclude-files'] ?? array(), array_keys( $recipe['replacements'] ?? array() ) );
-		foreach ( $targets as $target ) {
-			if ( ! is_file( "$dir/$target" ) ) {
-				throw new RuntimeException( "The '$name' recipe targets '$target', which the installed package no longer ships." );
+		foreach ( $targets as $path ) {
+			if ( ! is_file( "$dir/$path" ) ) {
+				throw new RuntimeException( "The '$name' recipe targets '$path', which the installed package no longer ships." );
 			}
 		}
-		foreach ( $recipe['exclude-files'] ?? array() as $target ) {
-			$exclude_files[] = "$dir/$target";
+		foreach ( $recipe['exclude-files'] ?? array() as $excluded_file ) {
+			$exclude_files[] = "$dir/$excluded_file";
 		}
 		array_push( $exclude_namespaces, ...( $recipe['exclude-namespaces'] ?? array() ) );
 		foreach ( $recipe['replacements'] ?? array() as $target => $replacements ) {
