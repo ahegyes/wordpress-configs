@@ -16,6 +16,10 @@ final class PhpstanConfigTest extends TestCase {
 		self::assertSame( array(), $this->analyse( 'nested' ) );
 	}
 
+	public function test_global_statements_take_the_types_their_function_documents(): void {
+		self::assertSame( array( 'method.nonObject' ), $this->analyse( 'globals.php' ) );
+	}
+
 	/**
 	 * @return list<string>
 	 */

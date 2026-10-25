@@ -4,6 +4,7 @@
         "directories": [
             "php/composer",
             "php/php-scoper",
+            "php/phpstan",
             "php/quality-assurance"
         ]
     },

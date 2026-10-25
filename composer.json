@@ -56,7 +56,8 @@
 
   "autoload": {
     "classmap": [
-      "php/composer"
+      "php/composer",
+      "php/phpstan"
     ]
   },
   "autoload-dev": {

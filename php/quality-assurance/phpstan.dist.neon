@@ -5,3 +5,9 @@ includes:
 parameters:
     WPCompat:
         requiresAtLeast: '7.1'
+
+services:
+    -
+        class: DeepWebSolutions\Config\PHPStan\GlobalTagVisitor
+        tags:
+            - phpstan.parser.richParserNodeVisitor
