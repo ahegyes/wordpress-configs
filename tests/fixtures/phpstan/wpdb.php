@@ -13,3 +13,7 @@ function read_title( int $post_id ): ?string {
 function flush_connection( ?\wpdb $wpdb ): void {
 	$wpdb?->flush();
 }
+
+function describe_connection( mixed $wpdb ): string {
+	return \is_string( $wpdb ) ? $wpdb : 'connection';
+}
