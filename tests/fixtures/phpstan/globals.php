@@ -47,3 +47,34 @@ final class CurrentPost {
 		return null === $post ? '' : $post->post_title;
 	}
 }
+
+/**
+ * Flushes the connection, which the statement's own docblock declares set.
+ *
+ * @global \wpdb|null $wpdb The database connection, if any.
+ */
+function flush_declared_connection(): void {
+	/** @var \wpdb $wpdb */
+	global $wpdb;
+
+	$wpdb->flush();
+}
+
+/**
+ * Sorts the ids, then flushes the connection.
+ *
+ * @global \wpdb $wpdb The database connection.
+ *
+ * @param list<int> $ids The ids.
+ *
+ * @return list<int>
+ */
+function sort_then_flush( array $ids ): array {
+	\usort( $ids, static fn ( int $a, int $b ): int => $a <=> $b );
+
+	global $wpdb;
+
+	$wpdb->flush();
+
+	return $ids;
+}

@@ -8,6 +8,6 @@ parameters:
 
 services:
     -
-        class: DeepWebSolutions\Config\PHPStan\WpdbVariableTypeExtension
+        class: DeepWebSolutions\Config\PHPStan\GlobalTagVisitor
         tags:
-            - phpstan.broker.expressionTypeResolverExtension
+            - phpstan.parser.richParserNodeVisitor

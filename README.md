@@ -95,10 +95,10 @@ Create a `phpcs.tests.dist.xml` beside it that extends the tests profile, `php/q
 | File | Holds |
 | --- | --- |
 | `phpstan.base.dist.neon` | The rules that need no WordPress: the level, the missing `#[\Override]` check, the strict-rules settings and the nested vendor exclusions |
-| `phpstan.dist.neon` | The base, plus the minimum WordPress version that `johnbillion/wp-compat` checks calls against and the `$wpdb` type |
+| `phpstan.dist.neon` | The base, plus the minimum WordPress version that `johnbillion/wp-compat` checks calls against and the types of documented globals |
 | `phpstan.dist.neon.php` | Opt-in discovery of a plugin's conventional paths |
 
-A variable named `$wpdb` whose type PHPStan does not know, as after `global $wpdb;`, is typed as `wpdb`, because WordPress sets that global before any plugin loads; a declared type, `mixed` included, or a narrowed one stays. Code under a nested `vendor/` or `vendor-prefixed/` directory is scanned but not analyzed, so the code that uses it still resolves. This package requires `php-stubs/wordpress-stubs`; a project that scans or declares `php-stubs/woocommerce-stubs`, such as a WooCommerce extension, requires that itself.
+A `global` statement takes the types that the `@global` tags of its function's or method's docblock declare, as WordPress's documentation standard writes them, such as `@global \wpdb $wpdb The database connection.`; a global no tag declares stays `mixed`, and a statement with its own docblock keeps it. Code under a nested `vendor/` or `vendor-prefixed/` directory is scanned but not analyzed, so the code that uses it still resolves. This package requires `php-stubs/wordpress-stubs`; a project that scans or declares `php-stubs/woocommerce-stubs`, such as a WooCommerce extension, requires that itself.
 
 Create a `phpstan.dist.neon`:
 
