@@ -98,7 +98,7 @@ Create a `phpcs.tests.dist.xml` beside it that extends the tests profile, `php/q
 | `phpstan.dist.neon` | The base, plus the minimum WordPress version that `johnbillion/wp-compat` checks calls against and the `$wpdb` type |
 | `phpstan.dist.neon.php` | Opt-in discovery of a plugin's conventional paths |
 
-A variable named `$wpdb` that PHPStan knows only as `mixed`, as after `global $wpdb;`, is typed as `wpdb`, because WordPress sets that global before any plugin loads; a declared or narrowed type stays. Code under a nested `vendor/` or `vendor-prefixed/` directory is scanned but not analyzed, so the code that uses it still resolves. This package requires `php-stubs/wordpress-stubs`; a project that scans or declares `php-stubs/woocommerce-stubs`, such as a WooCommerce extension, requires that itself.
+A variable named `$wpdb` whose type PHPStan does not know, as after `global $wpdb;`, is typed as `wpdb`, because WordPress sets that global before any plugin loads; a declared type, `mixed` included, or a narrowed one stays. Code under a nested `vendor/` or `vendor-prefixed/` directory is scanned but not analyzed, so the code that uses it still resolves. This package requires `php-stubs/wordpress-stubs`; a project that scans or declares `php-stubs/woocommerce-stubs`, such as a WooCommerce extension, requires that itself.
 
 Create a `phpstan.dist.neon`:
 

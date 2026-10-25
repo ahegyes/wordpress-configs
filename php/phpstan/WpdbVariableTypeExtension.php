@@ -11,9 +11,9 @@ use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
 
 /**
- * Types a variable named $wpdb as wpdb where PHPStan knows it only as mixed, as after global $wpdb;.
+ * Types a variable named $wpdb as wpdb where PHPStan knows it only as an implicit mixed, as after global $wpdb;.
  *
- * WordPress sets the global before any plugin loads, so the name identifies the connection, as WPCS's database sniffs assume; a declared or narrowed type stays.
+ * WordPress sets the global before any plugin loads, so the name identifies the connection, as WPCS's database sniffs assume; a declared type, mixed and templates included, or a narrowed type stays.
  */
 final class WpdbVariableTypeExtension implements ExpressionTypeResolverExtension {
 	// region INHERITED METHODS
@@ -27,7 +27,8 @@ final class WpdbVariableTypeExtension implements ExpressionTypeResolverExtension
 			return null;
 		}
 
-		return $scope->getVariableType( 'wpdb' ) instanceof MixedType ? new ObjectType( 'wpdb' ) : null;
+		$type = $scope->getVariableType( 'wpdb' );
+		return $type instanceof MixedType && ! $type->isExplicitMixed() ? new ObjectType( 'wpdb' ) : null;
 	}
 
 	// endregion
