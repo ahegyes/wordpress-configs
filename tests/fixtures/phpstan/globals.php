@@ -78,3 +78,14 @@ function sort_then_flush( array $ids ): array {
 
 	return $ids;
 }
+
+/**
+ * Renders the first item through the registered callback.
+ *
+ * @global callable(int $id): string $render_item The registered callback.
+ */
+function render_first(): string {
+	global $render_item;
+
+	return $render_item( 1 );
+}
