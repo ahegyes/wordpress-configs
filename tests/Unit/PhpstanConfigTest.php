@@ -16,8 +16,8 @@ final class PhpstanConfigTest extends TestCase {
 		self::assertSame( array(), $this->analyse( 'nested' ) );
 	}
 
-	public function test_wpdb_variable_is_typed_as_wpdb_unless_declared(): void {
-		self::assertSame( array(), $this->analyse( 'wpdb.php' ) );
+	public function test_global_statements_take_the_types_their_function_documents(): void {
+		self::assertSame( array( 'method.nonObject' ), $this->analyse( 'globals.php' ) );
 	}
 
 	/**
