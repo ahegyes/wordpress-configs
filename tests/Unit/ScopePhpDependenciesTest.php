@@ -197,6 +197,18 @@ final class ScopePhpDependenciesTest extends TestCase {
 		);
 	}
 
+	public function test_scope_run_checks_its_own_prefix_whatever_variables_the_config_sets(): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		\file_put_contents( $project . '/scoper.inc.php', \str_replace( 'return ( require', "\$prefix = 'Unrelated';\n\nreturn ( require", self::read( $project . '/scoper.inc.php' ) ) );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\t\\wc_get_future_feature();\n\t\treturn \\__(", self::read( $section ) ) );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageIsOrContains( 'Acme\Scoped\wc_get_future_feature' );
+
+		ScopePhpDependencies::scope( $project );
+	}
+
 	/**
 	 * @param array<string, mixed> $extra
 	 */
