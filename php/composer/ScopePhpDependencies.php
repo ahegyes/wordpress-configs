@@ -7,6 +7,7 @@ use Composer\Factory;
 use Composer\InstalledVersions;
 use Composer\Script\Event;
 use DeepWebSolutions\Config\Composer\Internal\ScopedSymbolCollector;
+use Humbug\PhpScoper\Configuration\RegexChecker;
 use JetBrains\PHPStormStub\PhpStormStubsMap;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
@@ -138,10 +139,12 @@ final class ScopePhpDependencies {
 			}
 		}
 
-		$names    = array();
-		$patterns = array();
+		// php-scoper reads the entries its regex checker accepts as patterns, which it makes case-insensitive, and the rest as names it compares without case.
+		$regex_checker = new RegexChecker();
+		$names         = array();
+		$patterns      = array();
 		foreach ( $global_functions as $function ) {
-			if ( \str_starts_with( $function, '/' ) ) {
+			if ( $regex_checker->isRegexLike( $function ) ) {
 				$patterns[] = $function . 'i';
 			} else {
 				$names[ \strtolower( \trim( $function, '\\ ' ) ) ] = $function;
@@ -150,9 +153,10 @@ final class ScopePhpDependencies {
 
 		$undeclared = array();
 		foreach ( $collector->references as $reference ) {
-			$name     = \strtolower( \rtrim( $reference['name'], '\\' ) );
-			$function = \ltrim( \substr( $name, \strlen( $prefix ) + 1 ), '\\' );
-			$global   = $reference['checked'] && ( isset( $names[ $function ] ) || \array_any( $patterns, static fn ( string $pattern ): bool => 1 === \preg_match( $pattern, $function ) ) );
+			$reference_name = \rtrim( $reference['name'], '\\' );
+			$name           = \strtolower( $reference_name );
+			$function       = \ltrim( \substr( $reference_name, \strlen( $prefix ) + 1 ), '\\' );
+			$global         = $reference['checked'] && ( isset( $names[ \strtolower( $function ) ] ) || \array_any( $patterns, static fn ( string $pattern ): bool => 1 === \preg_match( $pattern, $function ) ) );
 			if ( ! $global && ! isset( $collector->declared[ $name ] ) && ! isset( $namespaces[ $name ] ) ) {
 				$undeclared[] = $reference['name'] . ' in ' . $reference['location'];
 			}
