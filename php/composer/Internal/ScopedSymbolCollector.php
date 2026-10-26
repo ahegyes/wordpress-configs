@@ -27,9 +27,9 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 	public array $declared = array();
 
 	/**
-	 * The prefixed names the code references, each with its location.
+	 * The prefixed names the code references, each with its location and whether a function_exists() call checks it.
 	 *
-	 * @var     list<array{name: string, location: string}>
+	 * @var     list<array{name: string, location: string, checked: bool}>
 	 */
 	public array $references = array();
 
@@ -131,7 +131,7 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 	}
 
 	/**
-	 * Records a name that carries the prefix, with its location.
+	 * Records a name that carries the prefix, with its location and whether a function_exists() call checks it.
 	 *
 	 * @param   string $name The name.
 	 * @param   Node   $node The node that references it.
@@ -140,9 +140,11 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 	 */
 	protected function reference( string $name, Node $node ): void {
 		if ( 0 === \stripos( $name, $this->prefix . '\\' ) ) {
+			$call               = $node->getAttribute( 'parent' ) instanceof Node\Arg ? $node->getAttribute( 'parent' )->getAttribute( 'parent' ) : null;
 			$this->references[] = array(
 				'name'     => $name,
 				'location' => $this->file . ':' . $node->getStartLine(),
+				'checked'  => $call instanceof Node\Expr\FuncCall && $call->name instanceof Node\Name && 'function_exists' === $call->name->toString(),
 			);
 		}
 	}

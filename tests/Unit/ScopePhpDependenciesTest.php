@@ -149,6 +149,69 @@ final class ScopePhpDependenciesTest extends TestCase {
 		self::assertStringContainsString( 'use Psr\Log\LoggerInterface;', self::read( $project . '/vendor-prefixed' . self::SECTION ) );
 	}
 
+	#[DataProvider( 'provide_functions_the_run_leaves_global' )]
+	public function test_scope_run_passes_the_check_php_scoper_adds_to_a_guard_of_a_global_function( string $function, string $prefixed_copy ): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\tif ( ! \\function_exists( '$function' ) ) {\n\t\t\treturn '';\n\t\t}\n\t\treturn \\__(", self::read( $section ) ) );
+
+		ScopePhpDependencies::scope( $project );
+
+		self::assertStringContainsString( "!\\function_exists('$prefixed_copy')", self::read( $project . '/vendor-prefixed' . self::SECTION ) );
+	}
+
+	/**
+	 * @return array<string, array{string, string}>
+	 */
+	public static function provide_functions_the_run_leaves_global(): array {
+		return array(
+			'wordpress-function'        => array( 'get_plugin_data', 'Acme\Scoped\get_plugin_data' ),
+			'mixed-case-function'       => array( 'balanceTags', 'Acme\Scoped\balanceTags' ),
+			'action-scheduler-function' => array( 'as_enqueue_future_action', 'Acme\Scoped\as_enqueue_future_action' ),
+			'stubs-declared-function'   => array( 'host_plugin_setting', 'Acme\Scoped\host_plugin_setting' ),
+			'php-function'              => array( 'mb_str_pad', 'Acme\Scoped\mb_str_pad' ),
+			// php-scoper prefixes the leading backslash too, and php-parser prints the two backslashes it leaves as four.
+			'leading-backslash'         => array( '\\\\get_plugin_data', 'Acme\Scoped\\\\\\\\get_plugin_data' ),
+		);
+	}
+
+	#[DataProvider( 'provide_exclusions_a_project_adds' )]
+	public function test_scope_run_passes_the_check_php_scoper_adds_to_a_guard_of_a_function_the_project_excludes( string $exclusion, string $function ): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		\file_put_contents( $project . '/scoper.inc.php', \str_replace( 'return ( require', '$config = ( require', self::read( $project . '/scoper.inc.php' ) ) . "\$config['exclude-functions'][] = '$exclusion';\n\nreturn \$config;\n" );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\tif ( ! \\function_exists( '$function' ) ) {\n\t\t\treturn '';\n\t\t}\n\t\treturn \\__(", self::read( $section ) ) );
+
+		ScopePhpDependencies::scope( $project );
+
+		self::assertStringContainsString( "!\\function_exists('Acme\\Scoped\\$function')", self::read( $project . '/vendor-prefixed' . self::SECTION ) );
+	}
+
+	/**
+	 * @return array<string, array{string, string}>
+	 */
+	public static function provide_exclusions_a_project_adds(): array {
+		return array(
+			'name'           => array( 'acme_host_setting', 'acme_host_setting' ),
+			'qualified-name' => array( '\\acme_host_setting', 'acme_host_setting' ),
+			'pattern'        => array( '/^Acme_Host_/', 'acme_host_feature' ),
+			'hash-pattern'   => array( '#^Acme_Host_#', 'acme_host_feature' ),
+			'cased-pattern'  => array( '/^(?-i:Acme_Host_)/', 'Acme_Host_feature' ),
+		);
+	}
+
+	public function test_scope_run_checks_its_own_prefix_whatever_variables_the_config_sets(): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		\file_put_contents( $project . '/scoper.inc.php', \str_replace( 'return ( require', "\$prefix = 'Unrelated';\n\nreturn ( require", self::read( $project . '/scoper.inc.php' ) ) );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\t\\wc_get_future_feature();\n\t\treturn \\__(", self::read( $section ) ) );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageIsOrContains( 'Acme\Scoped\wc_get_future_feature' );
+
+		ScopePhpDependencies::scope( $project );
+	}
+
 	/**
 	 * @param array<string, mixed> $extra
 	 */
@@ -252,6 +315,10 @@ final class ScopePhpDependenciesTest extends TestCase {
 			'escape-sequence-taken-for-class' => array( "\t// region METHODS", "\t// region METHODS\n\n\tpublic string \$line_break = '\\\\r\\\\n';", 'Acme\Scoped\r\n' ),
 			'code-in-a-php-nowdoc'            => array( $return, "\t\t\$code = <<<'PHP'\n\t\t\t<?php \\wc_get_future_feature();\n\t\t\tPHP;\n" . $return, 'Acme\Scoped\wc_get_future_feature' ),
 			'group-use-of-a-host'             => array( 'use Psr\Log\LoggerInterface;', "use Psr\\Log\\LoggerInterface;\nuse Automattic\\WooCommerce\\Future\\{Feature};", 'Acme\Scoped\Automattic\WooCommerce\Future\Feature' ),
+			'guard-newer-than-the-stubs'      => array( $return, "\t\tif ( ! \\function_exists( 'wc_get_future_feature' ) ) {\n\t\t\treturn '';\n\t\t}\n" . $return, 'Acme\Scoped\wc_get_future_feature' ),
+			'class-named-like-a-function'     => array( $return, "\t\tnew \\Date();\n" . $return, 'Acme\Scoped\Date' ),
+			'callable-of-a-php-function'      => array( $return, "\t\t\\add_action( 'init', 'Brotli\\compress' );\n" . $return, 'Acme\Scoped\Brotli\compress' ),
+			'uppercased-function-exists'      => array( $return, "\t\t\\FUNCTION_EXISTS( 'Brotli\\compress' );\n" . $return, 'Acme\Scoped\Brotli\compress' ),
 		);
 	}
 

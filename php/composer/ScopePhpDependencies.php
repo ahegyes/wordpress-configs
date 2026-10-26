@@ -7,6 +7,8 @@ use Composer\Factory;
 use Composer\InstalledVersions;
 use Composer\Script\Event;
 use DeepWebSolutions\Config\Composer\Internal\ScopedSymbolCollector;
+use Humbug\PhpScoper\Configuration\RegexChecker;
+use JetBrains\PHPStormStub\PhpStormStubsMap;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\NodeVisitor\ParentConnectingVisitor;
@@ -95,7 +97,12 @@ final class ScopePhpDependencies {
 
 		// The autoloader goes first, so a project whose scoped code fails the check still loads.
 		$filesystem->dumpFile( $output_dir . '/scoper-autoload.php', self::autoload( $output_dir ) );
-		self::verify( $output_dir, $prefix );
+
+		// The functions the run leaves global are those the config excludes and those PHP declares, whose map Composer's script autoloader does not load. The config runs in a closure, so the variables it sets stay out of this method.
+		$config     = ( static fn (): mixed => require $project_dir . '/scoper.inc.php' )();
+		$stubs_path = InstalledVersions::getInstallPath( 'jetbrains/phpstorm-stubs' ) ?? '';
+		require_once $stubs_path . '/PhpStormStubsMap.php';
+		self::verify( $output_dir, $prefix, array( ...( \is_array( $config ) ? self::strings( $config['exclude-functions'] ?? array() ) : array() ), ...\array_keys( PhpStormStubsMap::FUNCTIONS ) ) );
 	}
 
 	// endregion
@@ -105,14 +112,17 @@ final class ScopePhpDependencies {
 	/**
 	 * Fails when the scoped code references a prefixed name it does not declare, which would fail at runtime: a host symbol no stubs file declares, a dependency outside the scoped packages, or a string php-scoper took for a class name.
 	 *
-	 * @param   string $output_dir The vendor-prefixed directory.
-	 * @param   string $prefix     The scoping prefix.
+	 * A function_exists() check of the prefixed copy of a function the run leaves global passes, because php-scoper adds one to every function_exists() guard of that function, and it is false while nothing declares the copy.
+	 *
+	 * @param   string       $output_dir       The vendor-prefixed directory.
+	 * @param   string       $prefix           The scoping prefix.
+	 * @param   list<string> $global_functions The names and patterns of the functions the run leaves global.
 	 *
 	 * @throws  \RuntimeException Thrown when a prefixed name is declared by no scoped package.
 	 *
 	 * @return  void
 	 */
-	protected static function verify( string $output_dir, string $prefix ): void {
+	protected static function verify( string $output_dir, string $prefix, array $global_functions ): void {
 		$parser    = new ParserFactory()->createForNewestSupportedVersion();
 		$collector = new ScopedSymbolCollector( $prefix, $parser );
 		foreach ( Finder::create()->files()->in( $output_dir )->name( '*.php' )->sortByName() as $file ) {
@@ -129,10 +139,25 @@ final class ScopePhpDependencies {
 			}
 		}
 
+		// php-scoper reads the entries its regex checker accepts as patterns, which it makes case-insensitive, and the rest as names it compares without case.
+		$regex_checker = new RegexChecker();
+		$names         = array();
+		$patterns      = array();
+		foreach ( $global_functions as $function ) {
+			if ( $regex_checker->isRegexLike( $function ) ) {
+				$patterns[] = $function . 'i';
+			} else {
+				$names[ \strtolower( \trim( $function, '\\ ' ) ) ] = $function;
+			}
+		}
+
 		$undeclared = array();
 		foreach ( $collector->references as $reference ) {
-			$name = \strtolower( \rtrim( $reference['name'], '\\' ) );
-			if ( ! isset( $collector->declared[ $name ] ) && ! isset( $namespaces[ $name ] ) ) {
+			$reference_name = \rtrim( $reference['name'], '\\' );
+			$name           = \strtolower( $reference_name );
+			$function       = \ltrim( \substr( $reference_name, \strlen( $prefix ) + 1 ), '\\' );
+			$global         = $reference['checked'] && ( isset( $names[ \strtolower( $function ) ] ) || \array_any( $patterns, static fn ( string $pattern ): bool => 1 === \preg_match( $pattern, $function ) ) );
+			if ( ! $global && ! isset( $collector->declared[ $name ] ) && ! isset( $namespaces[ $name ] ) ) {
 				$undeclared[] = $reference['name'] . ' in ' . $reference['location'];
 			}
 		}

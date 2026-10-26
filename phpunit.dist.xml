@@ -11,6 +11,10 @@
          failOnRisky="true"
          beStrictAboutOutputDuringTests="true"
          cacheDirectory="tests/.cache/phpunit">
+    <php>
+        <!-- A scope run parses the declared stubs in-process, as under Composer, which raises the limit to 1.5 GB. -->
+        <ini name="memory_limit" value="1536M"/>
+    </php>
     <testsuites>
         <testsuite name="Unit">
             <directory>tests/Unit</directory>

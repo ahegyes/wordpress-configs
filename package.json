@@ -26,20 +26,20 @@
         "./package.json": "./package.json"
     },
     "peerDependencies": {
-        "@playwright/test": ">=1.63.0",
-        "@wordpress/eslint-plugin": ">=27.0.0",
-        "@wordpress/postcss-plugins-preset": ">=5.56.0",
-        "@wordpress/scripts": ">=36.0.0",
-        "@wordpress/stylelint-config": ">=26.0.0"
+        "@playwright/test": ">=1.64.1",
+        "@wordpress/eslint-plugin": ">=28.0.0",
+        "@wordpress/postcss-plugins-preset": ">=6.0.0",
+        "@wordpress/scripts": ">=37.0.0",
+        "@wordpress/stylelint-config": ">=27.0.0"
     },
     "dependencies": {
         "prettier": "npm:wp-prettier@^3.0.3"
     },
     "devDependencies": {
-        "@wordpress/e2e-test-utils-playwright": "^2.1.0",
-        "@wordpress/eslint-plugin": "^27.0.0",
-        "@wordpress/scripts": "^36.0.0",
-        "@wordpress/stylelint-config": "^26.0.0"
+        "@wordpress/e2e-test-utils-playwright": "^3.1.0",
+        "@wordpress/eslint-plugin": "^28.0.0",
+        "@wordpress/scripts": "^37.0.0",
+        "@wordpress/stylelint-config": "^27.0.0"
     },
     "scripts": {
         "packages-install:all": "composer packages-install && npm run packages-install",
