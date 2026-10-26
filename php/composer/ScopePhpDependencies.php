@@ -97,8 +97,8 @@ final class ScopePhpDependencies {
 		// The autoloader goes first, so a project whose scoped code fails the check still loads.
 		$filesystem->dumpFile( $output_dir . '/scoper-autoload.php', self::autoload( $output_dir ) );
 
-		// The functions the run leaves global are those the config excludes and those PHP declares, whose map Composer's script autoloader does not load.
-		$config     = require $project_dir . '/scoper.inc.php';
+		// The functions the run leaves global are those the config excludes and those PHP declares, whose map Composer's script autoloader does not load. The config runs in a closure, so the variables it sets stay out of this method.
+		$config     = ( static fn (): mixed => require $project_dir . '/scoper.inc.php' )();
 		$stubs_path = InstalledVersions::getInstallPath( 'jetbrains/phpstorm-stubs' ) ?? '';
 		require_once $stubs_path . '/PhpStormStubsMap.php';
 		self::verify( $output_dir, $prefix, array( ...( \is_array( $config ) ? self::strings( $config['exclude-functions'] ?? array() ) : array() ), ...\array_keys( PhpStormStubsMap::FUNCTIONS ) ) );
