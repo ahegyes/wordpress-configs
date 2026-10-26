@@ -144,7 +144,7 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 			$this->references[] = array(
 				'name'     => $name,
 				'location' => $this->file . ':' . $node->getStartLine(),
-				'checked'  => $call instanceof Node\Expr\FuncCall && $call->name instanceof Node\Name && 'function_exists' === $call->name->toLowerString(),
+				'checked'  => $call instanceof Node\Expr\FuncCall && $call->name instanceof Node\Name && 'function_exists' === $call->name->toString(),
 			);
 		}
 	}
