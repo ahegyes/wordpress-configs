@@ -175,6 +175,28 @@ final class ScopePhpDependenciesTest extends TestCase {
 		);
 	}
 
+	#[DataProvider( 'provide_exclusions_a_project_adds' )]
+	public function test_scope_run_passes_the_check_php_scoper_adds_to_a_guard_of_a_function_the_project_excludes( string $exclusion, string $function ): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		\file_put_contents( $project . '/scoper.inc.php', \str_replace( 'return ( require', '$config = ( require', self::read( $project . '/scoper.inc.php' ) ) . "\$config['exclude-functions'][] = '$exclusion';\n\nreturn \$config;\n" );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\tif ( ! \\function_exists( '$function' ) ) {\n\t\t\treturn '';\n\t\t}\n\t\treturn \\__(", self::read( $section ) ) );
+
+		ScopePhpDependencies::scope( $project );
+
+		self::assertStringContainsString( "!\\function_exists('Acme\\Scoped\\$function')", self::read( $project . '/vendor-prefixed' . self::SECTION ) );
+	}
+
+	/**
+	 * @return array<string, array{string, string}>
+	 */
+	public static function provide_exclusions_a_project_adds(): array {
+		return array(
+			'name'    => array( 'acme_host_setting', 'acme_host_setting' ),
+			'pattern' => array( '/^Acme_Host_/', 'acme_host_feature' ),
+		);
+	}
+
 	/**
 	 * @param array<string, mixed> $extra
 	 */
