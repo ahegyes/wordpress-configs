@@ -149,6 +149,32 @@ final class ScopePhpDependenciesTest extends TestCase {
 		self::assertStringContainsString( 'use Psr\Log\LoggerInterface;', self::read( $project . '/vendor-prefixed' . self::SECTION ) );
 	}
 
+	#[DataProvider( 'provide_functions_the_run_leaves_global' )]
+	public function test_scope_run_passes_the_check_php_scoper_adds_to_a_guard_of_a_global_function( string $function, string $prefixed_copy ): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\tif ( ! \\function_exists( '$function' ) ) {\n\t\t\treturn '';\n\t\t}\n\t\treturn \\__(", self::read( $section ) ) );
+
+		ScopePhpDependencies::scope( $project );
+
+		self::assertStringContainsString( "!\\function_exists('$prefixed_copy')", self::read( $project . '/vendor-prefixed' . self::SECTION ) );
+	}
+
+	/**
+	 * @return array<string, array{string, string}>
+	 */
+	public static function provide_functions_the_run_leaves_global(): array {
+		return array(
+			'wordpress-function'        => array( 'get_plugin_data', 'Acme\Scoped\get_plugin_data' ),
+			'mixed-case-function'       => array( 'balanceTags', 'Acme\Scoped\balanceTags' ),
+			'action-scheduler-function' => array( 'as_enqueue_future_action', 'Acme\Scoped\as_enqueue_future_action' ),
+			'stubs-declared-function'   => array( 'host_plugin_setting', 'Acme\Scoped\host_plugin_setting' ),
+			'php-function'              => array( 'mb_str_pad', 'Acme\Scoped\mb_str_pad' ),
+			// php-scoper prefixes the leading backslash too, and php-parser prints the two backslashes it leaves as four.
+			'leading-backslash'         => array( '\\\\get_plugin_data', 'Acme\Scoped\\\\\\\\get_plugin_data' ),
+		);
+	}
+
 	/**
 	 * @param array<string, mixed> $extra
 	 */
@@ -252,6 +278,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 			'escape-sequence-taken-for-class' => array( "\t// region METHODS", "\t// region METHODS\n\n\tpublic string \$line_break = '\\\\r\\\\n';", 'Acme\Scoped\r\n' ),
 			'code-in-a-php-nowdoc'            => array( $return, "\t\t\$code = <<<'PHP'\n\t\t\t<?php \\wc_get_future_feature();\n\t\t\tPHP;\n" . $return, 'Acme\Scoped\wc_get_future_feature' ),
 			'group-use-of-a-host'             => array( 'use Psr\Log\LoggerInterface;', "use Psr\\Log\\LoggerInterface;\nuse Automattic\\WooCommerce\\Future\\{Feature};", 'Acme\Scoped\Automattic\WooCommerce\Future\Feature' ),
+			'guard-newer-than-the-stubs'      => array( $return, "\t\tif ( ! \\function_exists( 'wc_get_future_feature' ) ) {\n\t\t\treturn '';\n\t\t}\n" . $return, 'Acme\Scoped\wc_get_future_feature' ),
 		);
 	}
 
