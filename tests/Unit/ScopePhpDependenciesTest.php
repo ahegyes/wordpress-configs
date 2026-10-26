@@ -192,8 +192,9 @@ final class ScopePhpDependenciesTest extends TestCase {
 	 */
 	public static function provide_exclusions_a_project_adds(): array {
 		return array(
-			'name'    => array( 'acme_host_setting', 'acme_host_setting' ),
-			'pattern' => array( '/^Acme_Host_/', 'acme_host_feature' ),
+			'name'           => array( 'acme_host_setting', 'acme_host_setting' ),
+			'qualified-name' => array( '\\acme_host_setting', 'acme_host_setting' ),
+			'pattern'        => array( '/^Acme_Host_/', 'acme_host_feature' ),
 		);
 	}
 
