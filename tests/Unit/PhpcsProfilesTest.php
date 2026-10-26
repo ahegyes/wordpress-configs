@@ -91,6 +91,28 @@ final class PhpcsProfilesTest extends TestCase {
 	}
 
 	/**
+	 * @return array<string, array{string, bool}>
+	 */
+	public static function provide_void_return_profiles(): array {
+		return array(
+			'production' => array( 'phpcs.dist.xml', true ),
+			'tests'      => array( 'phpcs.tests.dist.xml', false ),
+		);
+	}
+
+	#[DataProvider( 'provide_void_return_profiles' )]
+	public function test_a_void_method_documents_its_return_in_production_code_only( string $profile, bool $required ): void {
+		$header = "<?php declare( strict_types=1 );\n/**\n * Probe.\n *\n * @package Acme\n */\n\nnamespace Acme;\n\n/**\n * Probe.\n */\nfinal class Probe implements \\Countable {\n";
+		\file_put_contents( $this->scan_dir . '/missing.php', $header . "\t/**\n\t * Does nothing.\n\t */\n\tpublic function run(): void {}\n}\n" );
+		\file_put_contents( $this->scan_dir . '/exempt.php', $header . "\t/**\n\t * Constructor.\n\t */\n\tpublic function __construct() {}\n\n\t/**\n\t * {@inheritDoc}\n\t */\n\t#[\\Override]\n\tpublic function count(): int {\n\t\treturn 0;\n\t}\n\n\t/**\n\t * Does nothing.\n\t *\n\t * @return void\n\t */\n\tpublic function run(): void {}\n}\n" );
+
+		$sources = $this->scan( self::RULESET_DIR . '/' . $profile );
+
+		self::assertSame( $required, isset( $sources['missing.php']['Squiz.Commenting.FunctionComment.MissingReturn'] ) );
+		self::assertArrayNotHasKey( 'Squiz.Commenting.FunctionComment.MissingReturn', $sources['exempt.php'] ?? array() );
+	}
+
+	/**
 	 * @return array<string, array{string, list<string>, bool}>
 	 */
 	public static function provide_floor_overrides(): array {

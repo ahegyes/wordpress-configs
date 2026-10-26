@@ -58,6 +58,8 @@ Two profiles share `php/quality-assurance/phpcs.base.dist.xml`, which runs the f
 | Production | `php/quality-assurance/phpcs.dist.xml` | Everything except `tests/` |
 | Tests | `php/quality-assurance/phpcs.tests.dist.xml` | `tests/`, without the docblock and WordPress-runtime sniffs |
 
+The production profile also requires `@return` on every named function and method docblock, `@return void` included, which WordPress-Docs leaves optional; constructors, destructors and docblocks that open with `{@inheritDoc}` need none.
+
 Both profiles skip `bin/`, `vendor/`, `vendor-prefixed/`, `node_modules/` and generated files. The patterns match case-sensitively, so a `src/Vendor/` source directory is still linted. An `index.php` is linted like any other file, except that its file comment may be a `//` line, so a silence-is-golden placeholder stays clean.
 
 Create a `phpcs.dist.xml` that extends the production profile and names the project's text domain and prefixes:

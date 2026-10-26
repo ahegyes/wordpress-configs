@@ -26,6 +26,8 @@ final class ScopePhpDependencies {
 	 * @param   Event $event The Composer script event.
 	 *
 	 * @throws  \RuntimeException Thrown when the scope run fails.
+	 *
+	 * @return  void
 	 */
 	public static function postAutoloadDump( Event $event ): void {
 		if ( $event->isDevMode() ) {
@@ -39,6 +41,8 @@ final class ScopePhpDependencies {
 	 * @param   string $project_dir The root directory of the project.
 	 *
 	 * @throws  \RuntimeException Thrown when the project, its scoping prefix or php-scoper is missing, vendor-prefixed is a symbolic link, php-scoper fails, a prefixed name is declared by no scoped package, or a scoped package manifest cannot be read.
+	 *
+	 * @return  void
 	 */
 	public static function scope( string $project_dir ): void {
 		$project_dir = \realpath( $project_dir ) ?: throw new \RuntimeException( "The project directory '$project_dir' does not exist." );
@@ -105,6 +109,8 @@ final class ScopePhpDependencies {
 	 * @param   string $prefix     The scoping prefix.
 	 *
 	 * @throws  \RuntimeException Thrown when a prefixed name is declared by no scoped package.
+	 *
+	 * @return  void
 	 */
 	protected static function verify( string $output_dir, string $prefix ): void {
 		$parser    = new ParserFactory()->createForNewestSupportedVersion();
