@@ -209,7 +209,7 @@ A package whose strings take the host plugin's text domain declares the domain i
 }
 ```
 
-`scoper.inc.php` returns an ordinary php-scoper config, so a project can add exclusions or patchers before returning it. The run's check knows only the functions it leaves global itself, so a `function_exists()` guard of a function excluded there fails the run; declare such a function in a stubs file instead. Write namespace exclusions as anchored regular expressions, such as `'/^YourVendor\\\\Name(?:\\\\|$)/i'`, because php-scoper matches a plain namespace string anywhere in a name.
+`scoper.inc.php` returns an ordinary php-scoper config, so a project can add exclusions or patchers before returning it. Write namespace exclusions as anchored regular expressions, such as `'/^YourVendor\\\\Name(?:\\\\|$)/i'`, because php-scoper matches a plain namespace string anywhere in a name.
 
 A recipe returns php-scoper settings for one package, with paths relative to it: `exclude-files`, anchored `exclude-namespaces`, and `replacements`, a map of search to replace strings per file of the scoped code, in which `{prefix}` stands for the scoping prefix. A replacement whose search string is missing fails the run, so a library update that invalidates a recipe surfaces when scoping.
 

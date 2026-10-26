@@ -7,6 +7,7 @@ use Composer\Factory;
 use Composer\InstalledVersions;
 use Composer\Script\Event;
 use DeepWebSolutions\Config\Composer\Internal\ScopedSymbolCollector;
+use JetBrains\PHPStormStub\PhpStormStubsMap;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\NodeVisitor\ParentConnectingVisitor;
@@ -18,19 +19,6 @@ use Symfony\Component\Finder\Finder;
  * Scopes a project's dependencies into its vendor-prefixed directory with php-scoper and writes their autoloader.
  */
 final class ScopePhpDependencies {
-	// region FIELDS AND CONSTANTS
-
-	/**
-	 * The environment variable that names the file in which scoper-base.inc.php writes the functions the scope run leaves global.
-	 *
-	 * @internal
-	 *
-	 * @var     string
-	 */
-	public const GLOBAL_FUNCTIONS_FILE = 'WORDPRESS_CONFIGS_GLOBAL_FUNCTIONS_FILE';
-
-	// endregion
-
 	// region METHODS
 
 	/**
@@ -53,7 +41,7 @@ final class ScopePhpDependencies {
 	 *
 	 * @param   string $project_dir The root directory of the project.
 	 *
-	 * @throws  \RuntimeException Thrown when the project, its scoping prefix or php-scoper is missing, vendor-prefixed is a symbolic link, no temporary file can be created, php-scoper fails, a prefixed name is declared by no scoped package, or a scoped package manifest cannot be read.
+	 * @throws  \RuntimeException Thrown when the project, its scoping prefix or php-scoper is missing, vendor-prefixed is a symbolic link, php-scoper fails, a prefixed name is declared by no scoped package, or a scoped package manifest cannot be read.
 	 *
 	 * @return  void
 	 */
@@ -80,24 +68,14 @@ final class ScopePhpDependencies {
 
 		// Loading the config parses the declared stubs files, and large ones exceed PHP's default memory limit.
 		$command = array( \PHP_BINARY, '-d', 'memory_limit=1G', ( InstalledVersions::getInstallPath( 'humbug/php-scoper' ) ?? '' ) . '/bin/php-scoper', 'add-prefix', '--working-dir=' . $project_dir, '--config=' . $project_dir . '/scoper.inc.php', '--output-dir=' . $output_dir, '--force', '--no-interaction' );
-		// Only php-scoper's process loads the config that knows which functions the run leaves global, so scoper-base.inc.php writes them to this file.
-		$global_functions_file = \tempnam( \sys_get_temp_dir(), 'scoping' ) ?: throw new \RuntimeException( 'Could not create a temporary file.' );
-		try {
-			$environment = array(
-				'COLUMNS'                   => '4096', // php-scoper's console wraps what it prints at the terminal width, which would split the paths and symbols in a failure message.
-				self::GLOBAL_FUNCTIONS_FILE => $global_functions_file,
-			);
-			$process     = \proc_open( \implode( ' ', \array_map( 'escapeshellarg', $command ) ) . ' 2>&1', array( 1 => array( 'pipe', 'w' ) ), $pipes, null, $environment + \getenv() ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_proc_open -- Runs in Composer, never on a WordPress server.
-			if ( false === $process ) {
-				throw new \RuntimeException( 'Could not start php-scoper.' );
-			}
-			$output = \stream_get_contents( $pipes[1] );
-			if ( 0 !== \proc_close( $process ) ) {
-				throw new \RuntimeException( "php-scoper failed:\n" . $output );
-			}
-			$global_functions = self::strings( \json_decode( (string) \file_get_contents( $global_functions_file ) ?: '[]', true, flags: \JSON_THROW_ON_ERROR ) );
-		} finally {
-			\unlink( $global_functions_file );
+		// php-scoper's console wraps what it prints at the terminal width, which would split the paths and symbols in a failure message.
+		$process = \proc_open( \implode( ' ', \array_map( 'escapeshellarg', $command ) ) . ' 2>&1', array( 1 => array( 'pipe', 'w' ) ), $pipes, null, array( 'COLUMNS' => '4096' ) + \getenv() ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_proc_open -- Runs in Composer, never on a WordPress server.
+		if ( false === $process ) {
+			throw new \RuntimeException( 'Could not start php-scoper.' );
+		}
+		$output = \stream_get_contents( $pipes[1] );
+		if ( 0 !== \proc_close( $process ) ) {
+			throw new \RuntimeException( "php-scoper failed:\n" . $output );
 		}
 
 		// php-scoper writes every file below the deepest directory its inputs share, which drops the vendor directory of a single-vendor closure.
@@ -118,7 +96,12 @@ final class ScopePhpDependencies {
 
 		// The autoloader goes first, so a project whose scoped code fails the check still loads.
 		$filesystem->dumpFile( $output_dir . '/scoper-autoload.php', self::autoload( $output_dir ) );
-		self::verify( $output_dir, $prefix, $global_functions );
+
+		// The functions the run leaves global are those the config excludes and those PHP declares, whose map Composer's script autoloader does not load.
+		$config     = require $project_dir . '/scoper.inc.php';
+		$stubs_path = InstalledVersions::getInstallPath( 'jetbrains/phpstorm-stubs' ) ?? '';
+		require_once $stubs_path . '/PhpStormStubsMap.php';
+		self::verify( $output_dir, $prefix, array( ...( \is_array( $config ) ? self::strings( $config['exclude-functions'] ?? array() ) : array() ), ...\array_keys( PhpStormStubsMap::FUNCTIONS ) ) );
 	}
 
 	// endregion
@@ -159,7 +142,7 @@ final class ScopePhpDependencies {
 		$patterns = array();
 		foreach ( $global_functions as $function ) {
 			if ( \str_starts_with( $function, '/' ) ) {
-				$patterns[] = $function;
+				$patterns[] = $function . 'i';
 			} else {
 				$names[ \strtolower( $function ) ] = $function;
 			}

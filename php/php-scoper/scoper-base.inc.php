@@ -7,8 +7,6 @@
 
 use DeepWebSolutions\Config\Composer\CollectScopingStubs;
 use DeepWebSolutions\Config\Composer\ScopedPackages;
-use DeepWebSolutions\Config\Composer\ScopePhpDependencies;
-use JetBrains\PHPStormStub\PhpStormStubsMap;
 use Symfony\Component\Finder\Finder;
 
 /**
@@ -42,12 +40,6 @@ return static function ( string $project_dir, string ...$names ): array {
 		throw new RuntimeException( "No package to scope is installed in '$vendor_dir'." ); // Without finders, php-scoper scopes the whole working directory.
 	}
 	$symbols = CollectScopingStubs::collect( $project_dir, array_values( $packages['scoped'] ), array_values( $packages['dropped'] ) );
-
-	// ScopePhpDependencies checks the scoped code in its own process, which loads neither these symbols nor the map of PHP's functions that php-scoper leaves global too.
-	$global_functions_file = getenv( ScopePhpDependencies::GLOBAL_FUNCTIONS_FILE );
-	if ( is_string( $global_functions_file ) && '' !== $global_functions_file ) {
-		file_put_contents( $global_functions_file, json_encode( array( ...$symbols['functions'], ...array_keys( PhpStormStubsMap::FUNCTIONS ) ), JSON_THROW_ON_ERROR ) );
-	}
 
 	$exclude_files      = array();
 	$exclude_namespaces = array();
