@@ -128,7 +128,7 @@ final class ScopePhpDependencies {
 	/**
 	 * Fails when the scoped code references a prefixed name it does not declare, which would fail at runtime: a host symbol no stubs file declares, a dependency outside the scoped packages, or a string php-scoper took for a class name.
 	 *
-	 * The prefixed copy of a function the run leaves global passes, because php-scoper adds a check for it to every function_exists() guard of that function, and the check is false while nothing declares the copy.
+	 * A function_exists() check of the prefixed copy of a function the run leaves global passes, because php-scoper adds one to every function_exists() guard of that function, and it is false while nothing declares the copy.
 	 *
 	 * @param   string       $output_dir       The vendor-prefixed directory.
 	 * @param   string       $prefix           The scoping prefix.
@@ -169,7 +169,7 @@ final class ScopePhpDependencies {
 		foreach ( $collector->references as $reference ) {
 			$name     = \strtolower( \rtrim( $reference['name'], '\\' ) );
 			$function = \ltrim( \substr( $name, \strlen( $prefix ) + 1 ), '\\' );
-			$global   = isset( $names[ $function ] ) || \array_any( $patterns, static fn ( string $pattern ): bool => 1 === \preg_match( $pattern, $function ) );
+			$global   = $reference['checked'] && ( isset( $names[ $function ] ) || \array_any( $patterns, static fn ( string $pattern ): bool => 1 === \preg_match( $pattern, $function ) ) );
 			if ( ! $global && ! isset( $collector->declared[ $name ] ) && ! isset( $namespaces[ $name ] ) ) {
 				$undeclared[] = $reference['name'] . ' in ' . $reference['location'];
 			}

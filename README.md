@@ -180,7 +180,7 @@ A scope run:
 - applies the recipe of each scoped package that has one in `php/php-scoper/recipes/<vendor>/<package>.inc.php`;
 - rewrites the text domain a scoped package declares under `extra.scoping-text-domain` to the project's `extra.text-domain`;
 - fails, naming each one, when the scoped code references a prefixed name it does not declare: a host symbol no stubs file declares, a dependency outside the scoped packages, or a string php-scoper took for a class name;
-- passes the prefixed name of a function it leaves global, PHP's own included, since php-scoper adds a `function_exists()` check for that name to every guard of the function, and the check is false while nothing declares it;
+- passes a `function_exists()` check of the prefixed name of a function it leaves global, PHP's own included, which php-scoper adds to every guard of that function and which is false while nothing declares the name;
 - writes `vendor-prefixed/scoper-autoload.php`, a class map over each scoped package's `psr-4`, `psr-0` and `classmap` paths that honors `exclude-from-classmap`, followed by its `files` entries.
 
 The run also fails when `extra.scoping-prefix` is missing or empty, when a name matches no installed package, when a scoped package requires one that is not installed, when a declared stubs file is missing, when a scoped package declares a text domain and the project declares none, when a declared text domain survives outside a string literal of its own, and when a recipe's target is gone.
