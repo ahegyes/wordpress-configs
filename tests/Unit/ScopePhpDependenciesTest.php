@@ -195,6 +195,8 @@ final class ScopePhpDependenciesTest extends TestCase {
 			'name'           => array( 'acme_host_setting', 'acme_host_setting' ),
 			'qualified-name' => array( '\\acme_host_setting', 'acme_host_setting' ),
 			'pattern'        => array( '/^Acme_Host_/', 'acme_host_feature' ),
+			'hash-pattern'   => array( '#^Acme_Host_#', 'acme_host_feature' ),
+			'cased-pattern'  => array( '/^(?-i:Acme_Host_)/', 'Acme_Host_feature' ),
 		);
 	}
 
