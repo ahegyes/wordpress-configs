@@ -318,6 +318,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 			'guard-newer-than-the-stubs'      => array( $return, "\t\tif ( ! \\function_exists( 'wc_get_future_feature' ) ) {\n\t\t\treturn '';\n\t\t}\n" . $return, 'Acme\Scoped\wc_get_future_feature' ),
 			'class-named-like-a-function'     => array( $return, "\t\tnew \\Date();\n" . $return, 'Acme\Scoped\Date' ),
 			'callable-of-a-php-function'      => array( $return, "\t\t\\add_action( 'init', 'Brotli\\compress' );\n" . $return, 'Acme\Scoped\Brotli\compress' ),
+			'uppercased-function-exists'      => array( $return, "\t\t\\FUNCTION_EXISTS( 'Brotli\\compress' );\n" . $return, 'Acme\Scoped\Brotli\compress' ),
 		);
 	}
 
