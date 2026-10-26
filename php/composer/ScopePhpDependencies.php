@@ -144,7 +144,7 @@ final class ScopePhpDependencies {
 			if ( \str_starts_with( $function, '/' ) ) {
 				$patterns[] = $function . 'i';
 			} else {
-				$names[ \strtolower( $function ) ] = $function;
+				$names[ \strtolower( \trim( $function, '\\ ' ) ) ] = $function;
 			}
 		}
 
