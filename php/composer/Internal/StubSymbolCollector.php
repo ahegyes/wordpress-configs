@@ -100,6 +100,8 @@ final class StubSymbolCollector extends NodeVisitorAbstract {
 	 *
 	 * @param   list<string> $symbols The symbol list to append to.
 	 * @param   string       $symbol  The symbol name.
+	 *
+	 * @return  void
 	 */
 	protected function collect( array &$symbols, string $symbol ): void {
 		if ( 1 === \preg_match( self::SYMBOL_NAME_REGEX, $symbol ) ) {
@@ -113,6 +115,8 @@ final class StubSymbolCollector extends NodeVisitorAbstract {
 	 * @param   list<string>       $symbols The symbol list to append to.
 	 * @param   Node\Expr\FuncCall $node    The function call.
 	 * @param   int                $index   The zero-based argument position.
+	 *
+	 * @return  void
 	 */
 	protected function collect_string_argument( array &$symbols, Node\Expr\FuncCall $node, int $index ): void {
 		if (

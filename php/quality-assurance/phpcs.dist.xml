@@ -11,4 +11,9 @@
 			<property name="blank_line_check" value="true"/>
 		</properties>
 	</rule>
+
+	<!-- WordPress-Docs excludes the code; a severity re-enables it, so a void function documents its return too. -->
+	<rule ref="Squiz.Commenting.FunctionComment.MissingReturn">
+		<severity>5</severity>
+	</rule>
 </ruleset>

@@ -106,6 +106,8 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 	 * Records a declared symbol.
 	 *
 	 * @param   Node\Name|null $name The resolved name of the symbol, or null for an anonymous class.
+	 *
+	 * @return  void
 	 */
 	protected function declare( ?Node\Name $name ): void {
 		if ( ! \is_null( $name ) ) {
@@ -117,6 +119,8 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 	 * Records a string literal shaped like a symbol name, and reads the PHP code of a nowdoc string that opens with a PHP tag, which php-scoper scopes like a file.
 	 *
 	 * @param   Node\Scalar\String_ $node The string literal.
+	 *
+	 * @return  void
 	 */
 	protected function string( Node\Scalar\String_ $node ): void {
 		if ( Node\Scalar\String_::KIND_NOWDOC === $node->getAttribute( 'kind' ) && \str_starts_with( $node->value, '<?php' ) ) {
@@ -131,6 +135,8 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 	 *
 	 * @param   string $name The name.
 	 * @param   Node   $node The node that references it.
+	 *
+	 * @return  void
 	 */
 	protected function reference( string $name, Node $node ): void {
 		if ( 0 === \stripos( $name, $this->prefix . '\\' ) ) {
