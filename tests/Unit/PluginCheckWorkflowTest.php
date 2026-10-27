@@ -39,6 +39,7 @@ final class PluginCheckWorkflowTest extends TestCase {
 			'trailing-comma'    => array( 'prefixing,' ),
 			'uppercase'         => array( 'Prefixing' ),
 			'option'            => array( '--checks=prefixing' ),
+			'second-line'       => array( "prefixing\nchecks=prefixing --ignore-errors" ),
 		);
 	}
 
