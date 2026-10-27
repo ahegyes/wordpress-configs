@@ -54,7 +54,7 @@ jobs:
           WP_ORG: ${{ inputs.wp-org }}
           EXCLUDE_CHECKS: ${{ inputs.exclude-checks }}
         run: |
-          if [ -n "$EXCLUDE_CHECKS" ] && ! printf '%s' "$EXCLUDE_CHECKS" | grep -Eq '^[a-z0-9_]+(,[a-z0-9_]+)*$'; then
+          if [ -n "$EXCLUDE_CHECKS" ] && ! [[ "$EXCLUDE_CHECKS" =~ ^[a-z0-9_]+(,[a-z0-9_]+)*$ ]]; then
             echo "::error::exclude-checks must be comma-separated check slugs — got '$EXCLUDE_CHECKS'."
             exit 1
           fi
