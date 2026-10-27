@@ -9,10 +9,15 @@ on:
         required: false
         default: '.'
       php-version:
-        description: 'PHP version for Composer and any suite outside wp-env, and for wp-env through WP_ENV_PHP_VERSION, which wins over the phpVersion of its config files.'
+        description: 'PHP version for Composer and any suite outside wp-env, and for wp-env through WP_ENV_PHP_VERSION, which wins over the phpVersion of its config files, unless wp-env-php-version is set.'
         type: string
         required: false
         default: '8.5'
+      wp-env-php-version:
+        description: 'PHP version for wp-env through WP_ENV_PHP_VERSION when the site runs another PHP than Composer and the suite, such as the project''s minimum PHP. Leave empty to use php-version.'
+        type: string
+        required: false
+        default: ''
       wp-version:
         description: 'WordPress version tag (e.g., "6.9.4"). Leave empty to defer to the consumer plugin''s .wp-env.json `core` setting (or wp-env''s default latest stable).'
         type: string
@@ -58,7 +63,7 @@ permissions: {}
 
 jobs:
   phpunit:
-    name: PHPUnit (PHP ${{ inputs.php-version }} / WP ${{ inputs.wp-env-core != '' && inputs.wp-env-core || inputs.wp-version != '' && inputs.wp-version || (inputs.needs-wp-env && 'consumer-default' || 'no-wp-env') }})
+    name: PHPUnit (PHP ${{ inputs.wp-env-php-version != '' && format('{0}, site {1}', inputs.php-version, inputs.wp-env-php-version) || inputs.php-version }} / WP ${{ inputs.wp-env-core != '' && inputs.wp-env-core || inputs.wp-version != '' && inputs.wp-version || (inputs.needs-wp-env && 'consumer-default' || 'no-wp-env') }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -66,7 +71,7 @@ jobs:
     env:
       # Job-level wp-env variables give a consumer script that starts wp-env again the same WordPress and PHP.
       WP_ENV_CORE: ${{ inputs.wp-env-core != '' && inputs.wp-env-core || (inputs.wp-version != '' && format('WordPress/WordPress#tags/{0}', inputs.wp-version)) || '' }}
-      WP_ENV_PHP_VERSION: ${{ inputs.php-version }}
+      WP_ENV_PHP_VERSION: ${{ inputs.wp-env-php-version != '' && inputs.wp-env-php-version || inputs.php-version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
