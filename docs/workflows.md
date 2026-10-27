@@ -15,7 +15,7 @@ A reusable workflow cannot elevate above the caller's token, so a caller grants 
 ## Shared behavior
 
 - **Node.** `reusable-scripts-styles-lint.yml`, `reusable-phpunit.yml` (when it starts wp-env), `reusable-playwright-e2e.yml` and `reusable-release.yml` install the Node version the project's `package.json` declares, in `engines.node` or in the `volta` or `devEngines.runtime` fields that `actions/setup-node` reads, and fail when it declares none. `reusable-supply-chain-audit.yml` and `reusable-block-json-check.yml` run no project npm code and use a fixed Node.
-- **wp-env.** The PHPUnit and Playwright workflows and the release's artifact test run the project's own `@wordpress/env`, the version its `package-lock.json` pins, so the project declares it in `devDependencies`. They export `php-version` as `WP_ENV_PHP_VERSION`, which wp-env applies over the `phpVersion` of its config files; the PHPUnit workflow exports `wp-env-php-version` instead when it is set. Plugin Check, in `reusable-plugin-check.yml` and in the release build, starts its own environment through `WordPress/plugin-check-action`, without the project's wp-env config.
+- **wp-env.** The PHPUnit and Playwright workflows and the release's artifact test run the project's own `@wordpress/env`, the version its `package-lock.json` pins, so the project declares it in `devDependencies`. They export `php-version` as `WP_ENV_PHP_VERSION`, which wp-env applies over the `phpVersion` of its config files; the PHPUnit workflow exports it only when the config in use and its override file pin no `phpVersion`. Plugin Check, in `reusable-plugin-check.yml` and in the release build, starts its own environment through `WordPress/plugin-check-action`, without the project's wp-env config.
 - **Composer.** Installs pass `--ignore-platform-req=php+`, which ignores only the PHP upper bound, so a PHP newer than a package declares still installs while extension requirements and floors stay checked.
 - **Matrix inputs.** A JSON-array input that fans out into a matrix (`scripts`, `php-versions`, `languages`) must be non-empty: an empty array would expand to zero jobs and report success.
 
@@ -114,8 +114,7 @@ Installs Composer dependencies, optionally starts the project's wp-env, runs a C
 | Input | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `project-path` | `string` | No | `'.'` | Path to the project, relative to the repository root. |
-| `php-version` | `string` | No | `'8.5'` | PHP for Composer, for any suite outside wp-env, and for wp-env through `WP_ENV_PHP_VERSION` unless `wp-env-php-version` is set. |
-| `wp-env-php-version` | `string` | No | `''` | PHP for wp-env through `WP_ENV_PHP_VERSION`, when the site runs another PHP than Composer and the suite. Empty uses `php-version`. |
+| `php-version` | `string` | No | `'8.5'` | PHP for Composer, for any suite outside wp-env, and for the site when the wp-env config pins no `phpVersion`. |
 | `wp-version` | `string` | No | `''` | WordPress release tag, such as `'6.9.4'`. Empty defers to the wp-env config's `core`, or wp-env's latest stable release. |
 | `wp-env-core` | `string` | No | `''` | Full `WP_ENV_CORE` value, such as a repository ref or a zip URL. Overrides `wp-version`. |
 | `composer-script` | `string` | No | `'test'` | Composer script that runs the suite. |
@@ -126,8 +125,8 @@ Installs Composer dependencies, optionally starts the project's wp-env, runs a C
 | `needs-wp-env` | `boolean` | No | `true` | Whether to install npm dependencies and start and stop wp-env. |
 
 - `needs-wp-env: false` suits a unit-only suite: the workflow skips Node and wp-env entirely. Left at `true`, the project declares `@wordpress/env` in `package.json` and `package-lock.json`.
-- `wp-env-php-version` runs the site on a PHP the tooling cannot run on, such as a plugin's minimum PHP below PHPUnit's: Composer and the suite stay on `php-version`, and the suite reaches the site through wp-env.
-- `WP_ENV_CORE` and `WP_ENV_PHP_VERSION` are set for the whole job, so a Composer script that starts wp-env again gets the same WordPress and PHP. The config file and Xdebug mode do not carry over, so such a script passes its own `--config` and `--xdebug`.
+- A wp-env config that pins `phpVersion`, at the top level or for one environment, or whose `.override.json` pins it, keeps its PHP: the site can run on a PHP the tooling cannot, such as a plugin's minimum PHP below PHPUnit's, while Composer and the suite run on `php-version`. Without a pin, `php-version` is exported as `WP_ENV_PHP_VERSION` and sets the site's PHP too.
+- `WP_ENV_CORE` is set for the whole job, and `WP_ENV_PHP_VERSION`, when exported, for every step after the environment's start, so a Composer script that starts wp-env again gets the same WordPress and PHP. The config file and Xdebug mode do not carry over, so such a script passes its own `--config` and `--xdebug`.
 - `multisite: true` merges `"multisite": true` into the override file of the config in use (`.wp-env.override.json`, or `<name>.override.json` beside `wp-env-config-file`), because wp-env reads that setting only from a config file.
 
 The caller grants `contents: read`.

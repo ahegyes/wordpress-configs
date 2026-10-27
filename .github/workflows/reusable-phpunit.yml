@@ -9,15 +9,10 @@ on:
         required: false
         default: '.'
       php-version:
-        description: 'PHP version for Composer and any suite outside wp-env, and for wp-env through WP_ENV_PHP_VERSION, which wins over the phpVersion of its config files, unless wp-env-php-version is set.'
+        description: 'PHP version for Composer and any suite outside wp-env, and for the site in wp-env when its config and override file pin no phpVersion.'
         type: string
         required: false
         default: '8.5'
-      wp-env-php-version:
-        description: 'PHP version for wp-env through WP_ENV_PHP_VERSION when the site runs another PHP than Composer and the suite, such as the project''s minimum PHP. Leave empty to use php-version.'
-        type: string
-        required: false
-        default: ''
       wp-version:
         description: 'WordPress version tag (e.g., "6.9.4"). Leave empty to defer to the consumer plugin''s .wp-env.json `core` setting (or wp-env''s default latest stable).'
         type: string
@@ -63,15 +58,14 @@ permissions: {}
 
 jobs:
   phpunit:
-    name: PHPUnit (PHP ${{ inputs.wp-env-php-version != '' && format('{0}, site {1}', inputs.php-version, inputs.wp-env-php-version) || inputs.php-version }} / WP ${{ inputs.wp-env-core != '' && inputs.wp-env-core || inputs.wp-version != '' && inputs.wp-version || (inputs.needs-wp-env && 'consumer-default' || 'no-wp-env') }})
+    name: PHPUnit (PHP ${{ inputs.php-version }} / WP ${{ inputs.wp-env-core != '' && inputs.wp-env-core || inputs.wp-version != '' && inputs.wp-version || (inputs.needs-wp-env && 'consumer-default' || 'no-wp-env') }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: read
     env:
-      # Job-level wp-env variables give a consumer script that starts wp-env again the same WordPress and PHP.
+      # A job-level WP_ENV_CORE gives a consumer script that starts wp-env again the same WordPress.
       WP_ENV_CORE: ${{ inputs.wp-env-core != '' && inputs.wp-env-core || (inputs.wp-version != '' && format('WordPress/WordPress#tags/{0}', inputs.wp-version)) || '' }}
-      WP_ENV_PHP_VERSION: ${{ inputs.wp-env-php-version != '' && inputs.wp-env-php-version || inputs.php-version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -117,6 +111,22 @@ jobs:
             echo "::error::@wordpress/env is not installed in this project — add it to devDependencies. This workflow runs the version the project's lockfile pins."
             exit 1
           fi
+
+      # wp-env applies WP_ENV_PHP_VERSION over a config's phpVersion, so a pinned site keeps its PHP while Composer and the suite run on php-version.
+      - name: Resolve the site's PHP
+        if: ${{ inputs.needs-wp-env }}
+        working-directory: ${{ inputs.project-path }}
+        env:
+          PHP_VERSION: ${{ inputs.php-version }}
+          WP_ENV_CONFIG_FILE: ${{ inputs.wp-env-config-file }}
+        run: |
+          config="${WP_ENV_CONFIG_FILE:-.wp-env.json}"
+          for file in "$config" "${config%.json}.override.json"; do
+            if [ -f "$file" ] && jq -e '[.phpVersion, (.env // {} | .[] | .phpVersion?)] | map(select(. != null)) | length > 0' "$file" > /dev/null; then
+              exit 0
+            fi
+          done
+          echo "WP_ENV_PHP_VERSION=$PHP_VERSION" >> "$GITHUB_ENV"
 
       - name: Start wp-env
         if: ${{ inputs.needs-wp-env }}
