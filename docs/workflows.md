@@ -91,8 +91,9 @@ Runs `php -l` over the PHP files under `paths`, once per PHP version, without in
 | `project-path` | `string` | No | `'.'` | Path to the project, relative to the repository root. |
 | `php-versions` | `string` | No | `'["8.5"]'` | Non-empty JSON array of PHP versions, such as `'["8.5", "8.6"]'`. |
 | `paths` | `string` | No | `'["."]'` | Non-empty JSON array of files and directories to check, relative to `project-path`. |
+| `artifact` | `string` | No | `''` | Name of an artifact uploaded earlier in the calling workflow to check instead of the repository; `project-path` and `paths` are then relative to its contents. |
 
-`paths` narrows the check to the files that must parse on an older PHP, such as files loaded before a PHP version gate: `php-versions: '["7.4"]'` with `paths: '["uninstall.php", "vendor-prefixed/your-vendor/your-bootstrap"]'`. This workflow takes an array of PHP versions because matrixing across versions is the point of a syntax check; the other workflows run one PHP version per call, so a caller wraps them in its own matrix.
+`paths` narrows the check to the files that must parse on an older PHP, such as files loaded before a PHP version gate: `php-versions: '["7.4"]'` with `paths: '["uninstall.php", "vendor-prefixed/your-vendor/your-bootstrap"]'`. A built tree, such as a scoped `vendor-prefixed/` that the repository ignores, is checked through `artifact`, which the calling workflow uploads first. This workflow takes an array of PHP versions because matrixing across versions is the point of a syntax check; the other workflows run one PHP version per call, so a caller wraps them in its own matrix.
 
 The caller grants `contents: read`.
 
@@ -177,8 +178,9 @@ Runs WordPress Plugin Check against a built plugin directory in a fresh wp-env, 
 | `plugin-slug` | `string` | Yes | — | Plugin slug: the directory the build is mounted as. |
 | `php-version` | `string` | No | `'8.5'` | PHP of the WordPress the check runs in; it must meet the plugin's `Requires PHP`. |
 | `wp-org` | `boolean` | No | `false` | Runs the full check set, for a build published to wp.org. |
+| `exclude-checks` | `string` | No | `''` | Comma-separated check slugs to skip beside the profile's own. |
 
-The default GitHub profile skips `plugin_updater` and `plugin_readme`, which report two by-design traits of a GitHub-distributed build: its `Update URI` header and its missing `readme.txt`. Plugin Check skips `vendor-prefixed/`, so scoped dependencies are checked at their source. The job fails on any error, while warnings only annotate. The action installs the newest Plugin Check release from wp.org, not a pinned one.
+The default GitHub profile skips `plugin_updater` and `plugin_readme`, which report two by-design traits of a GitHub-distributed build: its `Update URI` header and its missing `readme.txt`. Plugin Check skips `vendor-prefixed/`, so scoped dependencies are checked at their source. `exclude-checks` skips checks that cannot run on the plugin's code, such as `prefixing` and `direct_file_access`, which parse every PHP file with a parser that stops at PHP 8.4 syntax such as `protected(set)`. The job fails on any error, while warnings only annotate. The action installs the newest Plugin Check release from wp.org, not a pinned one.
 
 The called job needs no permissions.
 
