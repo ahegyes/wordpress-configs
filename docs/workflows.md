@@ -91,8 +91,9 @@ Runs `php -l` over the PHP files under `paths`, once per PHP version, without in
 | `project-path` | `string` | No | `'.'` | Path to the project, relative to the repository root. |
 | `php-versions` | `string` | No | `'["8.5"]'` | Non-empty JSON array of PHP versions, such as `'["8.5", "8.6"]'`. |
 | `paths` | `string` | No | `'["."]'` | Non-empty JSON array of files and directories to check, relative to `project-path`. |
+| `artifact` | `string` | No | `''` | Name of an artifact uploaded earlier in the calling workflow to check instead of the repository; `project-path` and `paths` are then relative to its contents. |
 
-`paths` narrows the check to the files that must parse on an older PHP, such as files loaded before a PHP version gate: `php-versions: '["7.4"]'` with `paths: '["uninstall.php", "vendor-prefixed/your-vendor/your-bootstrap"]'`. This workflow takes an array of PHP versions because matrixing across versions is the point of a syntax check; the other workflows run one PHP version per call, so a caller wraps them in its own matrix.
+`paths` narrows the check to the files that must parse on an older PHP, such as files loaded before a PHP version gate: `php-versions: '["7.4"]'` with `paths: '["uninstall.php", "vendor-prefixed/your-vendor/your-bootstrap"]'`. A built tree, such as a scoped `vendor-prefixed/` that the repository ignores, is checked through `artifact`, which the calling workflow uploads first. This workflow takes an array of PHP versions because matrixing across versions is the point of a syntax check; the other workflows run one PHP version per call, so a caller wraps them in its own matrix.
 
 The caller grants `contents: read`.
 
