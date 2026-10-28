@@ -646,8 +646,9 @@ jobs:
             exit 1
           fi
           run_cli wp plugin activate "$PLUGIN_SLUG"
+          # wp-env's run consumes a `--`, so the argument after the script is a placeholder for bash's $0.
           # shellcheck disable=SC2016
-          run_cli bash -c 'got=$(wp plugin get "$1" --field=version); echo "Active plugin version: $got (expected $2)"; test "$got" = "$2"' -- "$PLUGIN_SLUG" "$VERSION"
+          run_cli bash -c 'got=$(wp plugin get "$1" --field=version); echo "Active plugin version: $got (expected $2)"; test "$got" = "$2"' bash "$PLUGIN_SLUG" "$VERSION"
 
       - name: Assert the site serves
         working-directory: ${{ inputs.project-path }}
