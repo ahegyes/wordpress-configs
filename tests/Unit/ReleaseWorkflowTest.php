@@ -345,6 +345,39 @@ final class ReleaseWorkflowTest extends TestCase {
 	}
 
 	/**
+	 * @return array<string, array{string, int}>
+	 */
+	public static function provide_expected_versions(): array {
+		return array(
+			'built-version-is-active'   => array( '1.2.3', 0 ),
+			'another-version-is-active' => array( '9.9.9', 1 ),
+		);
+	}
+
+	#[DataProvider( 'provide_expected_versions' )]
+	public function test_the_active_plugin_must_carry_the_built_version( string $expected_version, int $expected_status ): void {
+		// Like wp-env's own `run`, the stub consumes the first `--` and appends the arguments after it to the command.
+		$this->write_project( array( 'node_modules/.bin/wp-env' => "#!/usr/bin/env bash\nuntil [ \"\$1\" = run ]; do shift; done\nshift 2\ncommand=()\nfor argument in \"\$@\"; do\n\tif [ -z \"\$dashed\" ] && [ \"\$argument\" = -- ]; then dashed=1; continue; fi\n\tcommand+=( \"\$argument\" )\ndone\nexec \"\${command[@]}\"\n" ) );
+		\chmod( $this->work_dir . '/project/node_modules/.bin/wp-env', 0755 );
+		$this->write_executable( 'wp', "#!/usr/bin/env bash\ncase \"\$*\" in\n\t'plugin activate acme-plugin') ;;\n\t'plugin get acme-plugin --field=version') echo 1.2.3 ;;\n\t*) echo \"Error: The '\$3' plugin could not be found.\" >&2; exit 1 ;;\nesac\n" );
+
+		$result = $this->run_step(
+			'reusable-release.yml',
+			'test',
+			'Activate the built artifact',
+			array(
+				'PLUGIN_SLUG'        => 'acme-plugin',
+				'WP_ENV_CONFIG_FILE' => '.wp-env.tests.json',
+				'REQUIRES_SCOPED'    => 'false',
+				'VERSION'            => $expected_version,
+			)
+		);
+
+		self::assertSame( $expected_status, $result['status'], $result['output'] );
+		self::assertStringContainsString( "Active plugin version: 1.2.3 (expected $expected_version)", $result['output'] );
+	}
+
+	/**
 	 * @param array<string, string> $env
 	 *
 	 * @return array{status: int, output: string, outputs: array<string, string>}
