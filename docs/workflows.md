@@ -223,7 +223,7 @@ The workflow runs five jobs:
 
 The `release` and `wp-org` jobs install no Composer or npm dependencies and run no tests, and `wp-org` checks nothing out; the deploy action installs Subversion when the runner lacks it. Pinning the workflow by commit SHA keeps a changed privileged job from reaching a consumer without a reviewed pin bump.
 
-`publish: false` skips `release` and `wp-org` and runs `build` and `test` on any branch or version tag, which exercises the release path without a tag. A dry run started with `workflow_dispatch`, such as one on trunk after CI passes, also runs `provenance`; a dry run on a pull request or a push skips it, because a pull request's merge commit has no push runs and a push would race the runs it looks up.
+`publish: false` skips `release` and `wp-org` and runs `build` and `test` on any branch or version tag, which exercises the release path without a tag. A dry run started with `workflow_dispatch`, such as one on trunk after CI passes, also runs `provenance`; a dry run on a pull request or a push skips it, because a pull request's merge commit has no push runs and a push would race the runs it looks up. Releases of one plugin run one at a time, while each ref's dry runs queue apart from them, because a concurrency group holds one pending run and cancels an older one, so a dry run in the releases' group would cancel a pending release.
 
 The `build` job fails when:
 
@@ -254,7 +254,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: release
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:

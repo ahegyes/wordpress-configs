@@ -59,8 +59,9 @@ on:
         required: false
         default: true
 
+# A group holds one pending run and cancels an older one, so dry runs, which publish nothing, queue apart from the releases.
 concurrency:
-  group: release-${{ inputs.plugin-slug }}
+  group: release-${{ inputs.plugin-slug }}${{ !inputs.publish && format('-dry-run-{0}', github.ref) || '' }}
   cancel-in-progress: false
 
 permissions: {}
