@@ -364,11 +364,15 @@ jobs:
           exit([] === $errors ? 0 : 1);
           PHP
 
+      # WP-CLI's bundled Composer rejects the runner's GitHub token, so the job's Composer installs the command, and the running WP-CLI provides wp-cli/wp-cli.
       - name: Create plugin archive
         working-directory: ${{ inputs.project-path }}
         run: |
-          wp package install wp-cli/dist-archive-command:3.2.2
-          wp dist-archive . "./$PLUGIN_SLUG.zip" --plugin-dirname="$PLUGIN_SLUG"
+          tool="$RUNNER_TEMP/dist-archive"
+          mkdir -p "$tool"
+          printf '%s\n' '{"require": {"wp-cli/dist-archive-command": "3.2.2"}, "provide": {"wp-cli/wp-cli": "*"}}' > "$tool/composer.json"
+          composer install --working-dir="$tool" --no-interaction --no-progress
+          wp --require="$tool/vendor/autoload.php" dist-archive . "./$PLUGIN_SLUG.zip" --plugin-dirname="$PLUGIN_SLUG"
 
       - name: Assert required files present
         working-directory: ${{ inputs.project-path }}
