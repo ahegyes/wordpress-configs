@@ -33,6 +33,11 @@ on:
         type: boolean
         required: false
         default: true
+      exclude-checks:
+        description: 'Comma-separated Plugin Check check slugs to skip beside the profile''s own, such as checks that cannot parse the plugin''s PHP. Empty skips only the profile''s.'
+        type: string
+        required: false
+        default: ''
       generate-pot:
         description: 'Regenerate languages/<plugin-slug>.pot via wp i18n make-pot before archive creation; set false only for plugins with no translatable strings'
         type: boolean
@@ -136,6 +141,23 @@ jobs:
           fi
 
           echo "tag-version=$tag_version" >> "$GITHUB_OUTPUT"
+
+      # A GitHub-distributed build carries an Update URI and no readme.txt by design; wp.org builds run the full set.
+      - name: Resolve the excluded checks
+        id: excluded
+        if: ${{ inputs.plugin-check }}
+        env:
+          EXCLUDE_CHECKS: ${{ inputs.exclude-checks }}
+        run: |
+          if [ -n "$EXCLUDE_CHECKS" ] && ! [[ "$EXCLUDE_CHECKS" =~ ^[a-z0-9_]+(,[a-z0-9_]+)*$ ]]; then
+            echo "::error::exclude-checks must be comma-separated check slugs — got '$EXCLUDE_CHECKS'."
+            exit 1
+          fi
+          checks="$EXCLUDE_CHECKS"
+          if [ "$WP_ORG" != 'true' ]; then
+            checks="plugin_updater,plugin_readme${checks:+,$checks}"
+          fi
+          echo "checks=$checks" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -468,8 +490,7 @@ jobs:
         with:
           build-dir: ${{ inputs.project-path }}/plugin-check-build/${{ inputs.plugin-slug }}
           slug: ${{ inputs.plugin-slug }}
-          # A GitHub-distributed build carries an Update URI and no readme.txt by design; wp.org builds run the full set.
-          exclude-checks: ${{ !inputs.wp-org && 'plugin_updater,plugin_readme' || '' }}
+          exclude-checks: ${{ steps.excluded.outputs.checks }}
           # An empty token skips the pull request comment, which this job's token has no permission to post.
           repo-token: ''
 

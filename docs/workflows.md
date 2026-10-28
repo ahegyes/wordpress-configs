@@ -207,6 +207,7 @@ Builds a plugin's release zip, tests it, checks that the released commit's requi
 | `php-version` | `string` | No | `'8.5'` | PHP for the build, Plugin Check and the artifact test; it must meet `Requires PHP`. |
 | `wp-env-config-file` | `string` | No | `''` | wp-env config file the artifact test starts. Empty uses `.wp-env.json`. |
 | `plugin-check` | `boolean` | No | `true` | Whether to run Plugin Check against the built zip. |
+| `exclude-checks` | `string` | No | `''` | Comma-separated check slugs to skip beside the profile's own. |
 | `generate-pot` | `boolean` | No | `true` | Whether to regenerate `languages/<plugin-slug>.pot` before archiving; turn it off only for a plugin with no translatable strings. |
 | `wp-org` | `boolean` | No | `false` | Also publish to wp.org. |
 | `required-workflows` | `string` | No | `'[".github/workflows/quality.yml", ".github/workflows/tests.yml"]'` | JSON array of workflow files that must have a successful push run on the released commit. |
@@ -239,7 +240,7 @@ A strict `>` lower bound in a package's PHP constraint is read as inclusive. The
 
 The artifact test needs the wp-env config to map `wp-content/plugins/<plugin-slug>` to the plugin source: it remaps exactly that `mappings` key at the built zip, so co-mounted plugins, the port and lifecycle scripts survive the per-key merge, and pins the environment to the latest stable WordPress core.
 
-`plugin-check` runs the GitHub profile, which skips `plugin_updater` and `plugin_readme` as `reusable-plugin-check.yml` does, unless `wp-org` is on.
+`plugin-check` runs the GitHub profile, which skips `plugin_updater` and `plugin_readme` as `reusable-plugin-check.yml` does, unless `wp-org` is on, and `exclude-checks` skips further checks as that workflow's input does; a malformed list fails the build before anything installs.
 
 The `wp-org` job reads `SVN_USERNAME` and `SVN_PASSWORD` from the calling repository's `wp-org-release` environment directly, because environment secrets cannot pass through `workflow_call`. Create that environment, store the two secrets there and only there, and attach its deployment-protection rules, such as required reviewers; a preflight step fails the deploy with instructions when they are missing.
 
