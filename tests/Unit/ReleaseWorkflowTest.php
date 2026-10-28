@@ -283,6 +283,28 @@ final class ReleaseWorkflowTest extends TestCase {
 		self::assertSame( 0, $result['status'], $result['output'] );
 	}
 
+	public function test_the_archive_command_installs_through_the_job_s_composer_and_loads_through_require(): void {
+		$this->write_executable( 'composer', "#!/usr/bin/env bash\necho \"composer \$*\" >> \"\$HOME/calls\"\nfor argument in \"\$@\"; do\n\tcase \"\$argument\" in --working-dir=*) cp \"\${argument#--working-dir=}/composer.json\" \"\$HOME/tool-composer.json\" ;; esac\ndone\n" );
+		$this->write_executable( 'wp', "#!/usr/bin/env bash\necho \"wp \$*\" >> \"\$HOME/calls\"\n" );
+
+		$result = $this->run_build_step( 'Create plugin archive', array( 'RUNNER_TEMP' => $this->work_dir . '/runner-temp' ) );
+
+		self::assertSame( 0, $result['status'], $result['output'] );
+		$tool = $this->work_dir . '/runner-temp/dist-archive';
+		self::assertSame(
+			array(
+				"composer install --working-dir=$tool --no-interaction --no-progress",
+				"wp --require=$tool/vendor/autoload.php dist-archive . ./acme-plugin.zip --plugin-dirname=acme-plugin",
+			),
+			\file( $this->work_dir . '/calls', \FILE_IGNORE_NEW_LINES )
+		);
+		$manifest = \json_decode( (string) \file_get_contents( $this->work_dir . '/tool-composer.json' ), true );
+		self::assertIsArray( $manifest );
+		self::assertSame( array( 'wp-cli/dist-archive-command' => '3.2.2' ), $manifest['require'] ?? null );
+		self::assertIsArray( $manifest['provide'] ?? null );
+		self::assertArrayHasKey( 'wp-cli/wp-cli', $manifest['provide'] );
+	}
+
 	/**
 	 * @return array<string, array{string, string}>
 	 */
