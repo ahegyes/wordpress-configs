@@ -217,7 +217,7 @@ A recipe returns php-scoper settings for one package, with paths relative to it:
 
 ## Node baselines
 
-`node/` holds one baseline per tool, which a project extends and overrides. The package declares the tools behind them as `>=` peer dependencies, floored at the versions it is tested against: `@wordpress/scripts`, `@wordpress/eslint-plugin`, `@wordpress/stylelint-config`, `@wordpress/postcss-plugins-preset` and `@playwright/test`.
+`node/` holds one baseline per tool, which a project extends and overrides. The package declares the tools behind them as `>=` peer dependencies, floored at the versions it is tested against: `@wordpress/scripts`, `@wordpress/eslint-plugin`, `@wordpress/stylelint-config`, `@wordpress/postcss-plugins-preset`, `@playwright/test` and `typescript`, whose defaults `node/tsconfig.base.json` builds on.
 
 | Baseline | Holds |
 | --- | --- |
