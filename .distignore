@@ -20,7 +20,7 @@ package-lock.json
 phpcs*.xml*
 .phpstan.neon
 phpstan.dist.neon
-phpunit.xml*
+phpunit*.xml*
 infection.json*
 eslint.config.*
 stylelint.config.*

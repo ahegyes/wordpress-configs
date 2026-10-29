@@ -244,12 +244,45 @@ final class ReleaseWorkflowTest extends TestCase {
 	/**
 	 * @return array<string, array{string, int}>
 	 */
+	public static function provide_project_floors(): array {
+		return array(
+			'header-meets-the-project-floor' => array( '8.5', 0 ),
+			'header-below-the-project-floor' => array( '7.4', 1 ),
+		);
+	}
+
+	#[DataProvider( 'provide_project_floors' )]
+	public function test_headers_must_cover_the_project_s_own_floor( string $requires_php, int $expected_status ): void {
+		$this->write_project(
+			array(
+				'main.php'      => self::plugin_header( array( 'Requires PHP' => $requires_php ) ),
+				'composer.json' => (string) \json_encode(
+					array(
+						'name'    => 'acme/plugin',
+						'require' => array( 'php' => '>=8.5' ),
+					)
+				),
+			)
+		);
+
+		$result = $this->run_build_step( 'Verify the headers cover the shipped packages', array() );
+
+		self::assertSame( $expected_status, $result['status'], $result['output'] );
+		if ( 1 === $expected_status ) {
+			self::assertMatchesRegularExpression( '/^::error::.*acme\/plugin/m', $result['output'] );
+		}
+	}
+
+	/**
+	 * @return array<string, array{string, int}>
+	 */
 	public static function provide_archive_entries(): array {
 		return array(
 			'plugin-files-only'     => array( 'src/Plugin.php', 0 ),
 			'tests-ruleset'         => array( 'phpcs.tests.dist.xml', 1 ),
 			'hidden-tests-ruleset'  => array( '.phpcs.tests.xml', 1 ),
 			'dist-suffixed-ruleset' => array( 'phpcs.xml.dist', 1 ),
+			'dist-named-phpunit'    => array( 'phpunit.dist.xml', 1 ),
 		);
 	}
 

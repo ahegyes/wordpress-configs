@@ -310,8 +310,12 @@ jobs:
               return $lowest;
           };
 
-          // Scoped packages ship from vendor-prefixed/ although Composer counts them as development packages.
+          // The project's own manifest states the floor of the plugin's code, and scoped packages ship from vendor-prefixed/ although Composer counts them as development packages.
           $packages = [];
+          $project = is_file('composer.json') ? json_decode((string) file_get_contents('composer.json'), true) : null;
+          if (is_array($project)) {
+              $packages[] = $project;
+          }
           if (is_file('vendor/composer/installed.json')) {
               $installed = json_decode((string) file_get_contents('vendor/composer/installed.json'), true);
               foreach ($installed['packages'] ?? [] as $package) {
@@ -444,7 +448,7 @@ jobs:
                 echo "::error::Archive must not contain $entry."
                 status=1
                 ;;
-              "$PLUGIN_SLUG/phpunit.xml"|"$PLUGIN_SLUG/phpunit.xml."*|"$PLUGIN_SLUG/infection.json"|"$PLUGIN_SLUG/infection.json."*)
+              "$PLUGIN_SLUG/phpunit"*.xml*|"$PLUGIN_SLUG/infection.json"|"$PLUGIN_SLUG/infection.json."*)
                 echo "::error::Archive must not contain $entry."
                 status=1
                 ;;
