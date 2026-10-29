@@ -300,6 +300,137 @@ final class ReleaseWorkflowTest extends TestCase {
 		self::assertSame( $expected_status, $result['status'], $result['output'] );
 	}
 
+	/**
+	 * @return array<string, array{list<string>, bool, int, string}>
+	 */
+	public static function provide_scoped_archives(): array {
+		$complete = array( 'acme-plugin.php', 'vendor-prefixed/scoper-autoload.php', 'vendor-prefixed/acme/library/src/Client.php' );
+
+		return array(
+			'every-scoped-file-shipped' => array( $complete, true, 0, '' ),
+			'autoloader-missing'        => array( array( 'acme-plugin.php', 'vendor-prefixed/acme/library/src/Client.php' ), true, 1, 'scoper-autoload.php' ),
+			'scoped-package-missing'    => array( array( 'acme-plugin.php', 'vendor-prefixed/scoper-autoload.php' ), true, 1, 'vendor-prefixed/acme/library/' ),
+			'scoping-never-ran'         => array( $complete, false, 1, 'did not run' ),
+		);
+	}
+
+	/**
+	 * @param list<string> $archived
+	 */
+	#[DataProvider( 'provide_scoped_archives' )]
+	public function test_the_archive_must_ship_every_scoped_package( array $archived, bool $scoped, int $expected_status, string $named ): void {
+		$stage = $this->work_dir . '/stage/acme-plugin';
+		foreach ( $archived as $file ) {
+			if ( ! \is_dir( \dirname( "$stage/$file" ) ) ) {
+				\mkdir( \dirname( "$stage/$file" ), 0777, true );
+			}
+			\file_put_contents( "$stage/$file", "<?php\n" );
+		}
+		\exec( \sprintf( 'cd %s && zip -qr %s acme-plugin', \escapeshellarg( \dirname( $stage ) ), \escapeshellarg( $this->work_dir . '/project/acme-plugin.zip' ) ), $output, $zip_status );
+		self::assertSame( 0, $zip_status );
+		if ( $scoped ) {
+			$this->write_project( array( 'vendor-prefixed/acme/library/composer.json' => '{"name": "acme/library"}' ) );
+		}
+
+		$result = $this->run_build_step( 'Assert scoped packages bundled', array() );
+
+		self::assertSame( $expected_status, $result['status'], $result['output'] );
+		if ( '' !== $named ) {
+			self::assertMatchesRegularExpression( '/^::error::.*' . \preg_quote( $named, '/' ) . '/m', $result['output'] );
+		}
+	}
+
+	/**
+	 * @return array<string, array{string, string, int, string}>
+	 */
+	public static function provide_provenance_runs(): array {
+		$required = '[".github/workflows/tests.yml", ".github/workflows/quality.yml"]';
+
+		return array(
+			'every-required-workflow-passed' => array( $required, ".github/workflows/quality.yml\n.github/workflows/tests.yml\n", 0, '' ),
+			'one-required-workflow-missing'  => array( $required, ".github/workflows/tests.yml\n", 1, '.github/workflows/quality.yml' ),
+			'required-workflows-not-a-list'  => array( '".github/workflows/tests.yml"', '', 1, 'non-empty JSON array' ),
+			'actions-api-unavailable'        => array( $required, 'FAIL', 1, 'Unable to list' ),
+		);
+	}
+
+	#[DataProvider( 'provide_provenance_runs' )]
+	public function test_a_release_needs_a_successful_push_run_of_every_required_workflow( string $required, string $runs, int $expected_status, string $named ): void {
+		$this->write_executable( 'gh', "#!/usr/bin/env bash\nif [ \"\$(cat \"\$HOME/runs\")\" = FAIL ]; then exit 1; fi\ncat \"\$HOME/runs\"\n" );
+		\file_put_contents( $this->work_dir . '/runs', $runs );
+
+		$result = $this->run_step(
+			'reusable-release.yml',
+			'provenance',
+			'Verify required workflows passed',
+			array(
+				'GH_TOKEN'           => 'token',
+				'REPOSITORY'         => 'acme/acme-plugin',
+				'SHA'                => 'abc123',
+				'REQUIRED_WORKFLOWS' => $required,
+			)
+		);
+
+		self::assertSame( $expected_status, $result['status'], $result['output'] );
+		if ( '' !== $named ) {
+			self::assertMatchesRegularExpression( '/^::error::.*' . \preg_quote( $named, '/' ) . '/m', $result['output'] );
+		}
+	}
+
+	/**
+	 * @return array<string, array{string|null, int, string}>
+	 */
+	public static function provide_changelogs(): array {
+		return array(
+			'dated-section'              => array( "# Changelog\n\n## 1.2.0 - 2026-10-29\n\n- Fixed a thing.\n\n## 1.1.0 - 2026-10-01\n\n- An older thing.\n", 0, "\n- Fixed a thing.\n\n" ),
+			'bracketed-section'          => array( "## [1.2.0] - 2026-10-29\n\n- Fixed a thing.\n", 0, "\n- Fixed a thing.\n" ),
+			'dots-are-not-wildcards'     => array( "## 1a2a0 - 2026-10-29\n\n- Not this version.\n", 1, '' ),
+			'no-section-for-the-version' => array( "## 1.1.0 - 2026-10-01\n\n- An older thing.\n", 1, '' ),
+			'no-changelog'               => array( null, 0, '' ),
+		);
+	}
+
+	#[DataProvider( 'provide_changelogs' )]
+	public function test_the_release_notes_are_the_version_s_changelog_section( ?string $changelog, int $expected_status, string $notes ): void {
+		$this->write_executable( 'gh', "#!/usr/bin/env bash\nprintf '%s\\n' \"\$@\" > \"\$HOME/gh-arguments\"\n" );
+		if ( ! \is_null( $changelog ) ) {
+			$this->write_project( array( 'CHANGELOG.md' => $changelog ) );
+		}
+		\mkdir( $this->work_dir . '/runner-temp' );
+
+		$result = $this->run_step(
+			'reusable-release.yml',
+			'release',
+			'Create the GitHub release',
+			array(
+				'GH_TOKEN'          => 'token',
+				'CHANGELOG'         => 'CHANGELOG.md',
+				'VERSION'           => '1.2.0',
+				'RUNNER_TEMP'       => $this->work_dir . '/runner-temp',
+				'GITHUB_REPOSITORY' => 'acme/acme-plugin',
+				'GITHUB_REF_NAME'   => 'v1.2.0',
+				'PLUGIN_SLUG'       => 'acme-plugin',
+			)
+		);
+
+		self::assertSame( $expected_status, $result['status'], $result['output'] );
+		if ( 1 === $expected_status ) {
+			self::assertMatchesRegularExpression( '/^::error::.*no section for 1\.2\.0/m', $result['output'] );
+			self::assertFileDoesNotExist( $this->work_dir . '/gh-arguments' );
+			return;
+		}
+
+		$arguments = \file( $this->work_dir . '/gh-arguments', \FILE_IGNORE_NEW_LINES );
+		self::assertIsArray( $arguments );
+		if ( \is_null( $changelog ) ) {
+			self::assertContains( '--generate-notes', $arguments );
+			self::assertNotContains( '--notes-file', $arguments );
+		} else {
+			self::assertContains( '--notes-file', $arguments );
+			self::assertSame( $notes, \file_get_contents( $this->work_dir . '/runner-temp/release-notes.md' ) );
+		}
+	}
+
 	public function test_required_files_are_found_in_a_large_archive(): void {
 		$stage = $this->work_dir . '/stage/acme-plugin';
 		\mkdir( "$stage/assets", 0777, true );

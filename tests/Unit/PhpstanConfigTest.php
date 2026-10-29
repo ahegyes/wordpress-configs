@@ -20,6 +20,35 @@ final class PhpstanConfigTest extends TestCase {
 		self::assertSame( array( 'method.nonObject' ), $this->analyse( 'globals.php' ) );
 	}
 
+	public function test_the_path_discovery_adds_a_plugin_s_conventional_files_and_scans_its_scoped_dependencies(): void {
+		$project = ( \realpath( \sys_get_temp_dir() ) ?: \sys_get_temp_dir() ) . '/wp-configs-phpstan-' . \uniqid();
+		foreach ( array( 'src', 'includes', 'blocks', 'vendor-prefixed/acme/library', 'docs' ) as $dir ) {
+			\mkdir( "$project/$dir", 0777, true );
+		}
+		foreach ( array( 'functions.php', 'uninstall.php', 'footprint.php' ) as $file ) {
+			\file_put_contents( "$project/$file", "<?php\n" );
+		}
+
+		$cwd = (string) \getcwd();
+		\chdir( $project );
+		try {
+			$config = require \dirname( __DIR__, 2 ) . '/php/quality-assurance/phpstan.dist.neon.php';
+		} finally {
+			\chdir( $cwd );
+			\exec( 'rm -rf ' . \escapeshellarg( $project ) );
+		}
+
+		self::assertSame(
+			array(
+				'parameters' => array(
+					'paths'           => array( "$project/functions.php", "$project/uninstall.php", "$project/src", "$project/includes", "$project/blocks" ),
+					'scanDirectories' => array( "$project/vendor-prefixed" ),
+				),
+			),
+			$config
+		);
+	}
+
 	/**
 	 * @return list<string>
 	 */
