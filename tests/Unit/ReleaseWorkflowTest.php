@@ -38,6 +38,34 @@ final class ReleaseWorkflowTest extends TestCase {
 	}
 
 	/**
+	 * @return array<string, array{string, int}>
+	 */
+	public static function provide_archive_entry_files(): array {
+		return array(
+			'unset'          => array( '', 0 ),
+			'root-file'      => array( 'bootstrap.php', 0 ),
+			'in-a-subfolder' => array( 'src/bootstrap.php', 1 ),
+			'not-php'        => array( 'bootstrap', 1 ),
+		);
+	}
+
+	#[DataProvider( 'provide_archive_entry_files' )]
+	public function test_archive_entry_file_must_be_a_php_file_name( string $archive_entry_file, int $expected_status ): void {
+		$result = $this->run_build_step(
+			'Enforce release inputs',
+			array(
+				'ARCHIVE_ENTRY_FILE' => $archive_entry_file,
+				'REF_TYPE'           => 'branch',
+				'REF_NAME'           => 'trunk',
+				'PUBLISH'            => 'false',
+				'PROJECT_PATH'       => '.',
+			)
+		);
+
+		self::assertSame( $expected_status, $result['status'], $result['output'] );
+	}
+
+	/**
 	 * @return array<string, array{string, string, ?string, int}>
 	 */
 	public static function provide_versions(): array {
@@ -447,6 +475,36 @@ final class ReleaseWorkflowTest extends TestCase {
 		self::assertSame( 0, $result['status'], $result['output'] );
 	}
 
+	/**
+	 * @return array<string, array{string, int}>
+	 */
+	public static function provide_archived_entry_files(): array {
+		return array(
+			'under-the-archive-name' => array( 'bootstrap.php', 0 ),
+			'under-the-source-name'  => array( 'main.php', 1 ),
+		);
+	}
+
+	#[DataProvider( 'provide_archived_entry_files' )]
+	public function test_the_archive_must_ship_the_entry_file_under_the_archive_name( string $archived, int $expected_status ): void {
+		$stage = $this->work_dir . '/stage/acme-plugin';
+		\mkdir( $stage, 0777, true );
+		\file_put_contents( "$stage/$archived", "<?php\n" );
+		$zip = \escapeshellarg( $this->work_dir . '/project/acme-plugin.zip' );
+		\exec( \sprintf( 'cd %s && zip -q %s %s', \escapeshellarg( \dirname( $stage ) ), $zip, \escapeshellarg( "acme-plugin/$archived" ) ), $output, $zip_status );
+		self::assertSame( 0, $zip_status );
+
+		$result = $this->run_build_step(
+			'Assert required files present',
+			array(
+				'WP_ORG'             => 'false',
+				'ARCHIVE_ENTRY_FILE' => 'bootstrap.php',
+			)
+		);
+
+		self::assertSame( $expected_status, $result['status'], $result['output'] );
+	}
+
 	public function test_the_release_tools_install_from_the_lock_in_the_plugin_s_configs(): void {
 		$this->write_project(
 			array(
@@ -483,6 +541,32 @@ final class ReleaseWorkflowTest extends TestCase {
 
 		self::assertSame( 0, $result['status'], $result['output'] );
 		self::assertSame( array( 'wp dist-archive . ./acme-plugin.zip --plugin-dirname=acme-plugin' ), \file( $this->work_dir . '/calls', \FILE_IGNORE_NEW_LINES ) );
+	}
+
+	public function test_the_entry_file_takes_the_archive_name_before_the_archive_is_built(): void {
+		$this->write_project( array( 'main.php' => self::plugin_header( array() ) ) );
+
+		$result = $this->run_build_step( 'Name the entry file for the archive', array( 'ARCHIVE_ENTRY_FILE' => 'bootstrap.php' ) );
+
+		self::assertSame( 0, $result['status'], $result['output'] );
+		self::assertFileDoesNotExist( $this->work_dir . '/project/main.php' );
+		self::assertSame( self::plugin_header( array() ), \file_get_contents( $this->work_dir . '/project/bootstrap.php' ) );
+	}
+
+	public function test_the_archive_name_must_not_replace_a_file_the_project_ships(): void {
+		$this->write_project(
+			array(
+				'main.php'      => self::plugin_header( array() ),
+				'bootstrap.php' => "<?php\n",
+			)
+		);
+
+		$result = $this->run_build_step( 'Name the entry file for the archive', array( 'ARCHIVE_ENTRY_FILE' => 'bootstrap.php' ) );
+
+		self::assertSame( 1, $result['status'], $result['output'] );
+		self::assertMatchesRegularExpression( '/^::error::.*bootstrap\.php/m', $result['output'] );
+		self::assertFileExists( $this->work_dir . '/project/main.php' );
+		self::assertSame( "<?php\n", \file_get_contents( $this->work_dir . '/project/bootstrap.php' ) );
 	}
 
 	/**
