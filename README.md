@@ -282,7 +282,7 @@ The Playwright factory sets `testDir` to `tests/e2e/` and artifacts under `tests
 | `reusable-phpunit.yml` | A Composer test script, optionally inside the project's wp-env |
 | `reusable-playwright-e2e.yml` | The Playwright suite against the project's wp-env |
 | `reusable-plugin-check.yml` | WordPress Plugin Check against a built plugin directory |
-| `reusable-release.yml` | Builds, tests and publishes a plugin release on GitHub, with an opt-in wp.org deploy |
+| `reusable-release.yml` | Builds, tests and publishes a plugin release on GitHub, with an opt-in wp.org deploy; installs its WP-CLI commands from this package's `php/release/composer.lock`, so the plugin requires this package under `require-dev` |
 | `reusable-scripts-styles-lint.yml` | The named npm scripts, each a parallel job |
 | `reusable-supply-chain-audit.yml` | `composer audit` and `npm audit` of the committed lockfiles |
 | `reusable-workflow-checks.yml` | actionlint and zizmor over the workflows |

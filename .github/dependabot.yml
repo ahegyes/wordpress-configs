@@ -15,6 +15,21 @@ updates:
         patterns:
           - '*'
 
+  - package-ecosystem: composer
+    directory: /php/release
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      release-tools:
+        patterns:
+          - '*'
+
   - package-ecosystem: npm
     directory: /
     schedule:

@@ -224,7 +224,7 @@ jobs:
         with:
           php-version: ${{ inputs.php-version }}
           coverage: none
-          tools: composer:v2, wp-cli
+          tools: composer:v2
 
       # Without a declared version, setup-node only warns and runs the runner's own Node.
       - name: Require a Node version in package.json
@@ -245,6 +245,21 @@ jobs:
       - name: Install Composer dependencies (dev — runs the scoping pipeline)
         working-directory: ${{ inputs.project-path }}
         run: composer install --no-interaction --no-progress --prefer-dist --ignore-platform-req=php+
+
+      # The WP-CLI commands come from the lock configs keeps current, which reaches a release only through the plugin's own development install.
+      - name: Install the release tools
+        working-directory: ${{ inputs.project-path }}
+        run: |
+          locked="$(composer config vendor-dir)/ahegyes/wordpress-configs/php/release"
+          if [ ! -f "$locked/composer.lock" ]; then
+            echo "::error::$locked/composer.lock is missing. The release installs its WP-CLI commands from ahegyes/wordpress-configs, so the plugin requires it under require-dev."
+            exit 1
+          fi
+          tools="$RUNNER_TEMP/release-tools"
+          mkdir -p "$tools"
+          cp "$locked/composer.json" "$locked/composer.lock" "$tools/"
+          composer install --working-dir="$tools" --no-interaction --no-progress --prefer-dist
+          echo "$tools/vendor/bin" >> "$GITHUB_PATH"
 
       - name: Build assets
         working-directory: ${{ inputs.project-path }}
@@ -368,15 +383,9 @@ jobs:
           exit([] === $errors ? 0 : 1);
           PHP
 
-      # WP-CLI's bundled Composer rejects the runner's GitHub token, so the job's Composer installs the command, and the running WP-CLI provides wp-cli/wp-cli.
       - name: Create plugin archive
         working-directory: ${{ inputs.project-path }}
-        run: |
-          tool="$RUNNER_TEMP/dist-archive"
-          mkdir -p "$tool"
-          printf '%s\n' '{"require": {"wp-cli/dist-archive-command": "3.2.2"}, "provide": {"wp-cli/wp-cli": "*"}}' > "$tool/composer.json"
-          composer install --working-dir="$tool" --no-interaction --no-progress
-          wp --require="$tool/vendor/autoload.php" dist-archive . "./$PLUGIN_SLUG.zip" --plugin-dirname="$PLUGIN_SLUG"
+        run: wp dist-archive . "./$PLUGIN_SLUG.zip" --plugin-dirname="$PLUGIN_SLUG"
 
       - name: Assert required files present
         working-directory: ${{ inputs.project-path }}

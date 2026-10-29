@@ -447,26 +447,42 @@ final class ReleaseWorkflowTest extends TestCase {
 		self::assertSame( 0, $result['status'], $result['output'] );
 	}
 
-	public function test_the_archive_command_installs_through_the_job_s_composer_and_loads_through_require(): void {
-		$this->write_executable( 'composer', "#!/usr/bin/env bash\necho \"composer \$*\" >> \"\$HOME/calls\"\nfor argument in \"\$@\"; do\n\tcase \"\$argument\" in --working-dir=*) cp \"\${argument#--working-dir=}/composer.json\" \"\$HOME/tool-composer.json\" ;; esac\ndone\n" );
-		$this->write_executable( 'wp', "#!/usr/bin/env bash\necho \"wp \$*\" >> \"\$HOME/calls\"\n" );
+	public function test_the_release_tools_install_from_the_lock_in_the_plugin_s_configs(): void {
+		$this->write_project(
+			array(
+				'vendor/ahegyes/wordpress-configs/php/release/composer.json' => '{"require": {"wp-cli/wp-cli": "^2.12"}}',
+				'vendor/ahegyes/wordpress-configs/php/release/composer.lock' => '{"packages": []}',
+			)
+		);
+		$this->write_fake_composer();
+		\mkdir( $this->work_dir . '/runner-temp' );
 
-		$result = $this->run_build_step( 'Create plugin archive', array( 'RUNNER_TEMP' => $this->work_dir . '/runner-temp' ) );
+		$result = $this->run_build_step( 'Install the release tools', $this->release_tools_env() );
 
 		self::assertSame( 0, $result['status'], $result['output'] );
-		$tool = $this->work_dir . '/runner-temp/dist-archive';
-		self::assertSame(
-			array(
-				"composer install --working-dir=$tool --no-interaction --no-progress",
-				"wp --require=$tool/vendor/autoload.php dist-archive . ./acme-plugin.zip --plugin-dirname=acme-plugin",
-			),
-			\file( $this->work_dir . '/calls', \FILE_IGNORE_NEW_LINES )
-		);
-		$manifest = \json_decode( (string) \file_get_contents( $this->work_dir . '/tool-composer.json' ), true );
-		self::assertIsArray( $manifest );
-		self::assertSame( array( 'wp-cli/dist-archive-command' => '3.2.2' ), $manifest['require'] ?? null );
-		self::assertIsArray( $manifest['provide'] ?? null );
-		self::assertArrayHasKey( 'wp-cli/wp-cli', $manifest['provide'] );
+		$tools = $this->work_dir . '/runner-temp/release-tools';
+		self::assertSame( array( "composer install --working-dir=$tools --no-interaction --no-progress --prefer-dist" ), \file( $this->work_dir . '/calls', \FILE_IGNORE_NEW_LINES ) );
+		self::assertFileEquals( $this->work_dir . '/project/vendor/ahegyes/wordpress-configs/php/release/composer.lock', "$tools/composer.lock" );
+		self::assertSame( "$tools/vendor/bin\n", \file_get_contents( $this->work_dir . '/github-path' ) );
+	}
+
+	public function test_a_plugin_that_does_not_require_configs_gets_no_release_tools(): void {
+		$this->write_fake_composer();
+
+		$result = $this->run_build_step( 'Install the release tools', $this->release_tools_env() );
+
+		self::assertSame( 1, $result['status'], $result['output'] );
+		self::assertMatchesRegularExpression( '/^::error::.*ahegyes\/wordpress-configs.*require-dev/m', $result['output'] );
+		self::assertFileDoesNotExist( $this->work_dir . '/calls' );
+	}
+
+	public function test_the_archive_command_runs_from_the_release_tools(): void {
+		$this->write_executable( 'wp', "#!/usr/bin/env bash\necho \"wp \$*\" >> \"\$HOME/calls\"\n" );
+
+		$result = $this->run_build_step( 'Create plugin archive', array() );
+
+		self::assertSame( 0, $result['status'], $result['output'] );
+		self::assertSame( array( 'wp dist-archive . ./acme-plugin.zip --plugin-dirname=acme-plugin' ), \file( $this->work_dir . '/calls', \FILE_IGNORE_NEW_LINES ) );
 	}
 
 	/**
@@ -539,6 +555,21 @@ final class ReleaseWorkflowTest extends TestCase {
 
 		self::assertSame( $expected_status, $result['status'], $result['output'] );
 		self::assertStringContainsString( "Active plugin version: 1.2.3 (expected $expected_version)", $result['output'] );
+	}
+
+	// Answers `composer config vendor-dir` as Composer's default does, and records every other call.
+	protected function write_fake_composer(): void {
+		$this->write_executable( 'composer', "#!/usr/bin/env bash\nif [ \"\$1\" = config ]; then echo vendor; exit 0; fi\necho \"composer \$*\" >> \"\$HOME/calls\"\n" );
+	}
+
+	/**
+	 * @return array<string, string>
+	 */
+	protected function release_tools_env(): array {
+		return array(
+			'RUNNER_TEMP' => $this->work_dir . '/runner-temp',
+			'GITHUB_PATH' => $this->work_dir . '/github-path',
+		);
 	}
 
 	/**

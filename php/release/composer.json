@@ -1,0 +1,16 @@
+{
+    "name": "ahegyes/wordpress-configs-release-tools",
+    "description": "The WP-CLI commands that reusable-release.yml builds a plugin's translation template and archive with.",
+    "license": "MIT",
+    "config": {
+        "platform": {
+            "php": "7.4"
+        },
+        "sort-packages": true
+    },
+    "require": {
+        "wp-cli/dist-archive-command": "^3.1",
+        "wp-cli/i18n-command": "^2.7",
+        "wp-cli/wp-cli": "^2.12"
+    }
+}

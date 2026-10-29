@@ -215,7 +215,7 @@ Builds a plugin's release zip, tests it, checks that the released commit's requi
 
 The workflow runs five jobs:
 
-- `build` (`contents: read`, no secrets) checks the release metadata, installs Composer and npm dependencies without restoring a dependency cache, regenerates the POT, prunes to production dependencies, builds the zip, checks its contents, runs Plugin Check, and outputs the version and the zip's SHA-256.
+- `build` (`contents: read`, no secrets) checks the release metadata, installs Composer and npm dependencies without restoring a dependency cache, installs WP-CLI and its `i18n` and `dist-archive` commands from `php/release/composer.lock` in the plugin's copy of this package, regenerates the POT, prunes to production dependencies, builds the zip, checks its contents, runs Plugin Check, and outputs the version and the zip's SHA-256.
 - `test` (`contents: read`, no secrets) mounts the extracted zip in the project's own wp-env, activates it with `wp plugin activate`, requests the home page, and runs `npm run test:e2e` when the project defines it, after installing Chromium when `@playwright/test` is installed.
 - `provenance` (`actions: read`) requires a successful push run of every file in `required-workflows` on the released commit, so a release reuses the suites proven there; tag a commit once they pass.
 - `release` (`contents: write`) verifies the zip's digest and creates the GitHub release with the zip attached. Its notes are the version's section of `CHANGELOG.md` when that file exists, and the job fails when that section is missing; without the file, the notes are GitHub's generated notes.
@@ -228,6 +228,7 @@ The `release` and `wp-org` jobs install no Composer or npm dependencies and run 
 The `build` job fails when:
 
 - the tag is not `v<major>.<minor>.<patch>` (no leading zeros), or `publish` is on without a tag;
+- the plugin does not require `ahegyes/wordpress-configs` under `require-dev`, so its development install holds no `php/release/composer.lock` to install WP-CLI from;
 - the entry file's `Version:` header differs from the tag, or from the `Stable tag:` of `readme.txt` when that file exists; a wp.org release requires `readme.txt`;
 - the entry file's `Text Domain:` header, or `extra.text-domain` in `composer.json` when declared, differs from `plugin-slug`;
 - `vendor-prefixed/` carries strings in the plugin's text domain but the regenerated POT has none of them;
