@@ -4,10 +4,10 @@ Shared PHPCS, PHPStan and php-scoper configurations, Node tool baselines and reu
 
 ## Requirements
 
-- PHP 8.5 or later, and Composer 2.
-- For the Node baselines only, Node 26 or later and npm 11 or later.
+- PHP at the floor `composer.json`'s `require.php` names, and Composer 2.
+- For the Node baselines only, the Node and npm versions `package.json`'s `engines` names, and the tools its `peerDependencies` list.
 
-The shared PHPCS profiles check code against PHP 8.5 or later and WordPress 7.1 or later, and the PHPStan profile against WordPress 7.1 or later; a project with lower floors lowers them as [the scripts contract](docs/scripts-contract.md#lowering-the-floors) shows for PHPCS and [its PHPStan section](docs/scripts-contract.md#phpstan) for PHPStan.
+The shared PHPCS profiles check code against the PHP and WordPress floors that `php/quality-assurance/phpcs.base.dist.xml` sets in `testVersion` and `minimum_wp_version`, and the PHPStan profile against the WordPress floor that `php/quality-assurance/phpstan.dist.neon` sets in `requiresAtLeast`; a project with lower floors lowers them as [the scripts contract](docs/scripts-contract.md#lowering-the-floors) shows for PHPCS and [its PHPStan section](docs/scripts-contract.md#phpstan) for PHPStan.
 
 ## Installation
 
@@ -217,7 +217,7 @@ A recipe returns php-scoper settings for one package, with paths relative to it:
 
 ## Node baselines
 
-`node/` holds one baseline per tool, which a project extends and overrides. The package declares the tools behind them as `>=` peer dependencies, floored at the versions it is tested against: `@wordpress/scripts`, `@wordpress/eslint-plugin`, `@wordpress/stylelint-config`, `@wordpress/postcss-plugins-preset` and `@playwright/test`.
+`node/` holds one baseline per tool, which a project extends and overrides. The package declares the tools behind them as `>=` peer dependencies, floored at the versions it is tested against: `@wordpress/scripts`, `@wordpress/eslint-plugin`, `@wordpress/stylelint-config`, `@wordpress/postcss-plugins-preset`, `@playwright/test` and `typescript`, whose defaults `node/tsconfig.base.json` builds on.
 
 | Baseline | Holds |
 | --- | --- |

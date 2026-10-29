@@ -231,7 +231,7 @@ The `build` job fails when:
 - the entry file's `Version:` header differs from the tag, or from the `Stable tag:` of `readme.txt` when that file exists; a wp.org release requires `readme.txt`;
 - the entry file's `Text Domain:` header, or `extra.text-domain` in `composer.json` when declared, differs from `plugin-slug`;
 - `vendor-prefixed/` carries strings in the plugin's text domain but the regenerated POT has none of them;
-- `Requires PHP` is below the PHP floor of a shipped package, the highest lower bound of the `require.php` constraints of the production packages in `vendor/` and the scoped packages in `vendor-prefixed/`;
+- `Requires PHP` is below the PHP floor of a shipped package, the highest lower bound of the `require.php` constraints of the project's own `composer.json`, the production packages in `vendor/` and the scoped packages in `vendor-prefixed/`;
 - `Requires at least` is below the `extra.requires-wp` version a shipped package declares, or `Requires Plugins` lacks a slug listed in a shipped package's `extra.requires-plugins`;
 - the archive misses the entry file, `readme.txt` for a wp.org release, or, when `composer.json` declares `extra.scoping-prefix`, `vendor-prefixed/scoper-autoload.php` and the files of every scoped package;
 - the archive holds a development or secret file, such as a `phpcs*.xml*` ruleset, `composer.json` or `.env`.

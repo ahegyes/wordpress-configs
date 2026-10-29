@@ -40,8 +40,7 @@ updates:
     open-pull-requests-limit: 5
     cooldown:
       default-days: 7
-    # This source repo keeps action bumps grouped. Consumer repos split policy at review time:
-    # unprivileged build-side reusable bumps can automerge; credentialed deploy bumps need review.
+    # Action bumps stay grouped here, because consumers decide per bump which ones may automerge.
     groups:
       github-actions:
         patterns:
