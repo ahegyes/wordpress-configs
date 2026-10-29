@@ -204,6 +204,7 @@ Builds a plugin's release zip, tests it, checks that the released commit's requi
 | `plugin-slug` | `string` | Yes | — | Plugin slug: the directory the zip unpacks to, the name of the archive and the POT, and the required Text Domain. |
 | `project-path` | `string` | No | `'.'` | Path to the project, relative to the repository root. |
 | `entry-file` | `string` | No | `''` | Main plugin file, a PHP file name at the project root. Empty uses `<plugin-slug>.php`. |
+| `archive-entry-file` | `string` | No | `''` | File name the main plugin file ships under in the archive, for a plugin whose earlier releases shipped another one: WordPress identifies an active plugin by its folder and file, so a renamed main file deactivates it on update. Empty ships `entry-file` as named. |
 | `php-version` | `string` | No | `'8.5'` | PHP for the build, Plugin Check and the artifact test; it must meet `Requires PHP`. |
 | `wp-env-config-file` | `string` | No | `''` | wp-env config file the artifact test starts. Empty uses `.wp-env.json`. |
 | `plugin-check` | `boolean` | No | `true` | Whether to run Plugin Check against the built zip. |
@@ -215,7 +216,7 @@ Builds a plugin's release zip, tests it, checks that the released commit's requi
 
 The workflow runs five jobs:
 
-- `build` (`contents: read`, no secrets) checks the release metadata, installs Composer and npm dependencies without restoring a dependency cache, installs WP-CLI and its `i18n` and `dist-archive` commands from `php/release/composer.lock` in the plugin's copy of this package, regenerates the POT, prunes to production dependencies, builds the zip, checks its contents, runs Plugin Check, and outputs the version and the zip's SHA-256.
+- `build` (`contents: read`, no secrets) checks the release metadata, installs Composer and npm dependencies without restoring a dependency cache, installs WP-CLI and its `i18n` and `dist-archive` commands from `php/release/composer.lock` in the plugin's copy of this package, regenerates the POT, prunes to production dependencies, renames the entry file to `archive-entry-file` when set, builds the zip, checks its contents, runs Plugin Check, and outputs the version and the zip's SHA-256.
 - `test` (`contents: read`, no secrets) mounts the extracted zip in the project's own wp-env, activates it with `wp plugin activate`, requests the home page, and runs `npm run test:e2e` when the project defines it, after installing Chromium when `@playwright/test` is installed.
 - `provenance` (`actions: read`) requires a successful push run of every file in `required-workflows` on the released commit, so a release reuses the suites proven there; tag a commit once they pass.
 - `release` (`contents: write`) verifies the zip's digest and creates the GitHub release with the zip attached. Its notes are the version's section of `CHANGELOG.md` when that file exists, and the job fails when that section is missing; without the file, the notes are GitHub's generated notes.
@@ -234,7 +235,8 @@ The `build` job fails when:
 - `vendor-prefixed/` carries strings in the plugin's text domain but the regenerated POT has none of them;
 - `Requires PHP` is below the PHP floor of a shipped package, the highest lower bound of the `require.php` constraints of the project's own `composer.json`, the production packages in `vendor/` and the scoped packages in `vendor-prefixed/`;
 - `Requires at least` is below the `extra.requires-wp` version a shipped package declares, or `Requires Plugins` lacks a slug listed in a shipped package's `extra.requires-plugins`;
-- the archive misses the entry file, `readme.txt` for a wp.org release, or, when `composer.json` declares `extra.scoping-prefix`, `vendor-prefixed/scoper-autoload.php` and the files of every scoped package;
+- `archive-entry-file` names a file the project already has;
+- the archive misses the entry file, under `archive-entry-file` when set, `readme.txt` for a wp.org release, or, when `composer.json` declares `extra.scoping-prefix`, `vendor-prefixed/scoper-autoload.php` and the files of every scoped package;
 - the archive holds a development or secret file, such as a `phpcs*.xml*` ruleset, `composer.json` or `.env`.
 
 A strict `>` lower bound in a package's PHP constraint is read as inclusive. The version is taken from the tag and verified against the files, never stamped in.

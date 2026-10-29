@@ -101,7 +101,7 @@ A project with a lower minimum WordPress version sets `WPCompat.requiresAtLeast`
 
 | File | Requirement |
 | --- | --- |
-| `<plugin-slug>.php`, or the file `entry-file` names | The main plugin file at the project root. Its `Version` header equals the tag, its `Text Domain` equals `plugin-slug`, and its `Requires PHP`, `Requires at least` and `Requires Plugins` cover what the shipped packages need. |
+| `<plugin-slug>.php`, or the file `entry-file` names | The main plugin file at the project root. Its `Version` header equals the tag, its `Text Domain` equals `plugin-slug`, and its `Requires PHP`, `Requires at least` and `Requires Plugins` cover what the shipped packages need. The archive ships it under `archive-entry-file` when that is set. |
 | `readme.txt` | Required with `wp-org: true`. When present, its `Stable tag` equals the release version. |
 | `CHANGELOG.md` | Optional. When present, it has a section headed by the version, such as `## 1.2.3 - 2026-10-06` or `## [1.2.3] - 2026-10-06`, which becomes the release notes; a missing section fails the release. |
 | `.distignore` | Required; `wp dist-archive` builds the zip from it. Copy this package's baseline and extend it. |
