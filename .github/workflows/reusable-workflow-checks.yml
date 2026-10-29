@@ -36,16 +36,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
-          # code-scanning/alerts is GHAS-gated: a 200 (even an empty list) means the feature is
-          # available; a 403 naming Advanced Security is the exact failure the SARIF upload below
-          # would hit on a private repo without the feature, so probing this surfaces it first. A
-          # confirmed-absent 403 is trusted immediately. Everything else — a curl error, a transient
-          # 5xx, an unrecognized 403 body — is ambiguous and gets retried up to max_attempts times
-          # before the loop gives up.
-          #
-          # An unresolved ambiguity resolves to "unavailable": the native-mode zizmor branch below
-          # still scans and fails the job on any finding, so guessing wrong only costs the
-          # Security-tab upload — a safe degradation.
+          # The code-scanning alerts endpoint answers 403 naming Advanced Security exactly where the SARIF upload would fail, so an unclear answer is retried and then read as unavailable, which only skips the upload.
           probe_body="${RUNNER_TEMP}/ghas-probe.json"
           max_attempts=3
           retry_sleep_seconds=5
@@ -106,10 +97,7 @@ jobs:
         with:
           version: ${{ env.ZIZMOR_VERSION }}
 
-      # No-GHAS path: the same pinned action in native mode. advanced-security:false skips the
-      # Security-tab upload and drops --format=sarif, so zizmor runs in plain mode and its own
-      # nonzero exit on any finding fails the job directly — no count gate on this branch.
-      # annotations:true surfaces findings inline on the PR.
+      # Without Advanced Security, zizmor runs in plain mode, where its own nonzero exit on a finding fails the job.
       - name: Run zizmor without Advanced Security
         if: needs.detect-ghas.outputs.ghas-available == 'false'
         uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
@@ -123,10 +111,7 @@ jobs:
         env:
           SARIF: ${{ steps.zizmor.outputs.output-file }}
         run: |
-          # Fail closed: only a well-formed SARIF whose runs[].results count is a single integer is
-          # trusted. A missing/empty file, unparseable JSON, parseable-but-non-SARIF JSON ({}, null,
-          # {"runs":{}}), or a multi-document count is an unknown scan result and must not pass — an
-          # empty/non-integer $count would otherwise make `[ -ne 0 ]` error and the `if` fall through.
+          # Only a SARIF whose result count is one integer is trusted, because a non-integer count would make the comparison error and the check fall through.
           if [ ! -s "$SARIF" ]; then
             echo "::error::zizmor produced no SARIF at '$SARIF' — cannot confirm a clean scan."
             exit 1
