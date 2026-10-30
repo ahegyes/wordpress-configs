@@ -474,15 +474,15 @@ final class ReleaseWorkflowTest extends TestCase {
 	/**
 	 * @return array<string, array{string, int}>
 	 */
-	public static function provide_archived_entry_files(): array {
+	public static function provide_archived_main_files(): array {
 		return array(
-			'entry-file-shipped' => array( 'main.php', 0 ),
-			'entry-file-missing' => array( 'other.php', 1 ),
+			'main-file-shipped' => array( 'main.php', 0 ),
+			'main-file-missing' => array( 'other.php', 1 ),
 		);
 	}
 
-	#[DataProvider( 'provide_archived_entry_files' )]
-	public function test_the_archive_must_ship_the_entry_file( string $archived, int $expected_status ): void {
+	#[DataProvider( 'provide_archived_main_files' )]
+	public function test_the_archive_must_ship_the_main_plugin_file( string $archived, int $expected_status ): void {
 		$stage = $this->work_dir . '/stage/acme-plugin';
 		\mkdir( $stage, 0777, true );
 		\file_put_contents( "$stage/$archived", "<?php\n" );
