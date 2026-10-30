@@ -11,58 +11,54 @@ final class ReleaseWorkflowTest extends TestCase {
 	use RunsWorkflowSteps;
 
 	/**
-	 * @return array<string, array{string, int}>
+	 * @return array<string, array{array<string, string>, ?string, string}>
 	 */
-	public static function provide_entry_files(): array {
+	public static function provide_main_plugin_files(): array {
+		$header = self::plugin_header( array() );
+
 		return array(
-			'root-file'      => array( 'main.php', 0 ),
-			'dot-prefixed'   => array( './main.php', 1 ),
-			'in-a-subfolder' => array( 'src/main.php', 1 ),
+			'named-after-the-slug'      => array(
+				array(
+					'acme-plugin.php' => $header,
+					'uninstall.php'   => "<?php\n",
+				),
+				'acme-plugin.php',
+				'',
+			),
+			'named-apart-from-the-slug' => array( array( 'main.php' => $header ), 'main.php', '' ),
+			'no-header'                 => array( array( 'uninstall.php' => "<?php\n" ), null, 'none' ),
+			'two-headers'               => array(
+				array(
+					'main.php'  => $header,
+					'other.php' => $header,
+				),
+				null,
+				'main.php other.php',
+			),
+			'header-in-a-subfolder'     => array( array( 'src/main.php' => $header ), null, 'none' ),
+			'header-past-8-kb'          => array( array( 'main.php' => "<?php\n" . \str_repeat( "//\n", 3000 ) . "/**\n * Plugin Name: Acme Plugin\n */\n" ), null, 'none' ),
 		);
-	}
-
-	#[DataProvider( 'provide_entry_files' )]
-	public function test_entry_file_must_be_a_file_at_the_project_root( string $entry_file, int $expected_status ): void {
-		$result = $this->run_build_step(
-			'Enforce release inputs',
-			array(
-				'ENTRY_FILE'   => $entry_file,
-				'REF_TYPE'     => 'branch',
-				'REF_NAME'     => 'trunk',
-				'PUBLISH'      => 'false',
-				'PROJECT_PATH' => '.',
-			)
-		);
-
-		self::assertSame( $expected_status, $result['status'], $result['output'] );
 	}
 
 	/**
-	 * @return array<string, array{string, int}>
+	 * @param array<string, string> $files
 	 */
-	public static function provide_archive_entry_files(): array {
-		return array(
-			'unset'          => array( '', 0 ),
-			'root-file'      => array( 'bootstrap.php', 0 ),
-			'in-a-subfolder' => array( 'src/bootstrap.php', 1 ),
-			'not-php'        => array( 'bootstrap', 1 ),
-		);
-	}
+	#[DataProvider( 'provide_main_plugin_files' )]
+	public function test_the_main_plugin_file_is_the_one_root_php_file_with_a_plugin_header( array $files, ?string $expected, string $named ): void {
+		$this->write_project( $files );
 
-	#[DataProvider( 'provide_archive_entry_files' )]
-	public function test_archive_entry_file_must_be_a_php_file_name( string $archive_entry_file, int $expected_status ): void {
-		$result = $this->run_build_step(
-			'Enforce release inputs',
-			array(
-				'ARCHIVE_ENTRY_FILE' => $archive_entry_file,
-				'REF_TYPE'           => 'branch',
-				'REF_NAME'           => 'trunk',
-				'PUBLISH'            => 'false',
-				'PROJECT_PATH'       => '.',
-			)
-		);
+		$result = $this->run_build_step( 'Find the main plugin file', array() );
+		$env    = \is_file( $this->work_dir . '/github-env' ) ? (string) \file_get_contents( $this->work_dir . '/github-env' ) : '';
 
-		self::assertSame( $expected_status, $result['status'], $result['output'] );
+		if ( \is_null( $expected ) ) {
+			self::assertSame( 1, $result['status'], $result['output'] );
+			self::assertMatchesRegularExpression( '/^::error::.*' . \preg_quote( $named, '/' ) . '/m', $result['output'] );
+			self::assertSame( '', $env );
+			return;
+		}
+
+		self::assertSame( 0, $result['status'], $result['output'] );
+		self::assertSame( "ENTRY_FILE=$expected\n", $env );
 	}
 
 	/**
@@ -478,15 +474,15 @@ final class ReleaseWorkflowTest extends TestCase {
 	/**
 	 * @return array<string, array{string, int}>
 	 */
-	public static function provide_archived_entry_files(): array {
+	public static function provide_archived_main_files(): array {
 		return array(
-			'under-the-archive-name' => array( 'bootstrap.php', 0 ),
-			'under-the-source-name'  => array( 'main.php', 1 ),
+			'main-file-shipped' => array( 'main.php', 0 ),
+			'main-file-missing' => array( 'other.php', 1 ),
 		);
 	}
 
-	#[DataProvider( 'provide_archived_entry_files' )]
-	public function test_the_archive_must_ship_the_entry_file_under_the_archive_name( string $archived, int $expected_status ): void {
+	#[DataProvider( 'provide_archived_main_files' )]
+	public function test_the_archive_must_ship_the_main_plugin_file( string $archived, int $expected_status ): void {
 		$stage = $this->work_dir . '/stage/acme-plugin';
 		\mkdir( $stage, 0777, true );
 		\file_put_contents( "$stage/$archived", "<?php\n" );
@@ -494,13 +490,7 @@ final class ReleaseWorkflowTest extends TestCase {
 		\exec( \sprintf( 'cd %s && zip -q %s %s', \escapeshellarg( \dirname( $stage ) ), $zip, \escapeshellarg( "acme-plugin/$archived" ) ), $output, $zip_status );
 		self::assertSame( 0, $zip_status );
 
-		$result = $this->run_build_step(
-			'Assert required files present',
-			array(
-				'WP_ORG'             => 'false',
-				'ARCHIVE_ENTRY_FILE' => 'bootstrap.php',
-			)
-		);
+		$result = $this->run_build_step( 'Assert required files present', array( 'WP_ORG' => 'false' ) );
 
 		self::assertSame( $expected_status, $result['status'], $result['output'] );
 	}
@@ -541,32 +531,6 @@ final class ReleaseWorkflowTest extends TestCase {
 
 		self::assertSame( 0, $result['status'], $result['output'] );
 		self::assertSame( array( 'wp dist-archive . ./acme-plugin.zip --plugin-dirname=acme-plugin' ), \file( $this->work_dir . '/calls', \FILE_IGNORE_NEW_LINES ) );
-	}
-
-	public function test_the_entry_file_takes_the_archive_name_before_the_archive_is_built(): void {
-		$this->write_project( array( 'main.php' => self::plugin_header( array() ) ) );
-
-		$result = $this->run_build_step( 'Name the entry file for the archive', array( 'ARCHIVE_ENTRY_FILE' => 'bootstrap.php' ) );
-
-		self::assertSame( 0, $result['status'], $result['output'] );
-		self::assertFileDoesNotExist( $this->work_dir . '/project/main.php' );
-		self::assertSame( self::plugin_header( array() ), \file_get_contents( $this->work_dir . '/project/bootstrap.php' ) );
-	}
-
-	public function test_the_archive_name_must_not_replace_a_file_the_project_ships(): void {
-		$this->write_project(
-			array(
-				'main.php'      => self::plugin_header( array() ),
-				'bootstrap.php' => "<?php\n",
-			)
-		);
-
-		$result = $this->run_build_step( 'Name the entry file for the archive', array( 'ARCHIVE_ENTRY_FILE' => 'bootstrap.php' ) );
-
-		self::assertSame( 1, $result['status'], $result['output'] );
-		self::assertMatchesRegularExpression( '/^::error::.*bootstrap\.php/m', $result['output'] );
-		self::assertFileExists( $this->work_dir . '/project/main.php' );
-		self::assertSame( "<?php\n", \file_get_contents( $this->work_dir . '/project/bootstrap.php' ) );
 	}
 
 	/**

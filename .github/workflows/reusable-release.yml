@@ -13,16 +13,6 @@ on:
         type: string
         required: false
         default: '.'
-      entry-file:
-        description: 'Main plugin file carrying the plugin headers, relative to project-path. Empty uses <plugin-slug>.php.'
-        type: string
-        required: false
-        default: ''
-      archive-entry-file:
-        description: 'File name the main plugin file ships under in the archive, for a plugin whose earlier releases shipped another one: WordPress identifies an active plugin by its folder and file, so a renamed main file deactivates it on update. Empty ships entry-file as named.'
-        type: string
-        required: false
-        default: ''
       php-version:
         description: 'PHP version for the build, Plugin Check and the built-artifact test. It must meet the Requires PHP header, or WordPress refuses to activate the artifact.'
         type: string
@@ -82,8 +72,6 @@ jobs:
       # Plugin Check's action starts its own wp-env without a phpVersion, and WordPress refuses to activate a plugin whose Requires PHP the default image does not meet.
       WP_ENV_PHP_VERSION: ${{ inputs.php-version }}
       PLUGIN_SLUG: ${{ inputs.plugin-slug }}
-      ENTRY_FILE: ${{ inputs.entry-file != '' && inputs.entry-file || format('{0}.php', inputs.plugin-slug) }}
-      ARCHIVE_ENTRY_FILE: ${{ inputs.archive-entry-file }}
       WP_ORG: ${{ inputs.wp-org }}
     outputs:
       digest: ${{ steps.archive-digest.outputs.digest }}
@@ -141,15 +129,6 @@ jobs:
             exit 1
           fi
           validate_path_input 'project-path' "$PROJECT_PATH"
-          # WordPress reads plugin headers only from files at the plugin's root.
-          if ! printf '%s' "$ENTRY_FILE" | grep -Eq '^[A-Za-z0-9._-]+\.php$'; then
-            echo "::error::entry-file must be a PHP file name at the project root — got '$ENTRY_FILE'."
-            exit 1
-          fi
-          if [ -n "$ARCHIVE_ENTRY_FILE" ] && ! printf '%s' "$ARCHIVE_ENTRY_FILE" | grep -Eq '^[A-Za-z0-9._-]+\.php$'; then
-            echo "::error::archive-entry-file must be a PHP file name — got '$ARCHIVE_ENTRY_FILE'."
-            exit 1
-          fi
 
           echo "tag-version=$tag_version" >> "$GITHUB_OUTPUT"
 
@@ -182,16 +161,28 @@ jobs:
             exit 1
           fi
 
+      # WordPress takes a plugin's main file from the PHP files at its root, reading each one's headers from its first 8 KB.
+      - name: Find the main plugin file
+        working-directory: ${{ inputs.project-path }}
+        run: |
+          entry_files=()
+          for file in *.php; do
+            if [ -f "$file" ] && head -c 8192 -- "$file" | grep -Eiq '^[[:space:]]*(<\?(php)?)?[[:space:]/*#@]*Plugin Name:[[:space:]]*[^[:space:]]'; then
+              entry_files+=("$file")
+            fi
+          done
+          if [ "${#entry_files[@]}" -ne 1 ]; then
+            echo "::error::The project root must hold exactly one PHP file with a Plugin Name header — found: ${entry_files[*]:-none}."
+            exit 1
+          fi
+          echo "ENTRY_FILE=${entry_files[0]}" >> "$GITHUB_ENV"
+
       - name: Verify version consistency
         id: versions
         working-directory: ${{ inputs.project-path }}
         env:
           TAG_VERSION: ${{ steps.release-inputs.outputs.tag-version }}
         run: |
-          if [ ! -f "$ENTRY_FILE" ]; then
-            echo "::error::The entry file $ENTRY_FILE does not exist — set entry-file to the main plugin file."
-            exit 1
-          fi
           header_version=$(sed -nE 's|^[[:space:]/*#@]*[Vv]ersion:[[:space:]]*([^[:space:]]+).*$|\1|p' "$ENTRY_FILE" | head -n 1)
           stable_tag=''
           if [ -f readme.txt ]; then
@@ -393,17 +384,6 @@ jobs:
           exit([] === $errors ? 0 : 1);
           PHP
 
-      # After the checks that read the source's headers, so every check on the archive sees the file as shipped.
-      - name: Name the entry file for the archive
-        if: inputs.archive-entry-file != ''
-        working-directory: ${{ inputs.project-path }}
-        run: |
-          if [ -e "$ARCHIVE_ENTRY_FILE" ]; then
-            echo "::error::archive-entry-file $ARCHIVE_ENTRY_FILE would replace a file the project ships — name a file that does not exist."
-            exit 1
-          fi
-          mv -- "$ENTRY_FILE" "$ARCHIVE_ENTRY_FILE"
-
       - name: Create plugin archive
         working-directory: ${{ inputs.project-path }}
         run: wp dist-archive . "./$PLUGIN_SLUG.zip" --plugin-dirname="$PLUGIN_SLUG"
@@ -412,7 +392,7 @@ jobs:
         working-directory: ${{ inputs.project-path }}
         run: |
           entries=$(unzip -Z1 "$PLUGIN_SLUG.zip")
-          required=("$PLUGIN_SLUG/${ARCHIVE_ENTRY_FILE:-$ENTRY_FILE}")
+          required=("$PLUGIN_SLUG/$ENTRY_FILE")
           if [ "$WP_ORG" = "true" ]; then
             required+=("$PLUGIN_SLUG/readme.txt")
           fi
