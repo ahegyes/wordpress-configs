@@ -48,11 +48,11 @@
 		"packages-update": "npm update",
 		"packages-update:wp": "wp-scripts packages-update",
 
-		"format:scripts": "wp-scripts format ./node tests/fixtures/node-config/smoke.mjs eslint.config.mjs --no-error-on-unmatched-pattern",
+		"format:scripts": "wp-scripts format ./node tests/Fixtures/node-config/smoke.mjs eslint.config.mjs --no-error-on-unmatched-pattern",
 		"format:all": "( composer format:php || [ $? -eq 1 ] ) && npm run format:scripts",
 
-		"lint:scripts": "wp-scripts lint-js ./node tests/fixtures/node-config/smoke.mjs eslint.config.mjs --no-error-on-unmatched-pattern",
-		"lint:config": "node tests/fixtures/node-config/smoke.mjs",
+		"lint:scripts": "wp-scripts lint-js ./node tests/Fixtures/node-config/smoke.mjs eslint.config.mjs --no-error-on-unmatched-pattern",
+		"lint:config": "node tests/Fixtures/node-config/smoke.mjs",
 		"lint:all": "composer lint:php && npm run lint:scripts && npm run lint:config",
 
 		"audit": "composer audit --locked --abandoned=report && npm audit --omit=dev --audit-level=high",

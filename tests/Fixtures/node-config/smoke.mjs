@@ -37,13 +37,13 @@ probes.push( [
 			overrideConfigFile: resolve( 'node/eslint.config.base.mjs' ),
 		} );
 		const scopedProbePaths = [
-			'tests/fixtures/node-config/probe.js', // recommended baseline (unscoped rules)
-			'tests/fixtures/node-config/probe.ts', // TS recommended entries (ts/tsx/mts/cts)
-			'tests/fixtures/node-config/probe.tsx',
-			'tests/fixtures/node-config/probe.mts',
-			'tests/fixtures/node-config/probe.cts',
-			'tests/fixtures/node-config/probe.jsx', // the .jsx files entry
-			'tests/fixtures/node-config/probe.test.js', // test-unit files glob
+			'tests/Fixtures/node-config/probe.js', // recommended baseline (unscoped rules)
+			'tests/Fixtures/node-config/probe.ts', // TS recommended entries (ts/tsx/mts/cts)
+			'tests/Fixtures/node-config/probe.tsx',
+			'tests/Fixtures/node-config/probe.mts',
+			'tests/Fixtures/node-config/probe.cts',
+			'tests/Fixtures/node-config/probe.jsx', // the .jsx files entry
+			'tests/Fixtures/node-config/probe.test.js', // test-unit files glob
 			'tests/EndToEnd/probe.js', // test-playwright files glob
 		];
 		for ( const probePath of scopedProbePaths ) {
@@ -66,7 +66,7 @@ probes.push( [
 		] ) {
 			const config = await eslint.calculateConfigForFile(
 				resolve(
-					`tests/fixtures/node-config/probe.test.${ extension }`
+					`tests/Fixtures/node-config/probe.test.${ extension }`
 				)
 			);
 			if ( ! config?.rules?.[ 'vitest/expect-expect' ] ) {
@@ -76,10 +76,10 @@ probes.push( [
 			}
 		}
 		for ( const path of [
-			'tests/fixtures/node-config/probe.jsx',
-			'tests/fixtures/node-config/probe.spec.ts',
-			'tests/fixtures/node-config/__tests__/probe.ts',
-			'tests/fixtures/node-config/test/probe.ts',
+			'tests/Fixtures/node-config/probe.jsx',
+			'tests/Fixtures/node-config/probe.spec.ts',
+			'tests/Fixtures/node-config/__tests__/probe.ts',
+			'tests/Fixtures/node-config/test/probe.ts',
 		] ) {
 			const config = await eslint.calculateConfigForFile(
 				resolve( path )
@@ -96,7 +96,7 @@ probes.push( [
 		}
 		for ( const name of [ 'probe.test.js.snap', 'probe.test.json' ] ) {
 			const config = await eslint.calculateConfigForFile(
-				resolve( `tests/fixtures/node-config/${ name }` )
+				resolve( `tests/Fixtures/node-config/${ name }` )
 			);
 			if ( undefined !== config ) {
 				throw new Error( `${ name } is linted as a script` );
@@ -141,7 +141,7 @@ probes.push( [
 				'./node_modules/.bin/stylelint',
 				[
 					'--print-config',
-					'tests/fixtures/node-config/probe.css',
+					'tests/Fixtures/node-config/probe.css',
 					'--config',
 					'node/stylelint.config.base.js',
 				],
@@ -191,11 +191,11 @@ probes.push( [
 probes.push( [
 	'tsconfig.base.json',
 	() => {
-		const project = [ '-p', 'tests/fixtures/node-config/tsconfig.json' ];
+		const project = [ '-p', 'tests/Fixtures/node-config/tsconfig.json' ];
 		// The base's noEmit stands in for the flag, so compiling the probe writes no JavaScript.
 		execFileSync( './node_modules/.bin/tsc', project, { stdio: 'pipe' } );
-		if ( existsSync( 'tests/fixtures/node-config/probe.js' ) ) {
-			rmSync( 'tests/fixtures/node-config/probe.js' );
+		if ( existsSync( 'tests/Fixtures/node-config/probe.js' ) ) {
+			rmSync( 'tests/Fixtures/node-config/probe.js' );
 			throw new Error( 'tsc emitted probe.js' );
 		}
 		const options = JSON.parse(

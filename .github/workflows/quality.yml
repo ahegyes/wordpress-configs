@@ -38,7 +38,7 @@ jobs:
     uses: ./.github/workflows/reusable-php-syntax-check.yml
     with:
       php-versions: '["7.4"]'
-      paths: '["tests/fixtures/build-fixture"]'
+      paths: '["tests/Fixtures/build-fixture"]'
 
   phpcs-smoke:
     name: PHPCS dist-file smoke
@@ -74,7 +74,7 @@ jobs:
         shell: bash
         run: |
           # The production profile skips */tests/*, so a temp copy is scanned outside that path.
-          cp -R tests/fixtures/plugin-stub "$RUNNER_TEMP/plugin-stub"
+          cp -R tests/Fixtures/plugin-stub "$RUNNER_TEMP/plugin-stub"
           vendor/bin/phpcs -v --standard=php/quality-assurance/phpcs.dist.xml "$RUNNER_TEMP/plugin-stub" | tee phpcs-scan.log
           # The ruleset's own exclude-patterns can silently empty the file list, and an empty scan proves nothing.
           ! grep -qF '(0 files in queue)' phpcs-scan.log
@@ -118,7 +118,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/reusable-block-json-check.yml
     with:
-      project-path: tests/fixtures/block-json
+      project-path: tests/Fixtures/block-json
 
   plugin-check-build:
     name: Plugin Check fixture build
@@ -135,7 +135,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: build-fixture
-          path: tests/fixtures/build-fixture
+          path: tests/Fixtures/build-fixture
           include-hidden-files: true
           retention-days: 1
 

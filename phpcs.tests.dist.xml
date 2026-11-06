@@ -2,7 +2,7 @@
 <!-- Repo self-lint for tests/: extends the shared php/quality-assurance/phpcs.tests.dist.xml profile. -->
 <ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="vendor/squizlabs/php_codesniffer/phpcs.xsd">
 	<!-- Test fixtures are minimal stub files with deliberate redeclarations, so they are not linted. -->
-	<exclude-pattern>(?-i)*/tests/fixtures/*</exclude-pattern>
+	<exclude-pattern>(?-i)*/tests/Fixtures/*</exclude-pattern>
 
 	<rule ref="./php/quality-assurance/phpcs.tests.dist.xml">
 		<!-- Tests run php-scoper, PHPCS and workflow steps through exec(), proc_open() and putenv(), and data providers name parameters such as $function. -->

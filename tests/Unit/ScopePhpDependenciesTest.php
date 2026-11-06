@@ -14,7 +14,7 @@ use Symfony\Component\Filesystem\Filesystem;
 final class ScopePhpDependenciesTest extends TestCase {
 	use RecordsInstalledPackagesTrait;
 
-	protected const string FIXTURE_DIR = __DIR__ . '/../fixtures/scoping-project';
+	protected const string FIXTURE_DIR = __DIR__ . '/../Fixtures/scoping-project';
 
 	protected const string VENDOR_DIR = __DIR__ . '/../../vendor';
 

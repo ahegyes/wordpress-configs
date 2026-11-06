@@ -18,7 +18,7 @@ wordpress-configs/
 ├── tests/
 │   ├── Unit/                   # PHPUnit tests that run the real tools
 │   ├── Support/                # RunsWorkflowStepsTrait, which runs a workflow step's script, and RecordsInstalledPackagesTrait
-│   └── fixtures/               # projects and captured tool output the tests use
+│   └── Fixtures/               # projects and captured tool output the tests use
 ├── phpcs.dist.xml              # self-lint: the production profile minus WordPress-runtime sniffs
 ├── phpcs.tests.dist.xml        # self-lint for tests/
 ├── phpstan.dist.neon           # self-lint: the shared profile over php/
