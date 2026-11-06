@@ -176,7 +176,7 @@ A scope run:
 
 - scopes every file of each scoped package into `vendor-prefixed.tmp/` and, once php-scoper succeeds, moves it to `vendor-prefixed/<vendor>/<package>/` in place of the previous build, refusing a `vendor-prefixed/` that is a symbolic link, so a failed run keeps the previous build;
 - leaves global the WordPress symbols of `sniccowp/php-scoper-wordpress-excludes`, Action Scheduler (`as_*` and `ActionScheduler*`), every symbol of the stubs files the project or a scoped package declares under `extra.scoping-stubs`, and their namespaces;
-- prefixes the strings that start with a scoped package's own namespace, which libraries use to build class names;
+- prefixes the strings that start with a scoped package's own namespace, which libraries use to build class names, unless they name a namespace the run leaves global or a symbol in one;
 - applies the recipe of each scoped package that has one in `php/php-scoper/recipes/<vendor>/<package>.inc.php`;
 - rewrites each string literal of the text domain a scoped package declares under `extra.scoping-text-domain` to the project's `extra.text-domain`, unless the two are the same;
 - fails, naming each one, when the scoped code references a prefixed name it does not declare as the kind of symbol the reference needs: a host symbol no stubs file declares, a dependency outside the scoped packages, a string php-scoper took for a class name, or the class of a `Class::MEMBER` string;

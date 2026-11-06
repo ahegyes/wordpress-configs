@@ -103,13 +103,14 @@ return static function ( string $project_dir, string ...$names ): array {
 	if ( array() !== $domains && ( ! is_string( $text_domain ) || '' === $text_domain ) ) {
 		throw new RuntimeException( "'$project_dir/composer.json' declares no extra.text-domain, which the strings of the scoped packages take." );
 	}
-	$domains = array_filter( $domains, static fn ( string $domain ): bool => $text_domain !== $domain );
+	$domains            = array_filter( $domains, static fn ( string $domain ): bool => $text_domain !== $domain );
+	$exclude_namespaces = array( ...$exclude_namespaces, ...$symbols['namespaces'] );
 
 	// Libraries build class names in strings php-scoper cannot see, and a string that starts with a scoped package's own namespace names one of its classes.
 	if ( array() !== $roots ) {
 		$separated  = static fn ( string $name ): string => implode( '\\\\{1,2}', array_map( static fn ( string $segment ): string => preg_quote( $segment, '/' ), explode( '\\', $name ) ) );
 		$own        = '/^(\\\\{0,2})((?:' . implode( '|', array_map( $separated, array_unique( $roots ) ) ) . ')(\\\\{1,2}))/';
-		$patchers[] = static function ( string $file_path, string $prefix, string $contents ) use ( $own, $separated ): string {
+		$patchers[] = static function ( string $file_path, string $prefix, string $contents ) use ( $own, $separated, $exclude_namespaces ): string {
 			if ( ! str_ends_with( $file_path, '.php' ) ) {
 				return $contents;
 			}
@@ -122,15 +123,21 @@ return static function ( string $project_dir, string ...$names ): array {
 				}
 				$opening = $token->is( T_CONSTANT_ENCAPSED_STRING ) ? strcspn( $token->text, '\'"' ) + 1 : 0;
 				$body    = substr( $token->text, $opening );
-				if ( 1 !== preg_match( $scoped, $body ) && 1 === preg_match( $own, $body, $match ) ) {
-					// Double-quoted strings and heredocs read escape sequences, so a prefix segment such as Vendor\name takes doubled backslashes there.
-					$escapes     = $token->is( T_CONSTANT_ENCAPSED_STRING ) ? str_contains( substr( $token->text, 0, $opening ), '"' ) : ! str_contains( $tokens[ $index - 1 ]->text, "'" );
-					$separator   = $escapes ? '\\\\' : $match[3];
-					$token->text = substr( $token->text, 0, $opening ) . $match[1] . str_replace( '\\', $separator, $prefix ) . $separator . substr( $body, strlen( $match[1] ) );
+				if ( 1 === preg_match( $scoped, $body ) || 1 !== preg_match( $own, $body, $match ) ) {
+					continue;
 				}
+				// A string that names a namespace php-scoper keeps global, or a symbol in one, names the host's symbol.
+				$named = 1 === preg_match( '/^\\\\{0,2}((?:[\w\x80-\xff]+\\\\{1,2})*[\w\x80-\xff]+)/', $body, $name_match ) ? (string) preg_replace( '/\\\\{2}/', '\\', $name_match[1] ) : '';
+				if ( array_any( $exclude_namespaces, static fn ( string $pattern ): bool => 1 === preg_match( $pattern, $named ) || 1 === preg_match( $pattern, substr( $named, 0, (int) strrpos( $named, '\\' ) ) ) ) ) {
+					continue;
+				}
+				// Double-quoted strings and heredocs read escape sequences, so a prefix segment such as Vendor\name takes doubled backslashes there.
+				$escapes     = $token->is( T_CONSTANT_ENCAPSED_STRING ) ? str_contains( substr( $token->text, 0, $opening ), '"' ) : ! str_contains( $tokens[ $index - 1 ]->text, "'" );
+				$separator   = $escapes ? '\\\\' : $match[3];
+				$token->text = substr( $token->text, 0, $opening ) . $match[1] . str_replace( '\\', $separator, $prefix ) . $separator . substr( $body, strlen( $match[1] ) );
 			}
 
-			return implode( '', array_map( static fn ( PhpToken $token ): string => $token->text, $tokens ) );
+			return implode( '', array_column( $tokens, 'text' ) );
 		};
 	}
 
@@ -160,7 +167,7 @@ return static function ( string $project_dir, string ...$names ): array {
 		// A package's tests run against development tools that are never scoped, so they would only ship dead, unresolvable code.
 		'finders'                 => array( Finder::create()->files()->in( array_values( $packages['scoped'] ) )->exclude( array( 'tests', 'Tests' ) ) ),
 		'exclude-files'           => $exclude_files,
-		'exclude-namespaces'      => array( ...$exclude_namespaces, ...$symbols['namespaces'] ),
+		'exclude-namespaces'      => $exclude_namespaces,
 		'exclude-classes'         => $symbols['classes'],
 		'exclude-functions'       => $symbols['functions'],
 		'exclude-constants'       => $symbols['constants'],

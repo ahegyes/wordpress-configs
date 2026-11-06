@@ -385,7 +385,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 
 		ScopePhpDependencies::scope( $project );
 
-		self::assertStringContainsString( "\$checkout = 'Acme\\\\Commerce\\\\Gateway\\\\Checkout';", self::read( $project . '/vendor-prefixed' . self::SECTION ) );
+		self::assertStringContainsString( "\$checkout = 'Acme\\Commerce\\Gateway\\Checkout';", self::read( $project . '/vendor-prefixed' . self::SECTION ) );
 	}
 
 	#[DataProvider( 'provide_symbols_stubs_declare_through_calls' )]
