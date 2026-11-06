@@ -2,13 +2,12 @@
 
 namespace DeepWebSolutions\Config\Tests\Unit;
 
-use DeepWebSolutions\Config\Tests\Support\RunsWorkflowSteps;
+use DeepWebSolutions\Config\Tests\Support\RunsWorkflowStepsTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class PluginCheckWorkflowTest extends TestCase {
-
-	use RunsWorkflowSteps;
+	use RunsWorkflowStepsTrait;
 
 	/**
 	 * @return array<string, list<string>>
@@ -76,7 +75,7 @@ final class PluginCheckWorkflowTest extends TestCase {
 	}
 
 	/**
-	 * @return array{status: int, output: string, outputs: array<string, string>}
+	 * @return array{status: int, output: string, outputs: array<string, string>, env: array<string, string>}
 	 */
 	protected function resolve( string $workflow, string $job, string $wp_org, string $exclude_checks ): array {
 		return $this->run_step(

@@ -3,9 +3,9 @@
 namespace DeepWebSolutions\Config\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 
 final class PhpstanConfigTest extends TestCase {
-
 	protected const string FIXTURE_DIR = __DIR__ . '/../fixtures/phpstan';
 
 	public function test_shared_rules_report_implicit_mixed_and_missing_overrides(): void {
@@ -25,6 +25,7 @@ final class PhpstanConfigTest extends TestCase {
 		foreach ( array( 'src', 'includes', 'blocks', 'vendor-prefixed/acme/library', 'docs' ) as $dir ) {
 			\mkdir( "$project/$dir", 0777, true );
 		}
+
 		foreach ( array( 'functions.php', 'uninstall.php', 'footprint.php' ) as $file ) {
 			\file_put_contents( "$project/$file", "<?php\n" );
 		}
@@ -35,7 +36,7 @@ final class PhpstanConfigTest extends TestCase {
 			$config = require \dirname( __DIR__, 2 ) . '/php/quality-assurance/phpstan.dist.neon.php';
 		} finally {
 			\chdir( $cwd );
-			\exec( 'rm -rf ' . \escapeshellarg( $project ) );
+			new Filesystem()->remove( $project );
 		}
 
 		self::assertSame(

@@ -5,7 +5,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -81,6 +81,24 @@ probes.push( [
 				throw new Error( `${ name } is linted as a script` );
 			}
 		}
+
+		const e2e = await eslint.calculateConfigForFile(
+			resolve( 'tests/e2e/probe.js' )
+		);
+		if (
+			! Object.keys( e2e?.rules ?? {} ).some( ( rule ) =>
+				rule.startsWith( 'playwright/' )
+			)
+		) {
+			throw new Error(
+				'tests/e2e/probe.js does not get the Playwright rules'
+			);
+		}
+		for ( const path of [ 'build/x.js', 'vendor/x.js' ] ) {
+			if ( ! ( await eslint.isPathIgnored( resolve( path ) ) ) ) {
+				throw new Error( `${ path } is linted` );
+			}
+		}
 	},
 ] );
 
@@ -110,6 +128,9 @@ probes.push( [
 		}
 		if ( config.rules[ 'selector-class-pattern' ] ) {
 			throw new Error( 'selector-class-pattern is not turned off' );
+		}
+		if ( ! config.rules[ 'font-weight-notation' ] ) {
+			throw new Error( '@wordpress/stylelint-config is not extended' );
 		}
 	},
 ] );
@@ -149,12 +170,36 @@ probes.push( [
 
 probes.push( [
 	'tsconfig.base.json',
-	() =>
-		execFileSync(
-			'./node_modules/.bin/tsc',
-			[ '--noEmit', '-p', 'tests/fixtures/node-config/tsconfig.json' ],
-			{ stdio: 'pipe' }
-		),
+	() => {
+		const project = [ '-p', 'tests/fixtures/node-config/tsconfig.json' ];
+		// The base's noEmit stands in for the flag, so compiling the probe writes no JavaScript.
+		execFileSync( './node_modules/.bin/tsc', project, { stdio: 'pipe' } );
+		if ( existsSync( 'tests/fixtures/node-config/probe.js' ) ) {
+			rmSync( 'tests/fixtures/node-config/probe.js' );
+			throw new Error( 'tsc emitted probe.js' );
+		}
+		const options = JSON.parse(
+			execFileSync(
+				'./node_modules/.bin/tsc',
+				[ '--showConfig', ...project ],
+				{ stdio: 'pipe' }
+			)
+		).compilerOptions;
+		const deltas = {
+			jsx: 'react-jsx',
+			noImplicitReturns: true,
+			noFallthroughCasesInSwitch: true,
+			skipLibCheck: true,
+			isolatedModules: true,
+			resolveJsonModule: true,
+			noEmit: true,
+		};
+		for ( const [ option, value ] of Object.entries( deltas ) ) {
+			if ( value !== options[ option ] ) {
+				throw new Error( `${ option } is ${ options[ option ] }` );
+			}
+		}
+	},
 ] );
 
 probes.push( [

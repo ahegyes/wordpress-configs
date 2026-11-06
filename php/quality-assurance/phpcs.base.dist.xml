@@ -36,6 +36,10 @@
 		<exclude name="Squiz.Commenting.FileComment.Missing"/>
 		<!-- Ignore end char rule since it conflicts with PhpStorm's code folding regions. -->
 		<exclude name="Squiz.Commenting.InlineComment.InvalidEndChar" />
+		<!-- Inline `<?php declare( strict_types=1 );` allowed even with file docblock. -->
+		<exclude name="PSR12.Files.FileHeader.IncorrectOrder"/>
+		<!-- Short ternary `?:` allowed workspace-wide. -->
+		<exclude name="Universal.Operators.DisallowShortTernary"/>
 	</rule>
 	<config name="minimum_wp_version" value="7.1"/>
 
@@ -62,18 +66,8 @@
 	</rule>
 
 	<!-- Disabled rules. -->
-	<rule ref="PSR12.Files.FileHeader.IncorrectOrder">
-		<!-- Inline `<?php declare( strict_types=1 );` allowed even with file docblock. -->
-		<severity>0</severity>
-	</rule>
-
-	<rule ref="Universal.Operators.DisallowShortTernary">
-		<!-- Short ternary `?:` allowed workspace-wide. -->
-		<severity>0</severity>
-	</rule>
-
 	<rule ref="Squiz.Commenting.FunctionCommentThrowTag.WrongNumber">
-		<!-- Squiz miscounts @throws against implicit throws (e.g. `JSON_THROW_ON_ERROR`). -->
+		<!-- Squiz miscounts @throws against implicit throws (e.g. `JSON_THROW_ON_ERROR`); WordPress-Docs adds the sniff before WordPress, so an exclude there would not reach it. -->
 		<severity>0</severity>
 	</rule>
 </ruleset>

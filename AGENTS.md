@@ -9,14 +9,14 @@ wordpress-configs/
 ├── php/
 │   ├── quality-assurance/      # the shared PHPCS profiles and base, the PHPStan profile and base, opt-in path discovery
 │   ├── php-scoper/             # scoper-base.inc.php and per-library recipes/<vendor>/<package>.inc.php
-│   ├── composer/               # ScopePhpDependencies, ScopedPackages, CollectScopingStubs and their AST visitors
+│   ├── composer/               # ScopePhpDependencies, ScopedPackages, GlobalSymbols, Manifest and their AST visitors
 │   ├── phpstan/                # GlobalTagVisitor, which the PHPStan profile registers
 │   └── release/                # the manifest and lock of the WP-CLI commands reusable-release.yml installs, which Dependabot keeps current
 ├── node/                       # tsconfig, ESLint, Stylelint, PostCSS and Playwright baselines
 ├── docs/                       # workflows.md (input reference) and scripts-contract.md (scripts, files, floors)
 ├── tests/
 │   ├── Unit/                   # PHPUnit tests that run the real tools
-│   ├── Support/                # RunsWorkflowSteps, which runs a workflow step's script
+│   ├── Support/                # RunsWorkflowStepsTrait, which runs a workflow step's script, and RecordsInstalledPackagesTrait
 │   └── fixtures/               # projects and captured tool output the tests use
 ├── phpcs.dist.xml              # self-lint: the production profile minus WordPress-runtime sniffs
 ├── phpcs.tests.dist.xml        # self-lint for tests/
@@ -57,3 +57,4 @@ zizmor --config .github/zizmor.yml .github/
 - `reusable-playwright-e2e.yml` and a full `reusable-release.yml` run have no target here: CI checks them with actionlint and zizmor, and the unit tests run the release's assertion steps.
 - `symfony/filesystem` and `symfony/finder` stay a major behind their latest release, because `humbug/php-scoper` caps them.
 - The release's PHP-floor check reads a strict `>` lower bound as inclusive.
+- `reusable-phpunit.yml`'s wp-env branch runs in no job here: every consumer's Integration lane runs it, and a pull request that moves a consumer's pin catches a break.

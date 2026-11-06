@@ -2,13 +2,12 @@
 
 namespace DeepWebSolutions\Config\Tests\Unit;
 
-use DeepWebSolutions\Config\Tests\Support\RunsWorkflowSteps;
+use DeepWebSolutions\Config\Tests\Support\RunsWorkflowStepsTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class SupplyChainAuditWorkflowTest extends TestCase {
-
-	use RunsWorkflowSteps;
+	use RunsWorkflowStepsTrait;
 
 	/**
 	 * @return array<string, array{string}>
@@ -50,11 +49,11 @@ final class SupplyChainAuditWorkflowTest extends TestCase {
 	}
 
 	/**
-	 * @return array{status: int, output: string, outputs: array<string, string>}
+	 * @return array{status: int, output: string, outputs: array<string, string>, env: array<string, string>}
 	 */
 	protected function audit( ?string $fixture, string $fail_on_findings ): array {
 		$report = \is_null( $fixture ) ? '/dev/null' : __DIR__ . '/../fixtures/composer-audit/' . $fixture;
-		$this->write_executable( 'composer', "#!/usr/bin/env bash\ncat " . \escapeshellarg( $report ) . "\nexit 1\n" );
+		$this->write_executable( 'bin/composer', "#!/usr/bin/env bash\ncat " . \escapeshellarg( $report ) . "\nexit 1\n" );
 
 		return $this->run_step(
 			'reusable-supply-chain-audit.yml',

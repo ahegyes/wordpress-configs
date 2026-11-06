@@ -3,7 +3,8 @@
 namespace DeepWebSolutions\Config\Composer;
 
 use Composer\InstalledVersions;
-use DeepWebSolutions\Config\Composer\Internal\StubSymbolCollector;
+use DeepWebSolutions\Config\Composer\Visitors\StubSymbolCollector;
+use PhpParser\Error;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\ParserFactory;
@@ -11,8 +12,19 @@ use Symfony\Component\Finder\Finder;
 
 /**
  * Collects the WordPress, Action Scheduler, stub-declared and dropped-package symbols that scoping leaves global.
+ *
+ * @internal
  */
-final class CollectScopingStubs {
+final class GlobalSymbols {
+	// region MAGIC METHODS
+
+	/**
+	 * Constructor.
+	 */
+	protected function __construct() {}
+
+	// endregion
+
 	// region METHODS
 
 	/**
@@ -22,7 +34,7 @@ final class CollectScopingStubs {
 	 * @param   list<string> $package_dirs The directories of the packages to scope.
 	 * @param   list<string> $dropped_dirs The directories of the packages that stay unscoped.
 	 *
-	 * @throws  \RuntimeException Thrown when a declared stubs file is missing or a file cannot be read.
+	 * @throws  \RuntimeException Thrown when a declared stubs file is missing, or a file cannot be read or does not parse.
 	 *
 	 * @return  array{classes: list<string>, functions: list<string>, constants: list<string>, namespaces: list<string>}
 	 */
@@ -34,10 +46,27 @@ final class CollectScopingStubs {
 			'constants' => self::read_list( $wordpress . 'constants.json' ),
 		);
 
+		// A manifest declares each stubs file as ./path.php relative to itself, as vendor/package for that package's conventional package.php file, or as vendor/package:path.php.
 		$files = array();
 		foreach ( array( $project_dir, ...$package_dirs ) as $dir ) {
-			\array_push( $files, ...self::declared_stubs( $dir ) );
+			foreach ( (array) ( Manifest::extra( Manifest::read( $dir . '/composer.json' ) )['scoping-stubs'] ?? array() ) as $entry ) {
+				$entry = \is_string( $entry ) ? $entry : '';
+				if ( \str_starts_with( $entry, './' ) ) {
+					$path = $dir . \substr( $entry, 1 );
+				} else {
+					$parts   = \explode( ':', $entry, 2 );
+					$install = InstalledVersions::isInstalled( $parts[0] ) ? InstalledVersions::getInstallPath( $parts[0] ) : null;
+					$path    = \is_null( $install ) ? '' : $install . '/' . ( $parts[1] ?? \basename( $parts[0] ) . '.php' );
+				}
+
+				if ( ! \is_file( $path ) ) {
+					throw new \RuntimeException( \sprintf( "'%s/composer.json' declares the scoping stubs %s, which do not exist.", $dir, \var_export( $entry, true ) ) );
+				}
+
+				$files[] = $path;
+			}
 		}
+
 		foreach ( $dropped_dirs as $dir ) {
 			foreach ( Finder::create()->files()->in( $dir )->exclude( array( 'tests', 'Tests' ) )->name( '*.php' ) as $file ) {
 				$files[] = $file->getPathname();
@@ -46,8 +75,14 @@ final class CollectScopingStubs {
 
 		$parser = new ParserFactory()->createForNewestSupportedVersion();
 		foreach ( \array_unique( $files ) as $file ) {
+			try {
+				$statements = $parser->parse( self::read( $file ) ) ?? array();
+			} catch ( Error $error ) {
+				throw new \RuntimeException( "Could not parse '$file', whose symbols the run keeps global: " . $error->getMessage(), 0, $error );
+			}
+
 			$collector = new StubSymbolCollector();
-			new NodeTraverser( new NameResolver(), $collector )->traverse( $parser->parse( self::read( $file ) ) ?? array() );
+			new NodeTraverser( new NameResolver(), $collector )->traverse( $statements );
 
 			$symbols['classes']   = array( ...$symbols['classes'], ...$collector->classes );
 			$symbols['functions'] = array( ...$symbols['functions'], ...$collector->functions );
@@ -62,46 +97,14 @@ final class CollectScopingStubs {
 				$namespaces[ \preg_quote( \ltrim( \substr( $symbol, 0, $separator ), '\\' ), '/' ) ] = true;
 			}
 		}
-		$symbols['namespaces'] = array() === $namespaces ? array() : array( '/^(?:' . \implode( '|', \array_keys( $namespaces ) ) . ')$/i' );
 
+		$symbols['namespaces'] = array() === $namespaces ? array() : array( '/^(?:' . \implode( '|', \array_keys( $namespaces ) ) . ')$/i' );
 		return $symbols;
 	}
 
 	// endregion
 
 	// region HELPERS
-
-	/**
-	 * Returns the stubs files a manifest declares: ./path.php relative to the manifest, vendor/package for that package's conventional package.php file, or vendor/package:path.php.
-	 *
-	 * @param   string $dir The directory of the manifest.
-	 *
-	 * @throws  \RuntimeException Thrown when a declared stubs file is missing or the manifest cannot be read.
-	 *
-	 * @return  list<string>
-	 */
-	protected static function declared_stubs( string $dir ): array {
-		$manifest = \json_decode( self::read( $dir . '/composer.json' ), true, flags: \JSON_THROW_ON_ERROR );
-		$extra    = \is_array( $manifest ) && isset( $manifest['extra'] ) && \is_array( $manifest['extra'] ) ? $manifest['extra'] : array();
-
-		$stubs_files = array();
-		foreach ( (array) ( $extra['scoping-stubs'] ?? array() ) as $entry ) {
-			$entry = \is_string( $entry ) ? $entry : '';
-			if ( \str_starts_with( $entry, './' ) ) {
-				$path = $dir . \substr( $entry, 1 );
-			} else {
-				$parts   = \explode( ':', $entry, 2 );
-				$install = InstalledVersions::isInstalled( $parts[0] ) ? InstalledVersions::getInstallPath( $parts[0] ) : null;
-				$path    = \is_null( $install ) ? '' : $install . '/' . ( $parts[1] ?? \basename( $parts[0] ) . '.php' );
-			}
-			if ( ! \is_file( $path ) ) {
-				throw new \RuntimeException( \sprintf( "'%s/composer.json' declares the scoping stubs %s, which do not exist.", $dir, \var_export( $entry, true ) ) );
-			}
-			$stubs_files[] = $path;
-		}
-
-		return $stubs_files;
-	}
 
 	/**
 	 * Returns the strings of a JSON list file.

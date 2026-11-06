@@ -4,9 +4,9 @@ namespace DeepWebSolutions\Config\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 
 final class PhpcsProfilesTest extends TestCase {
-
 	protected const string RULESET_DIR = __DIR__ . '/../../php/quality-assurance';
 
 	protected string $scan_dir;
@@ -19,15 +19,7 @@ final class PhpcsProfilesTest extends TestCase {
 
 	#[\Override]
 	protected function tearDown(): void {
-		$entries = new \RecursiveIteratorIterator(
-			new \RecursiveDirectoryIterator( $this->scan_dir, \FilesystemIterator::SKIP_DOTS ),
-			\RecursiveIteratorIterator::CHILD_FIRST
-		);
-		foreach ( $entries as $entry ) {
-			self::assertInstanceOf( \SplFileInfo::class, $entry );
-			$entry->isDir() ? \rmdir( $entry->getPathname() ) : \unlink( $entry->getPathname() );
-		}
-		\rmdir( $this->scan_dir );
+		new Filesystem()->remove( $this->scan_dir );
 	}
 
 	/**
@@ -48,6 +40,47 @@ final class PhpcsProfilesTest extends TestCase {
 		}
 
 		self::assertSame( array( 'src/Vendor/x.php' ), \array_keys( $this->scan( self::RULESET_DIR . '/' . $profile ) ) );
+	}
+
+	public function test_production_profile_scans_a_project_s_own_files_and_skips_tooling_and_generated_ones(): void {
+		$scanned = array( 'includes/class-asset.php', 'patterns/example.php', 'src/Asset.php', 'src/Bin/Command.php', 'src/ScriptAsset.php', 'src/Search/Index.php', 'src/Tests/Harness.php', 'src/Vendor/Payout.php' );
+		$skipped = array( 'bin/tool.php', 'blocks/build/blocks-manifest.php', 'build/index.asset.php', 'languages/acme-de_DE.l10n.php', 'node_modules/lib.php', 'tests/lib.php', 'vendor/lib.php', 'vendor-prefixed/acme/lib.php' );
+		foreach ( array( ...$scanned, ...$skipped ) as $file ) {
+			if ( ! \is_dir( \dirname( $this->scan_dir . '/' . $file ) ) ) {
+				\mkdir( \dirname( $this->scan_dir . '/' . $file ), 0777, true );
+			}
+
+			\file_put_contents( $this->scan_dir . '/' . $file, "<?php declare( strict_types=1 );\n\n\$a = [];\n" );
+		}
+
+		$reported = \array_keys( $this->scan( self::RULESET_DIR . '/phpcs.dist.xml' ) );
+		\sort( $reported );
+
+		self::assertSame( $scanned, $reported );
+	}
+
+	public function test_tests_profile_scans_a_tests_directory_the_production_profile_skips(): void {
+		\mkdir( $this->scan_dir . '/tests' );
+		\file_put_contents( $this->scan_dir . '/tests/x.php', "<?php declare( strict_types=1 );\n\n\$a = [];\n" );
+
+		self::assertSame( array( 'tests/x.php' ), \array_keys( $this->scan( self::RULESET_DIR . '/phpcs.tests.dist.xml' ) ) );
+		self::assertSame( array(), $this->scan( self::RULESET_DIR . '/phpcs.dist.xml' ) );
+	}
+
+	public function test_production_profile_accepts_slashes_between_hook_name_levels(): void {
+		\file_put_contents( $this->scan_dir . '/slashes.php', "<?php declare( strict_types=1 );\n\ndo_action( 'acme/area/name_done' );\n" );
+		\file_put_contents( $this->scan_dir . '/hyphens.php', "<?php declare( strict_types=1 );\n\ndo_action( 'acme-area-name' );\n" );
+
+		$sources = $this->scan( self::RULESET_DIR . '/phpcs.dist.xml' );
+
+		self::assertArrayNotHasKey( 'slashes.php', $sources );
+		self::assertArrayHasKey( 'WordPress.NamingConventions.ValidHookName.UseUnderscores', $sources['hyphens.php'] ?? array() );
+	}
+
+	public function test_production_profile_accepts_a_generic_type_over_its_erased_native_hint(): void {
+		\file_put_contents( $this->scan_dir . '/generic.php', "<?php declare( strict_types=1 );\n/**\n * Probe.\n *\n * @package Acme\n */\n\n/**\n * Returns the class.\n *\n * @param class-string<\\Countable> \$class The class.\n *\n * @return string\n */\nfunction acme_probe( string \$class ): string {\n\treturn \$class;\n}\n" );
+
+		self::assertArrayNotHasKey( 'Squiz.Commenting.FunctionComment.IncorrectTypeHint', $this->scan( self::RULESET_DIR . '/phpcs.dist.xml' )['generic.php'] ?? array() );
 	}
 
 	public function test_production_profile_skips_docblock_sniffs_in_patterns_directories(): void {

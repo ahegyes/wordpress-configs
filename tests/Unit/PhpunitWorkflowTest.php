@@ -2,38 +2,37 @@
 
 namespace DeepWebSolutions\Config\Tests\Unit;
 
-use DeepWebSolutions\Config\Tests\Support\RunsWorkflowSteps;
+use DeepWebSolutions\Config\Tests\Support\RunsWorkflowStepsTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class PhpunitWorkflowTest extends TestCase {
-
-	use RunsWorkflowSteps;
+	use RunsWorkflowStepsTrait;
 
 	/**
-	 * @return array<string, array{array<string, string>, string, string}>
+	 * @return array<string, array{array<string, string>, string, array<string, string>}>
 	 */
 	public static function provide_configs(): array {
 		return array(
-			'no-config'                        => array( array(), '', "WP_ENV_PHP_VERSION=8.5\n" ),
-			'unpinned'                         => array( array( '.wp-env.json' => '{ "core": null }' ), '', "WP_ENV_PHP_VERSION=8.5\n" ),
-			'pinned'                           => array( array( '.wp-env.json' => '{ "phpVersion": "7.4" }' ), '', '' ),
+			'no-config'                        => array( array(), '', array( 'WP_ENV_PHP_VERSION' => '8.5' ) ),
+			'unpinned'                         => array( array( '.wp-env.json' => '{ "core": null }' ), '', array( 'WP_ENV_PHP_VERSION' => '8.5' ) ),
+			'pinned'                           => array( array( '.wp-env.json' => '{ "phpVersion": "7.4" }' ), '', array() ),
 			'pinned-in-the-override'           => array(
 				array(
 					'.wp-env.json'          => '{}',
 					'.wp-env.override.json' => '{ "phpVersion": "7.4" }',
 				),
 				'',
-				'',
+				array(),
 			),
-			'pinned-for-one-environment'       => array( array( '.wp-env.json' => '{ "env": { "tests": { "phpVersion": "7.4" } } }' ), '', '' ),
+			'pinned-for-one-environment'       => array( array( '.wp-env.json' => '{ "env": { "tests": { "phpVersion": "7.4" } } }' ), '', array() ),
 			'pinned-in-the-named-config'       => array(
 				array(
 					'.wp-env.json'       => '{}',
 					'.wp-env.php74.json' => '{ "phpVersion": "7.4" }',
 				),
 				'.wp-env.php74.json',
-				'',
+				array(),
 			),
 			'pinned-beside-the-named-override' => array(
 				array(
@@ -41,7 +40,7 @@ final class PhpunitWorkflowTest extends TestCase {
 					'.wp-env.php74.override.json' => '{ "phpVersion": "7.4" }',
 				),
 				'.wp-env.php74.json',
-				'',
+				array(),
 			),
 			'unpinned-in-the-named-config'     => array(
 				array(
@@ -49,16 +48,17 @@ final class PhpunitWorkflowTest extends TestCase {
 					'.wp-env.tests.json' => '{}',
 				),
 				'.wp-env.tests.json',
-				"WP_ENV_PHP_VERSION=8.5\n",
+				array( 'WP_ENV_PHP_VERSION' => '8.5' ),
 			),
 		);
 	}
 
 	/**
 	 * @param array<string, string> $files
+	 * @param array<string, string> $exported
 	 */
 	#[DataProvider( 'provide_configs' )]
-	public function test_the_site_runs_on_php_version_only_where_the_wp_env_config_pins_no_php( array $files, string $config_file, string $exported ): void {
+	public function test_the_site_runs_on_php_version_only_where_the_wp_env_config_pins_no_php( array $files, string $config_file, array $exported ): void {
 		$this->write_project( $files );
 
 		$result = $this->run_step(
@@ -72,6 +72,6 @@ final class PhpunitWorkflowTest extends TestCase {
 		);
 
 		self::assertSame( 0, $result['status'], $result['output'] );
-		self::assertSame( $exported, \is_file( $this->work_dir . '/github-env' ) ? (string) \file_get_contents( $this->work_dir . '/github-env' ) : '' );
+		self::assertSame( $exported, $result['env'] );
 	}
 }

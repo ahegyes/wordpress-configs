@@ -5,10 +5,11 @@ The tests prove that the shared configs, the scoping pipeline and the reusable w
 ## Tiers
 
 - **Unit** (`tests/Unit/`, `composer test`). PHPUnit tests that run PHPCS, PHPStan, php-scoper and workflow step scripts on fixtures copied to a temporary directory:
-  - `PhpcsProfilesTest` scans files with both PHPCS profiles: the case-sensitive vendor exclusions, the `index.php` stub waiver, the full `WordPress` standard, and the two ways a project lowers the PHP and WordPress floors.
+  - `PhpcsProfilesTest` scans files with both PHPCS profiles: the files each profile scans and the tooling, generated and case-sensitive vendor paths it skips, the `index.php` stub waiver, slash-separated hook names, generic docblock types over their native hints, the full `WordPress` standard, and the two ways a project lowers the PHP and WordPress floors.
   - `PhpstanConfigTest` analyzes fixtures with the shared PHPStan rules: level 10 findings, nested `vendor/` directories scanned but not analyzed, and the types `@global` tags declare.
   - `ScopePhpDependenciesTest` scopes `fixtures/scoping-project/` end to end and checks the output, the generated autoloader, the recipes, the `function_exists()` checks php-scoper adds to guards of global functions, and every failure the scope run reports. Its dompdf render test is in the `slow` group.
-  - `PhpunitWorkflowTest`, `PluginCheckWorkflowTest`, `ReleaseWorkflowTest` and `SupplyChainAuditWorkflowTest` run steps of `reusable-phpunit.yml`, `reusable-plugin-check.yml`, `reusable-release.yml` and `reusable-supply-chain-audit.yml`. `Support/RunsWorkflowSteps.php` loads a workflow with `symfony/yaml`, finds a step by its job and `name`, and runs its script with `bash -e`, as GitHub Actions does for a step that names no shell. Renaming a tested step breaks its test.
+  - `ScopedPackagesTest` resolves the packages to scope from inline packages through each link Composer records: a replaced dependency, a provided virtual package, a Composer plugin, a metapackage, and a requirement the root replaces or provides. `Support/RecordsInstalledPackagesTrait.php` writes `installed.json` and `installed.php` for both tests, as Composer does.
+  - `PhpunitWorkflowTest`, `PluginCheckWorkflowTest`, `ReleaseWorkflowTest` and `SupplyChainAuditWorkflowTest` run steps of `reusable-phpunit.yml`, `reusable-plugin-check.yml`, `reusable-release.yml` and `reusable-supply-chain-audit.yml`. `Support/RunsWorkflowStepsTrait.php` loads a workflow with `symfony/yaml`, finds a step by its job and `name`, and runs its script with `bash -e`, as GitHub Actions does for a step that names no shell. Renaming a tested step breaks its test.
 - **CI smokes** (`.github/workflows/quality.yml`). Checks that run a shared config as a consumer would:
   - the PHPCS production profile explains itself with `phpcs -e` and scans `fixtures/plugin-stub/`;
   - `npm run lint:config` loads each Node baseline against the installed toolchain through `fixtures/node-config/smoke.mjs`;
@@ -18,11 +19,11 @@ The tests prove that the shared configs, the scoping pipeline and the reusable w
 
 ## Mutation testing
 
-Mutation testing is opt-in. `composer test:unit:mutation` runs Infection over `php/` with the configuration in `infection.json`, skipping the `slow` group, and reports the mutation score; no gate or floor enforces it. `composer test:all` runs the unit suite and then Infection, and `composer quality-check:all` runs the PHP lint before both.
+Mutation testing is opt-in. `composer test:unit:mutation` runs Infection over the directories PHPUnit's coverage source lists, with the configuration in `infection.json`, skipping the `slow` group, and reports the mutation score; no gate or floor enforces it. `php/phpstan/` stays out, because only a PHPStan subprocess runs its visitor, which `PhpstanConfigTest` pins. `composer test:all` runs the unit suite and then Infection, and `composer quality-check:all` runs the PHP lint before both.
 
 ## Not covered here
 
-This repository's own CI runs the PHP lint, PHP syntax, PHPUnit, scripts lint, supply-chain audit, block.json, Plugin Check, workflow checks and CodeQL workflows. `reusable-playwright-e2e.yml` and `reusable-release.yml` need a plugin to act on, so CI checks them only with actionlint and zizmor, and the unit tests run the release's assertion steps; a full run of either happens first in a consumer's CI.
+This repository's own CI runs the PHP lint, PHP syntax, PHPUnit, scripts lint, supply-chain audit, block.json, Plugin Check, workflow checks and CodeQL workflows. `reusable-playwright-e2e.yml` and `reusable-release.yml` need a plugin to act on, so CI checks them only with actionlint and zizmor, and the unit tests run the release's assertion steps; a full run of either happens first in a consumer's CI. `reusable-phpunit.yml`'s wp-env branch runs in no job here either: every consumer's Integration lane runs it, and a pull request that moves a consumer's pin catches a break.
 
 ## Fixtures
 

@@ -3,12 +3,16 @@
 namespace DeepWebSolutions\Config\Tests\Unit;
 
 use DeepWebSolutions\Config\Composer\ScopePhpDependencies;
+use DeepWebSolutions\Config\Tests\Support\RecordsInstalledPackagesTrait;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 
+#[CoversClass( ScopePhpDependencies::class )]
 final class ScopePhpDependenciesTest extends TestCase {
+	use RecordsInstalledPackagesTrait;
 
 	protected const string FIXTURE_DIR = __DIR__ . '/../fixtures/scoping-project';
 
@@ -85,20 +89,34 @@ final class ScopePhpDependenciesTest extends TestCase {
 	}
 
 	public function test_scoped_autoload_loads_prefixed_classes_and_files_without_global_aliases(): void {
-		$script = \sprintf(
-			'namespace Automattic\WooCommerce\Admin\Settings { abstract class SettingsSection {} } namespace { require %s; require %s; echo json_encode( array( interface_exists( %s ), class_exists( %s ), class_exists( %s ), class_exists( %s ), class_exists( %s ), function_exists( %s ), function_exists( %s ), get_class( %s::format( "Csv" ) ), class_exists( "LegacyRenderer", false ), class_exists( "AcmeLegacy_Config", false ) ) ); }',
-			\var_export( self::VENDOR_DIR . '/composer/ClassLoader.php', true ),
-			\var_export( self::scoped_project() . '/vendor-prefixed/scoper-autoload.php', true ),
-			\var_export( 'Acme\Scoped\Psr\Log\LoggerInterface', true ),
-			\var_export( 'Acme\Scoped\LegacyRenderer', true ),
-			\var_export( 'Acme\Scoped\LegacyCanvas', true ),
-			\var_export( 'Acme\Scoped\AcmeLegacy_Config', true ),
-			\var_export( 'Acme\Scoped\DI\ContainerBuilder', true ),
-			\var_export( 'Acme\Scoped\DI\create', true ),
-			\var_export( 'Acme\Scoped\Acme\Commerce\get_label_prefix', true ),
-			'\Acme\Scoped\Acme\Commerce\SettingsSection'
-		);
-		\exec( \escapeshellarg( \PHP_BINARY ) . ' -r ' . \escapeshellarg( $script ) . ' 2>&1', $output, $exit_code );
+		$project = self::scoped_project();
+		$probe   = <<<'PHP'
+			<?php
+			namespace Automattic\WooCommerce\Admin\Settings {
+				abstract class SettingsSection {}
+			}
+			namespace {
+				require %s;
+				require %s;
+				echo json_encode(
+					array(
+						interface_exists( 'Acme\Scoped\Psr\Log\LoggerInterface' ),
+						class_exists( 'Acme\Scoped\LegacyRenderer' ),
+						class_exists( 'Acme\Scoped\LegacyCanvas' ),
+						class_exists( 'Acme\Scoped\AcmeLegacy_Config' ),
+						class_exists( 'Acme\Scoped\DI\ContainerBuilder' ),
+						function_exists( 'Acme\Scoped\DI\create' ),
+						function_exists( 'Acme\Scoped\Acme\Commerce\get_label_prefix' ),
+						get_class( \Acme\Scoped\Acme\Commerce\SettingsSection::format( 'Csv' ) ),
+						class_exists( 'LegacyRenderer', false ),
+						class_exists( 'AcmeLegacy_Config', false ),
+					)
+				);
+			}
+			PHP;
+		\file_put_contents( $project . '/autoload-probe.php', \sprintf( $probe, \var_export( self::VENDOR_DIR . '/composer/ClassLoader.php', true ), \var_export( $project . '/vendor-prefixed/scoper-autoload.php', true ) ) );
+
+		\exec( \escapeshellarg( \PHP_BINARY ) . ' ' . \escapeshellarg( $project . '/autoload-probe.php' ) . ' 2>&1', $output, $exit_code );
 
 		self::assertSame( 0, $exit_code, \implode( "\n", $output ) );
 		self::assertSame( '[true,true,true,true,true,true,true,"Acme\\\\Scoped\\\\Acme\\\\Commerce\\\\Formats\\\\Csv",false,false]', \implode( "\n", $output ) );
@@ -226,6 +244,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 			self::assertStringStartsWith( "php-scoper failed:\n", $exception->getMessage() );
 			self::assertStringContainsString( 'extra.text-domain', $exception->getMessage() );
 		}
+
 		self::assertFileExists( $project . '/vendor-prefixed/scoper-autoload.php' );
 	}
 
@@ -248,6 +267,20 @@ final class ScopePhpDependenciesTest extends TestCase {
 		self::assertSame( array( 'acme/legacy' ), self::package_dirs( $project . '/vendor-prefixed' ) );
 	}
 
+	public function test_a_php_scoper_run_that_dies_leaves_no_partial_build(): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		\file_put_contents( $project . '/scoper.inc.php', \str_replace( 'return ( require', '$config = ( require', self::read( $project . '/scoper.inc.php' ) ) . "\$config['patchers'][] = static function ( string \$file_path, string \$prefix, string \$contents ): string {\n\tif ( str_ends_with( \$file_path, 'SettingsSection.php' ) ) {\n\t\texit( 1 );\n\t}\n\n\treturn \$contents;\n};\n\nreturn \$config;\n" );
+
+		try {
+			ScopePhpDependencies::scope( $project );
+			self::fail( 'The scope run did not fail.' );
+		} catch ( \RuntimeException $exception ) {
+			self::assertStringStartsWith( "php-scoper failed:\n", $exception->getMessage() );
+		}
+
+		self::assertDirectoryDoesNotExist( $project . '/vendor-prefixed.tmp' );
+	}
+
 	public function test_a_failed_scope_run_keeps_the_previous_build(): void {
 		$project = self::make_project( array( 'acme/commerce' ) );
 		ScopePhpDependencies::scope( $project );
@@ -260,6 +293,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		} catch ( \RuntimeException $exception ) {
 			self::assertStringContainsString( 'extra.text-domain', $exception->getMessage() );
 		}
+
 		self::assertSame( $autoload, self::read( $project . '/vendor-prefixed/scoper-autoload.php' ) );
 		self::assertContains( 'acme/commerce', self::package_dirs( $project . '/vendor-prefixed' ) );
 	}
@@ -299,6 +333,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 			self::assertStringStartsWith( 'No scoped package declares these prefixed names', $exception->getMessage() );
 			self::assertMatchesRegularExpression( '/\n' . \preg_quote( $name . ' in ', '/' ) . '.+SettingsSection\.php:\d+$/m', $exception->getMessage() );
 		}
+
 		self::assertStringContainsString( "'Acme\\\\Scoped\\\\Acme\\\\Commerce\\\\SettingsSection'", self::read( $project . '/vendor-prefixed/scoper-autoload.php' ) );
 	}
 
@@ -319,16 +354,176 @@ final class ScopePhpDependenciesTest extends TestCase {
 			'class-named-like-a-function'     => array( $return, "\t\tnew \\Date();\n" . $return, 'Acme\Scoped\Date' ),
 			'callable-of-a-php-function'      => array( $return, "\t\t\\add_action( 'init', 'Brotli\\compress' );\n" . $return, 'Acme\Scoped\Brotli\compress' ),
 			'uppercased-function-exists'      => array( $return, "\t\t\\FUNCTION_EXISTS( 'Brotli\\compress' );\n" . $return, 'Acme\Scoped\Brotli\compress' ),
+			'nowdoc-after-a-blank-line'       => array( $return, "\t\t\$code = <<<'PHP'\n\n\t\t\t<?php \\wc_get_future_feature();\n\t\t\tPHP;\n" . $return, 'Acme\Scoped\wc_get_future_feature' ),
+			'class-in-a-constant-string'      => array( $return, "\t\t\\constant( 'Automattic\\\\WooCommerce\\\\Future\\\\Feature::FLAG' );\n" . $return, 'Acme\Scoped\Automattic\WooCommerce\Future\Feature' ),
+			'function-taken-for-a-class'      => array( $return, "\t\tnew \\Acme\\Commerce\\get_label_prefix();\n" . $return, 'Acme\Scoped\Acme\Commerce\get_label_prefix' ),
+			'namespace-taken-for-a-class'     => array( $return, "\t\tnew \\Acme\\Commerce\\Formats();\n" . $return, 'Acme\Scoped\Acme\Commerce\Formats' ),
+			'constant-in-another-case'        => array( $return, "\t\t\$label = \\Acme\\Commerce\\Label;\n" . $return, 'Acme\Scoped\Acme\Commerce\Label' ),
 		);
 	}
 
-	public function test_scope_run_fails_when_a_declared_text_domain_survives_the_rewrite(): void {
+	public function test_scope_run_fails_when_a_declared_text_domain_survives_the_rewrite_and_keeps_the_previous_build(): void {
 		$project = self::make_project( array( 'acme/commerce' ) );
-		$section = $project . '/vendor' . self::SECTION;
+		ScopePhpDependencies::scope( $project );
+		$autoload = self::read( $project . '/vendor-prefixed/scoper-autoload.php' );
+		$packages = self::package_dirs( $project . '/vendor-prefixed' );
+		$section  = $project . '/vendor' . self::SECTION;
 		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\t\$credit = 'Translated by acme-commerce';\n\t\treturn \\__(", self::read( $section ) ) );
 
+		try {
+			ScopePhpDependencies::scope( $project );
+			self::fail( 'The scope run did not fail.' );
+		} catch ( \RuntimeException $exception ) {
+			self::assertStringContainsString( "still contains the text domain 'acme-commerce'", $exception->getMessage() );
+		}
+
+		self::assertSame( $autoload, self::read( $project . '/vendor-prefixed/scoper-autoload.php' ) );
+		self::assertSame( $packages, self::package_dirs( $project . '/vendor-prefixed' ) );
+	}
+
+	public function test_scope_run_reports_a_text_domain_quoted_inside_another_string(): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\t\$hint = 'Choose \"acme-commerce\" here';\n\t\treturn \\__(", self::read( $section ) ) );
+
 		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessageIsOrContains( 'acme-commerce' );
+		$this->expectExceptionMessageIsOrContains( "still contains the text domain 'acme-commerce'" );
+
+		ScopePhpDependencies::scope( $project );
+	}
+
+	public function test_a_double_quoted_text_domain_takes_the_project_s(): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\t\$other = \\__( 'Other', \"acme-commerce\" );\n\t\treturn \\__(", self::read( $section ) ) );
+
+		ScopePhpDependencies::scope( $project );
+
+		self::assertStringContainsString( "\\__('Other', 'acme-text-domain')", self::read( $project . '/vendor-prefixed' . self::SECTION ) );
+	}
+
+	public function test_a_text_domain_in_the_php_code_of_a_nowdoc_takes_the_project_s(): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\t\$template = <<<'PHP'\n\t\t\t<?php return \\__( 'Other', 'acme-commerce' );\n\t\t\tPHP;\n\t\treturn \\__(", self::read( $section ) ) );
+
+		ScopePhpDependencies::scope( $project );
+
+		$scoped = self::read( $project . '/vendor-prefixed' . self::SECTION );
+		self::assertStringContainsString( "'Other', 'acme-text-domain'", $scoped );
+		self::assertStringNotContainsString( 'acme-commerce', $scoped );
+	}
+
+	public function test_a_package_keeps_the_text_domain_it_shares_with_the_project(): void {
+		$project = self::make_project( array( 'acme/commerce' ), array( 'text-domain' => 'acme-commerce' ) );
+
+		ScopePhpDependencies::scope( $project );
+
+		self::assertStringContainsString( "\\__('Commerce', 'acme-commerce')", self::read( $project . '/vendor-prefixed' . self::SECTION ) );
+	}
+
+	public function test_a_host_class_under_a_scoped_package_s_namespace_stays_global_in_strings(): void {
+		$project = self::make_project( array( 'acme/commerce' ), array( 'scoping-stubs' => array( './stubs/host-plugin.php', './stubs/gateway.php' ) ) );
+		\file_put_contents( $project . '/stubs/gateway.php', "<?php\n\nnamespace Acme\\Commerce\\Gateway;\n\nclass Checkout {}\n" );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\t\$checkout = 'Acme\\\\Commerce\\\\Gateway\\\\Checkout';\n\t\treturn \\__(", self::read( $section ) ) );
+
+		ScopePhpDependencies::scope( $project );
+
+		self::assertStringContainsString( "\$checkout = 'Acme\\Commerce\\Gateway\\Checkout';", self::read( $project . '/vendor-prefixed' . self::SECTION ) );
+	}
+
+	public function test_a_scoped_package_s_namespace_string_is_prefixed_below_a_global_namespace(): void {
+		$project = self::make_project( array( 'acme/commerce' ), array( 'scoping-stubs' => array( './stubs/host-plugin.php', './stubs/acme.php' ) ) );
+		\file_put_contents( $project . '/stubs/acme.php', "<?php\n\nnamespace Acme;\n\nclass Host {}\n" );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\t\$root = 'Acme\\\\Commerce\\\\';\n\t\treturn \\__(", self::read( $section ) ) );
+
+		ScopePhpDependencies::scope( $project );
+
+		self::assertStringContainsString( "\$root = 'Acme\\\\Scoped\\\\Acme\\Commerce\\\\';", self::read( $project . '/vendor-prefixed' . self::SECTION ) );
+	}
+
+	#[DataProvider( 'provide_symbols_stubs_declare_through_calls' )]
+	public function test_a_symbol_a_stubs_file_declares_through_a_call_stays_global( string $stub, string $reference ): void {
+		$project = self::make_project( array( 'acme/commerce' ), array( 'scoping-stubs' => array( './stubs/host-plugin.php', './stubs/calls.php' ) ) );
+		\file_put_contents( $project . '/stubs/calls.php', "<?php\n\n$stub\n" );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\t$reference;\n\t\treturn \\__(", self::read( $section ) ) );
+
+		ScopePhpDependencies::scope( $project );
+
+		self::assertStringContainsString( $reference, self::read( $project . '/vendor-prefixed' . self::SECTION ) );
+	}
+
+	/**
+	 * @return array<string, array{string, string}>
+	 */
+	public static function provide_symbols_stubs_declare_through_calls(): array {
+		return array(
+			'constant-of-an-uppercase-define' => array( "DEFINE( 'Host\\\\Plugin\\\\FLAG', 1 );", '$flag = \\Host\\Plugin\\FLAG' ),
+			'alias-named-by-a-class-constant' => array( "class Host_Plugin_Real {}\nclass_alias( 'Host_Plugin_Real', \\Host\\Plugin\\Alias::class );", '$alias = new \\Host\\Plugin\\Alias()' ),
+		);
+	}
+
+	public function test_scope_run_fails_when_the_scoped_code_declares_a_class_outside_the_prefix(): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		\file_put_contents( $project . '/vendor/acme/commerce/lib/Mailer.php', "<?php\n\nnamespace PHPMailer\\PHPMailer;\n\nclass PHPMailer {}\n" );
+
+		try {
+			ScopePhpDependencies::scope( $project );
+			self::fail( 'The scope run did not fail.' );
+		} catch ( \RuntimeException $exception ) {
+			self::assertStringContainsString( 'outside the prefix', $exception->getMessage() );
+			self::assertMatchesRegularExpression( '/\nPHPMailer\\\\PHPMailer$/m', $exception->getMessage() );
+		}
+	}
+
+	public function test_a_polyfill_of_a_php_class_passes_the_check(): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		\file_put_contents( $project . '/vendor/acme/commerce/lib/Polyfill.php', "<?php\n\nif ( \\PHP_VERSION_ID < 80000 ) {\n\tclass Stringable {}\n}\n" );
+
+		ScopePhpDependencies::scope( $project );
+
+		self::assertStringContainsString( "\\class_alias('Acme\\Scoped\\Stringable', 'Stringable', \\false);", self::read( $project . '/vendor-prefixed/acme/commerce/lib/Polyfill.php' ) );
+	}
+
+	public function test_scope_run_passes_a_nowdoc_php_scoper_leaves_unscoped(): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\t\$template = <<<'PHP'\n\n\t\t\t<?php namespace Generated; class Example {}\n\t\t\tPHP;\n\t\treturn \\__(", self::read( $section ) ) );
+
+		ScopePhpDependencies::scope( $project );
+
+		self::assertStringContainsString( "\n<?php namespace Generated; class Example {}\n", self::read( $project . '/vendor-prefixed' . self::SECTION ) );
+	}
+
+	public function test_scope_run_passes_a_nowdoc_that_does_not_parse_as_php(): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\t\$template = <<<'PHP'\n\t\t\t<?php return %s;\n\t\t\tPHP;\n\t\treturn \\__(", self::read( $section ) ) );
+
+		ScopePhpDependencies::scope( $project );
+
+		self::assertStringContainsString( '<?php return %s;', self::read( $project . '/vendor-prefixed' . self::SECTION ) );
+	}
+
+	public function test_scope_run_names_a_scoped_file_it_cannot_parse(): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		\file_put_contents( $project . '/vendor/acme/commerce/lib/Broken.php', "<?php\n\nclass {\n" );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( '#acme/commerce/lib/Broken\.php#' );
+
+		ScopePhpDependencies::scope( $project );
+	}
+
+	public function test_scope_run_names_a_stubs_file_it_cannot_parse(): void {
+		$project = self::make_project( array( 'acme/commerce' ), array( 'scoping-stubs' => array( './stubs/host-plugin.php', './stubs/broken.php' ) ) );
+		\file_put_contents( $project . '/stubs/broken.php', "<?php\n\nfunction {\n" );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( "#Could not parse '[^']*/stubs/broken\.php'#" );
 
 		ScopePhpDependencies::scope( $project );
 	}
@@ -352,6 +547,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		} catch ( \RuntimeException $exception ) {
 			self::assertStringContainsString( 'extra.scoping-prefix', $exception->getMessage() );
 		}
+
 		self::assertDirectoryDoesNotExist( $project . '/vendor-prefixed' );
 	}
 
@@ -410,6 +606,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		} catch ( \RuntimeException $exception ) {
 			self::assertStringContainsString( 'vendor-prefixed', $exception->getMessage() );
 		}
+
 		self::assertFileExists( $project . '/src/Plugin.php' );
 	}
 
@@ -488,6 +685,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		if ( 'vendor' !== $vendor ) {
 			$manifest['config'] = array( 'vendor-dir' => $vendor );
 		}
+
 		\file_put_contents( $project . '/composer.json', \json_encode( $manifest, \JSON_THROW_ON_ERROR | \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES ) );
 
 		$locked   = array();
@@ -511,16 +709,12 @@ final class ScopePhpDependenciesTest extends TestCase {
 				$source  = self::VENDOR_DIR . '/' . $name;
 				$package = $locked[ $name ];
 			}
+
 			new Filesystem()->mirror( $source, $project . '/' . $vendor . '/' . $name );
 			$packages[] = array( 'install-path' => '../' . $name ) + $package;
 		}
-		$installed_json = array(
-			'packages'          => $packages,
-			'dev'               => true,
-			'dev-package-names' => array(),
-		);
-		\file_put_contents( $project . '/' . $vendor . '/composer/installed.json', \json_encode( $installed_json, \JSON_THROW_ON_ERROR | \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES ) );
 
+		self::record_installed_packages( $project . '/' . $vendor, $manifest, $packages );
 		return $project;
 	}
 
