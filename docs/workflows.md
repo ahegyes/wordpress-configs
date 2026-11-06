@@ -15,7 +15,7 @@ A reusable workflow cannot elevate above the caller's token, so a caller grants 
 ## Shared behavior
 
 - **Node.** `reusable-scripts-styles-lint.yml`, `reusable-phpunit.yml` (when it starts wp-env), `reusable-playwright-e2e.yml` and `reusable-release.yml` install the Node version the project's `package.json` declares, in `engines.node` or in the `volta` or `devEngines.runtime` fields that `actions/setup-node` reads, and fail when it declares none. `reusable-supply-chain-audit.yml` and `reusable-block-json-check.yml` run no project npm code and use a fixed Node.
-- **wp-env.** The PHPUnit and Playwright workflows and the release's artifact test run the project's own `@wordpress/env`, the version its `package-lock.json` pins, so the project declares it in `devDependencies`. They export `php-version` as `WP_ENV_PHP_VERSION`, which wp-env applies over the `phpVersion` of its config files; the PHPUnit workflow exports it only when the config in use and its override file pin no `phpVersion`. Plugin Check, in `reusable-plugin-check.yml` and in the release build, starts its own environment through `WordPress/plugin-check-action`, without the project's wp-env config.
+- **wp-env.** The PHPUnit and Playwright workflows and the release's artifact test run the project's own `@wordpress/env`, the version its `package-lock.json` pins, so the project declares it in `devDependencies`. They export `php-version` as `WP_ENV_PHP_VERSION`, which wp-env applies over the `phpVersion` of its config files; the PHPUnit and Playwright workflows export it only when the config in use and its override file pin no `phpVersion`, with one step both workflows share verbatim. Plugin Check, in `reusable-plugin-check.yml` and in the release build, starts its own environment through `WordPress/plugin-check-action`, without the project's wp-env config.
 - **Composer.** Installs pass `--ignore-platform-req=php+`, which ignores only the PHP upper bound, so a PHP newer than a package declares still installs while extension requirements and floors stay checked.
 - **Matrix inputs.** A JSON-array input that fans out into a matrix (`scripts`, `php-versions`, `languages`) must be non-empty: an empty array would expand to zero jobs and report success.
 
@@ -149,13 +149,15 @@ Installs Composer and npm dependencies, builds assets, installs Chromium, starts
 | --- | --- | --- | --- | --- |
 | `project-path` | `string` | No | `'.'` | Path to the project, relative to the repository root. |
 | `artifact-slug` | `string` | Yes | — | Label for the uploaded failure-report artifact. |
-| `php-version` | `string` | No | `'8.5'` | PHP for Composer and for wp-env through `WP_ENV_PHP_VERSION`. |
+| `php-version` | `string` | No | `'8.5'` | PHP for Composer, for any suite outside wp-env, and for the site when the wp-env config pins no `phpVersion`. |
 | `wp-version` | `string` | No | `''` | WordPress release tag. Empty defers to the wp-env config's `core`. |
 | `wp-env-core` | `string` | No | `''` | Full `WP_ENV_CORE` value. Overrides `wp-version`. |
 | `composer-options` | `string` | No | `'--prefer-dist --ignore-platform-req=php+'` | Options for the dependency install, which includes development packages so a scoping pipeline runs. |
 | `build-script` | `string` | No | `'build'` | npm script that builds assets before wp-env starts. Empty skips the build. |
 | `wp-env-config-file` | `string` | No | `''` | wp-env config file relative to `project-path`. Empty uses `.wp-env.json`. |
 | `playwright-script` | `string` | No | `'test:e2e'` | npm script that runs the Playwright suite. |
+
+A wp-env config that pins `phpVersion`, or whose `.override.json` pins it, keeps its PHP, as in the PHPUnit workflow. The project declares `@playwright/test`, or the job fails naming it.
 
 On failure, the `playwright-report-<artifact-slug>` artifact holds `playwright-report/`, `artifacts/` and `tests/.cache/artifacts/`, the output location the shared Playwright base sets. The caller grants `contents: read`.
 
