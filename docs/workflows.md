@@ -218,7 +218,7 @@ The workflow runs five jobs:
 - `test` (`contents: read`, no secrets) mounts the extracted zip in the project's own wp-env, activates it with `wp plugin activate`, requests the home page, and runs `npm run test:e2e` when the project defines it, after installing Chromium when `@playwright/test` is installed.
 - `provenance` (`actions: read`) requires a successful push run of every file in `required-workflows` on the released commit, so a release reuses the suites proven there; tag a commit once they pass.
 - `release` (`contents: write`) verifies the zip's digest and creates the GitHub release with the zip attached. Its notes are the version's section of `CHANGELOG.md` when that file exists, and the job fails when that section is missing; without the file, the notes are GitHub's generated notes.
-- `wp-org` runs only with `wp-org: true`, after `release`. It re-checks that the ref is a version tag, then deploys the same zip and the `.wordpress-org` assets to wp.org SVN from the `wp-org-release` environment, the only job that holds the SVN credentials.
+- `wp-org` runs only with `wp-org: true`, after `release`, and never for a prerelease. It re-checks that the ref is a stable version tag, then deploys the same zip and the `.wordpress-org` assets to wp.org SVN from the `wp-org-release` environment, the only job that holds the SVN credentials.
 
 The `release` and `wp-org` jobs install no Composer or npm dependencies and run no tests, and `wp-org` checks nothing out; the deploy action installs Subversion when the runner lacks it. Pinning the workflow by commit SHA keeps a changed privileged job from reaching a consumer without a reviewed pin bump.
 
@@ -226,10 +226,10 @@ The `release` and `wp-org` jobs install no Composer or npm dependencies and run 
 
 The `build` job fails when:
 
-- the tag is not `v<major>.<minor>.<patch>` (no leading zeros), or `publish` is on without a tag;
+- the tag is not `v<major>.<minor>.<patch>`, or a prerelease that adds `-dev`, `-alpha`, `-beta` or `-rc` and an optional `.<number>`, such as `v1.3.0-beta.1` (no leading zeros), or `publish` is on without a tag;
 - the plugin does not require `ahegyes/wordpress-configs` under `require-dev`, so its development install holds no `php/release/composer.lock` to install WP-CLI from;
 - the project root holds no PHP file with a `Plugin Name:` header in its first 8 KB, or more than one;
-- the main plugin file's `Version:` header differs from the tag, or from the `Stable tag:` of `readme.txt` when that file exists; a wp.org release requires `readme.txt`;
+- the main plugin file's `Version:` header differs from the tag, or, for a stable version, from the `Stable tag:` of `readme.txt` when that file exists; a wp.org release requires `readme.txt`;
 - the main plugin file's `Text Domain:` header, or `extra.text-domain` in `composer.json` when declared, differs from `plugin-slug`;
 - `vendor-prefixed/` carries strings in the plugin's text domain but the regenerated POT has none of them;
 - `Requires PHP` is below the PHP floor of a shipped package, the highest lower bound of the `require.php` constraints of the project's own `composer.json`, the production packages in `vendor/` and the scoped packages in `vendor-prefixed/`;
@@ -238,6 +238,8 @@ The `build` job fails when:
 - the archive holds a development or secret file, such as a `phpcs*.xml*` ruleset, `composer.json` or `.env`.
 
 A strict `>` lower bound in a package's PHP constraint is read as inclusive. The version is taken from the tag and verified against the files, never stamped in.
+
+A prerelease tag publishes a GitHub prerelease, which GitHub's latest release skips, so only sites on a prerelease update channel are offered it. It never deploys to wp.org, which offers sites only the `Stable tag:` of `readme.txt`, so that header keeps naming the last stable release.
 
 The artifact test needs the wp-env config to map `wp-content/plugins/<plugin-slug>` to the plugin source: it remaps exactly that `mappings` key at the built zip, so co-mounted plugins, the port and lifecycle scripts survive the per-key merge, and pins the environment to the latest stable WordPress core.
 
