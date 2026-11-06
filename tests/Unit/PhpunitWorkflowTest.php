@@ -5,6 +5,7 @@ namespace DeepWebSolutions\Config\Tests\Unit;
 use DeepWebSolutions\Config\Tests\Support\RunsWorkflowStepsTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Yaml\Yaml;
 
 final class PhpunitWorkflowTest extends TestCase {
 	use RunsWorkflowStepsTrait;
@@ -73,5 +74,43 @@ final class PhpunitWorkflowTest extends TestCase {
 
 		self::assertSame( 0, $result['status'], $result['output'] );
 		self::assertSame( $exported, $result['env'] );
+	}
+
+	public function test_the_end_to_end_workflow_resolves_the_site_s_php_with_this_workflow_s_step(): void {
+		$phpunit = self::job( 'reusable-phpunit.yml', 'phpunit' );
+		$e2e     = self::job( 'reusable-playwright-e2e.yml', 'e2e' );
+
+		$env = $e2e['env'] ?? array();
+		self::assertIsArray( $env );
+		self::assertArrayNotHasKey( 'WP_ENV_PHP_VERSION', $env );
+		self::assertSame( \array_diff_key( self::step( $phpunit, "Resolve the site's PHP" ), array( 'if' => true ) ), self::step( $e2e, "Resolve the site's PHP" ) );
+	}
+
+	/**
+	 * @return array<mixed>
+	 */
+	protected static function job( string $workflow, string $job ): array {
+		$definition = Yaml::parseFile( __DIR__ . '/../../.github/workflows/' . $workflow );
+		self::assertIsArray( $definition );
+		self::assertIsArray( $definition['jobs'] ?? null );
+		self::assertIsArray( $definition['jobs'][ $job ] ?? null );
+
+		return $definition['jobs'][ $job ];
+	}
+
+	/**
+	 * @param array<mixed> $job
+	 *
+	 * @return array<mixed>
+	 */
+	protected static function step( array $job, string $name ): array {
+		self::assertIsArray( $job['steps'] ?? null );
+		foreach ( $job['steps'] as $step ) {
+			if ( \is_array( $step ) && ( $step['name'] ?? null ) === $name ) {
+				return $step;
+			}
+		}
+
+		self::fail( "No step named '$name'." );
 	}
 }

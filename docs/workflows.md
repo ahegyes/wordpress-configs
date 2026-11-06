@@ -15,13 +15,13 @@ A reusable workflow cannot elevate above the caller's token, so a caller grants 
 ## Shared behavior
 
 - **Node.** `reusable-scripts-styles-lint.yml`, `reusable-phpunit.yml` (when it starts wp-env), `reusable-playwright-e2e.yml` and `reusable-release.yml` install the Node version the project's `package.json` declares, in `engines.node` or in the `volta` or `devEngines.runtime` fields that `actions/setup-node` reads, and fail when it declares none. `reusable-supply-chain-audit.yml` and `reusable-block-json-check.yml` run no project npm code and use a fixed Node.
-- **wp-env.** The PHPUnit and Playwright workflows and the release's artifact test run the project's own `@wordpress/env`, the version its `package-lock.json` pins, so the project declares it in `devDependencies`. They export `php-version` as `WP_ENV_PHP_VERSION`, which wp-env applies over the `phpVersion` of its config files; the PHPUnit workflow exports it only when the config in use and its override file pin no `phpVersion`. Plugin Check, in `reusable-plugin-check.yml` and in the release build, starts its own environment through `WordPress/plugin-check-action`, without the project's wp-env config.
+- **wp-env.** The PHPUnit and Playwright workflows and the release's artifact test run the project's own `@wordpress/env`, the version its `package-lock.json` pins, so the project declares it in `devDependencies`. They export `php-version` as `WP_ENV_PHP_VERSION`, which wp-env applies over the `phpVersion` of its config files; the PHPUnit and Playwright workflows export it only when the config in use and its override file pin no `phpVersion`, with one step both workflows share verbatim. Plugin Check, in `reusable-plugin-check.yml` and in the release build, starts its own environment through `WordPress/plugin-check-action`, without the project's wp-env config.
 - **Composer.** Installs pass `--ignore-platform-req=php+`, which ignores only the PHP upper bound, so a PHP newer than a package declares still installs while extension requirements and floors stay checked.
 - **Matrix inputs.** A JSON-array input that fans out into a matrix (`scripts`, `php-versions`, `languages`) must be non-empty: an empty array would expand to zero jobs and report success.
 
 ## block.json schema check — `reusable-block-json-check.yml`
 
-Finds every `block.json` under the project path, skipping the `node_modules/` and `vendor/` directories at its top level, and validates each against the trunk schema from `schemas.wp.org`. It succeeds with a message when it finds none.
+Finds every `block.json` under the project path, skipping the `node_modules/` and `vendor/` directories at its top level, and validates each against the trunk schema from `schemas.wp.org`. It succeeds with a message when it finds none. The validator is the ajv-cli that `node/block-json/package-lock.json` locks, checked out from this workflow's own commit of configs, whose `overrides` keep its `fast-json-patch` at the release that fixes its prototype-pollution advisory.
 
 | Input | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
@@ -39,7 +39,7 @@ jobs:
 
 ## CodeQL — `reusable-codeql.yml`
 
-Runs CodeQL initialization and analysis as one matrix job per language. CodeQL has no PHP analyzer; PHPStan covers PHP.
+Runs CodeQL initialization and analysis as one matrix job per language. CodeQL has no PHP analyzer; PHPStan covers PHP. A probe of the code-scanning API first skips the analysis where GitHub Advanced Security is off, as on a private repository without it, and runs it when the answer stays unclear after three tries, so a repository that lacks it fails visibly rather than passing a skipped check.
 
 | Input | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
@@ -89,7 +89,7 @@ Runs `php -l` over the PHP files under `paths`, once per PHP version, without in
 | Input | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `project-path` | `string` | No | `'.'` | Path to the project, relative to the repository root. |
-| `php-versions` | `string` | No | `'["8.5"]'` | Non-empty JSON array of PHP versions, such as `'["8.5", "8.6"]'`. |
+| `php-versions` | `string` | No | `'["8.5", "8.6"]'` | Non-empty JSON array of PHP versions; the default adds the next PHP's nightly build. |
 | `paths` | `string` | No | `'["."]'` | Non-empty JSON array of files and directories to check, relative to `project-path`. |
 | `artifact` | `string` | No | `''` | Name of an artifact uploaded earlier in the calling workflow to check instead of the repository; `project-path` and `paths` are then relative to its contents. |
 
@@ -149,13 +149,15 @@ Installs Composer and npm dependencies, builds assets, installs Chromium, starts
 | --- | --- | --- | --- | --- |
 | `project-path` | `string` | No | `'.'` | Path to the project, relative to the repository root. |
 | `artifact-slug` | `string` | Yes | — | Label for the uploaded failure-report artifact. |
-| `php-version` | `string` | No | `'8.5'` | PHP for Composer and for wp-env through `WP_ENV_PHP_VERSION`. |
+| `php-version` | `string` | No | `'8.5'` | PHP for Composer, for any suite outside wp-env, and for the site when the wp-env config pins no `phpVersion`. |
 | `wp-version` | `string` | No | `''` | WordPress release tag. Empty defers to the wp-env config's `core`. |
 | `wp-env-core` | `string` | No | `''` | Full `WP_ENV_CORE` value. Overrides `wp-version`. |
 | `composer-options` | `string` | No | `'--prefer-dist --ignore-platform-req=php+'` | Options for the dependency install, which includes development packages so a scoping pipeline runs. |
 | `build-script` | `string` | No | `'build'` | npm script that builds assets before wp-env starts. Empty skips the build. |
 | `wp-env-config-file` | `string` | No | `''` | wp-env config file relative to `project-path`. Empty uses `.wp-env.json`. |
 | `playwright-script` | `string` | No | `'test:e2e'` | npm script that runs the Playwright suite. |
+
+A wp-env config that pins `phpVersion`, or whose `.override.json` pins it, keeps its PHP, as in the PHPUnit workflow. The project declares `@playwright/test`, or the job fails naming it.
 
 On failure, the `playwright-report-<artifact-slug>` artifact holds `playwright-report/`, `artifacts/` and `tests/.cache/artifacts/`, the output location the shared Playwright base sets. The caller grants `contents: read`.
 
@@ -217,35 +219,40 @@ The workflow runs five jobs:
 - `build` (`contents: read`, no secrets) finds the main plugin file as WordPress does, checks the release metadata, installs Composer and npm dependencies without restoring a dependency cache, installs WP-CLI and its `i18n` and `dist-archive` commands from `php/release/composer.lock` in the plugin's copy of this package, regenerates the POT, prunes to production dependencies, builds the zip, checks its contents, runs Plugin Check, and outputs the version and the zip's SHA-256.
 - `test` (`contents: read`, no secrets) mounts the extracted zip in the project's own wp-env, activates it with `wp plugin activate`, requests the home page, and runs `npm run test:e2e` when the project defines it, after installing Chromium when `@playwright/test` is installed.
 - `provenance` (`actions: read`) requires a successful push run of every file in `required-workflows` on the released commit, so a release reuses the suites proven there; tag a commit once they pass.
-- `release` (`contents: write`) verifies the zip's digest and creates the GitHub release with the zip attached. Its notes are the version's section of `CHANGELOG.md` when that file exists, and the job fails when that section is missing; without the file, the notes are GitHub's generated notes.
-- `wp-org` runs only with `wp-org: true`, after `release`. It re-checks that the ref is a version tag, then deploys the same zip and the `.wordpress-org` assets to wp.org SVN from the `wp-org-release` environment, the only job that holds the SVN credentials.
+- `release` (`attestations: write`, `contents: write`, `id-token: write`) verifies the zip's digest, attests its build provenance in a public repository, and creates the GitHub release with the zip attached. Its notes are the version's section of `CHANGELOG.md`, which `build` extracts and checks, so a dry run checks the notes the tagged run publishes; without the file, the notes are GitHub's generated notes.
+- `wp-org` runs only with `wp-org: true`, after `release`, and never for a prerelease. It re-checks that the ref is a stable version tag, then deploys the same zip and the `.wordpress-org` assets to wp.org SVN from the `wp-org-release` environment, the only job that holds the SVN credentials.
 
-The `release` and `wp-org` jobs install no Composer or npm dependencies and run no tests, and `wp-org` checks nothing out; the deploy action installs Subversion when the runner lacks it. Pinning the workflow by commit SHA keeps a changed privileged job from reaching a consumer without a reviewed pin bump.
+The `release` and `wp-org` jobs install no Composer or npm dependencies, run no tests and check nothing out; the deploy action installs Subversion when the runner lacks it. Pinning the workflow by commit SHA keeps a changed privileged job from reaching a consumer without a reviewed pin bump.
 
-`publish: false` skips `release` and `wp-org` and runs `build` and `test` on any branch or version tag, which exercises the release path without a tag. A dry run started with `workflow_dispatch`, such as one on trunk after CI passes, also runs `provenance`; a dry run on a pull request or a push skips it, because a pull request's merge commit has no push runs and a push would race the runs it looks up. Releases of one plugin run one at a time, while each ref's dry runs queue apart from them, because a concurrency group holds one pending run and cancels an older one, so a dry run in the releases' group would cancel a pending release.
+`publish: false` skips `release` and `wp-org` and runs `build` and `test` on any branch or version tag, which exercises the release path without a tag. A dry run started with `workflow_dispatch`, such as one on trunk after CI passes, also runs `provenance`; a dry run on a pull request or a push skips it, because a pull request's merge commit has no push runs and a push would race the runs it looks up. Releases of one plugin run one at a time, while each ref's dry runs queue apart from them, because a concurrency group holds one pending run and cancels an older one, so a dry run in the releases' group would cancel a pending release. A tag pushed while an older one's release is still pending cancels that release, which is then re-run from its tag's run.
 
 The `build` job fails when:
 
-- the tag is not `v<major>.<minor>.<patch>` (no leading zeros), or `publish` is on without a tag;
+- the tag is not `v<major>.<minor>.<patch>`, or a prerelease that adds `-dev`, `-alpha`, `-beta` or `-rc` and an optional `.<number>`, such as `v1.3.0-beta.1` (no leading zeros), or `publish` is on without a tag;
 - the plugin does not require `ahegyes/wordpress-configs` under `require-dev`, so its development install holds no `php/release/composer.lock` to install WP-CLI from;
 - the project root holds no PHP file with a `Plugin Name:` header in its first 8 KB, or more than one;
-- the main plugin file's `Version:` header differs from the tag, or from the `Stable tag:` of `readme.txt` when that file exists; a wp.org release requires `readme.txt`;
+- the main plugin file's `Version:` header differs from the tag, or, for a stable version, from the `Stable tag:` of `readme.txt` when that file exists; a wp.org release requires `readme.txt`;
+- `CHANGELOG.md` exists without a section for the version, a `## <version>` or `## [<version>]` heading, or that section is blank;
 - the main plugin file's `Text Domain:` header, or `extra.text-domain` in `composer.json` when declared, differs from `plugin-slug`;
 - `vendor-prefixed/` carries strings in the plugin's text domain but the regenerated POT has none of them;
-- `Requires PHP` is below the PHP floor of a shipped package, the highest lower bound of the `require.php` constraints of the project's own `composer.json`, the production packages in `vendor/` and the scoped packages in `vendor-prefixed/`;
-- `Requires at least` is below the `extra.requires-wp` version a shipped package declares, or `Requires Plugins` lacks a slug listed in a shipped package's `extra.requires-plugins`;
-- the archive misses the main plugin file, `readme.txt` for a wp.org release, or, when `composer.json` declares `extra.scoping-prefix`, `vendor-prefixed/scoper-autoload.php` and the files of every scoped package;
-- the archive holds a development or secret file, such as a `phpcs*.xml*` ruleset, `composer.json` or `.env`.
+- `Requires PHP` is below the PHP floor of a shipped package, the highest lower bound of the `require.php` constraints of the project's own `composer.json`, the production packages in Composer's vendor directory and the scoped packages in `vendor-prefixed/`;
+- `Requires at least` is below the `extra.requires-wp` version a shipped package declares, `WC requires at least` is below its `extra.requires-wc` version, or `Requires Plugins` lacks a slug listed in its `extra.requires-plugins`;
+- the archive misses the main plugin file, `readme.txt` for a wp.org release, or, when `composer.json` declares `extra.scoping-prefix`, any PHP file under `vendor-prefixed/`, `scoper-autoload.php` included, while a scoped package's metadata, such as its `composer.json`, may stay out;
+- the archive holds a development or secret file, such as a `phpcs*.xml*` ruleset, a `phpstan*.neon*` profile, `AGENTS.md`, a `changelog/` fragment, `composer.json`, `.env` or a `.key` file, with only a `.pem` certificate allowed under a `vendor/` or `vendor-prefixed/` directory.
 
 A strict `>` lower bound in a package's PHP constraint is read as inclusive. The version is taken from the tag and verified against the files, never stamped in.
 
-The artifact test needs the wp-env config to map `wp-content/plugins/<plugin-slug>` to the plugin source: it remaps exactly that `mappings` key at the built zip, so co-mounted plugins, the port and lifecycle scripts survive the per-key merge, and pins the environment to the latest stable WordPress core.
+A prerelease tag publishes a GitHub prerelease, which GitHub's latest release skips, so only sites on a prerelease update channel are offered it. It never deploys to wp.org, which offers sites only the `Stable tag:` of `readme.txt`, so that header keeps naming the last stable release, and Plugin Check ignores its `stable_tag_mismatch` for a prerelease version.
+
+The artifact test needs the wp-env config to map `wp-content/plugins/<plugin-slug>` to the plugin source: it remaps exactly that `mappings` key at the built zip and pins the latest stable WordPress core, at the root and in the development and tests environments, through the config's override file, merged into any override the project keeps, so co-mounted plugins, the port and lifecycle scripts survive. It requests the site on the development port the config and its override set.
 
 `plugin-check` runs the GitHub profile, which skips `plugin_updater` and `plugin_readme` as `reusable-plugin-check.yml` does, unless `wp-org` is on, and `exclude-checks` skips further checks as that workflow's input does; a malformed list fails the build before anything installs.
 
 The `wp-org` job reads `SVN_USERNAME` and `SVN_PASSWORD` from the calling repository's `wp-org-release` environment directly, because environment secrets cannot pass through `workflow_call`. Create that environment, store the two secrets there and only there, and attach its deployment-protection rules, such as required reviewers; a preflight step fails the deploy with instructions when they are missing.
 
-The caller grants `actions: read` and `contents: write`. [The scripts contract](scripts-contract.md#release) lists the files and scripts the workflow expects.
+A private or internal repository's release carries no attestation, because GitHub offers attestations there only on Enterprise Cloud. `gh attestation verify <zip> --repo <owner>/<repository>` checks a public release's zip against its attestation.
+
+The caller grants `actions: read`, `attestations: write`, `contents: write` and `id-token: write`. [The scripts contract](scripts-contract.md#release) lists the files and scripts the workflow expects.
 
 ```yaml
 name: Release
@@ -262,7 +269,9 @@ jobs:
   release:
     permissions:
       actions: read
+      attestations: write
       contents: write
+      id-token: write
     uses: ahegyes/wordpress-configs/.github/workflows/reusable-release.yml@<sha>
     with:
       plugin-slug: your-plugin-slug
@@ -301,10 +310,10 @@ Audits the committed `composer.lock` and `package-lock.json` in two parallel job
 | `composer-audit` | `boolean` | No | `true` | Whether to run `composer audit --locked`. |
 | `npm-audit` | `boolean` | No | `true` | Whether to run `npm audit --package-lock-only`. |
 | `composer-audit-flags` | `string` | No | `'--abandoned=report'` | Extra `composer audit` flags; the default fails on advisories and reports abandoned packages. |
-| `npm-audit-flags` | `string` | No | `'--audit-level=high'` | Extra `npm audit` flags; the default fails on high and critical advisories. |
+| `npm-audit-flags` | `string` | No | `'--omit=dev --audit-level=high'` | Extra `npm audit` flags; the default audits production dependencies and fails on high and critical advisories. |
 | `fail-on-findings` | `boolean` | No | `true` | Whether findings fail the job. |
 
-At least one of `composer-audit` and `npm-audit` stays on. Both audit the full graph, development dependencies included, unless the flags say `--no-dev` or `--omit=dev`. `fail-on-findings: false` turns advisories and abandoned packages into warnings, but a package on a Composer filter list whose policy fails the audit, such as the malware list, still fails it, and the error names the package and its lists.
+At least one of `composer-audit` and `npm-audit` stays on. The Composer audit covers the full graph, development dependencies included, unless its flags say `--no-dev`; the npm audit covers production dependencies unless its flags drop `--omit=dev`. A package still in the cooldown period of Composer's `policy.cooldown`, when that policy fails the audit, counts as a finding. `fail-on-findings: false` turns advisories, abandoned packages and cooldown findings into warnings, but any package on a Composer filter list, such as the malware list, still fails the audit, and the error names the package and its lists.
 
 The caller grants `contents: read`.
 
@@ -314,13 +323,15 @@ jobs:
     permissions:
       contents: read
     uses: ahegyes/wordpress-configs/.github/workflows/reusable-supply-chain-audit.yml@<sha>
-    with:
-      npm-audit-flags: '--omit=dev --audit-level=high'
 ```
 
 ## Workflow checks — `reusable-workflow-checks.yml`
 
-Runs actionlint over the workflow files and zizmor over the repository. With GitHub Advanced Security, zizmor uploads SARIF to the Security tab and a finding-count gate fails the job; without it, zizmor runs in native mode and fails the job itself. Both modes fail on any finding. The workflow takes no inputs.
+Runs a pinned actionlint over the workflow files in `.github/workflows/` and zizmor over the repository, whose every workflow, at any depth, it audits. With GitHub Advanced Security, zizmor uploads SARIF to the Security tab and a finding-count gate fails the job; without it, zizmor runs in native mode and fails the job itself. Both modes fail on any finding.
+
+| Input | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `extra-workflows` | `string` | No | `'[]'` | JSON array of glob patterns naming workflow files outside `.github/workflows/` that actionlint lints beside it, such as `'["plugins/*/.github/workflows/*.yml"]'`. A pattern holds no comma. |
 
 The caller grants `actions: read`, `contents: read` and `security-events: write`.
 

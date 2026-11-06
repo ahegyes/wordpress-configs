@@ -27,6 +27,8 @@ Shipped `workflow_call` input names, types and semantics are frozen. An input ma
 
 Give every input a `description:` in the workflow and a row in [docs/workflows.md](docs/workflows.md). Consumers review, never automerge, a pin bump that changes the release workflow's `release` or `wp-org` jobs.
 
+Dependabot cannot see the actionlint `version` and the `ZIZMOR_VERSION` that `reusable-workflow-checks.yml` pins, so bump them by hand to the newest release each pinned action supports.
+
 ## Filing changes
 
 - Keep one concern per pull request.

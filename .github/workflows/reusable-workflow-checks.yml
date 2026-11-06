@@ -2,6 +2,12 @@ name: Workflow Checks
 
 on:
   workflow_call:
+    inputs:
+      extra-workflows:
+        description: 'JSON array of glob patterns naming workflow files outside .github/workflows that actionlint lints beside it, such as ["plugins/*/.github/workflows/*.yml"]. zizmor audits every workflow in the repository already.'
+        type: string
+        required: false
+        default: '[]'
 
 permissions: {}
 
@@ -18,8 +24,23 @@ jobs:
         with:
           persist-credentials: false
 
+      # actionlint reads only the root's .github/workflows unless it is given files, and then reads only those.
+      - name: Resolve the actionlint files
+        id: files
+        env:
+          EXTRA_WORKFLOWS: ${{ inputs.extra-workflows }}
+        run: |
+          if ! files=$(jq -r 'if type == "array" and all(.[]; type == "string" and . != "" and (contains(",") | not)) then (if length > 0 then [".github/workflows/*.yml", ".github/workflows/*.yaml"] + . | join(",") else "" end) else error end' <<< "$EXTRA_WORKFLOWS" 2> /dev/null); then
+            echo "::error::extra-workflows must be a JSON array of glob patterns without commas — got '$EXTRA_WORKFLOWS'."
+            exit 1
+          fi
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+
       - name: Run actionlint
         uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
+        with:
+          version: '1.7.12'
+          files: ${{ steps.files.outputs.files }}
 
   detect-ghas:
     name: Detect GHAS availability
@@ -82,7 +103,7 @@ jobs:
     env:
       # Both branches below resolve this release through the action's own version table, so a
       # repo's findings never differ by which branch it takes.
-      ZIZMOR_VERSION: '1.30.1'
+      ZIZMOR_VERSION: '1.31.1'
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

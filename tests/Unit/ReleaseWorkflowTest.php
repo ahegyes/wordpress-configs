@@ -97,6 +97,39 @@ final class ReleaseWorkflowTest extends TestCase {
 	}
 
 	/**
+	 * @return array<string, array{string, int}>
+	 */
+	public static function provide_prerelease_tags(): array {
+		return array(
+			'prerelease-tag-matches-the-header' => array( '1.3.0-beta.1', 0 ),
+			'prerelease-tag-differs'            => array( '1.3.0-beta.2', 1 ),
+		);
+	}
+
+	#[DataProvider( 'provide_prerelease_tags' )]
+	public function test_a_prerelease_leaves_the_stable_tag_at_the_last_stable_release( string $tag_version, int $expected_status ): void {
+		$this->write_project(
+			array(
+				'main.php'   => self::plugin_header( array( 'Version' => '1.3.0-beta.1' ) ),
+				'readme.txt' => "=== Acme Plugin ===\nStable tag: 1.2.3\n",
+			)
+		);
+
+		$result = $this->run_build_step(
+			'Verify version consistency',
+			array(
+				'TAG_VERSION' => $tag_version,
+				'WP_ORG'      => 'true',
+			)
+		);
+
+		self::assertSame( $expected_status, $result['status'], $result['output'] );
+		if ( 0 === $expected_status ) {
+			self::assertSame( '1.3.0-beta.1', $result['outputs']['version'] ?? null );
+		}
+	}
+
+	/**
 	 * @return array<string, array{string, ?string, int}>
 	 */
 	public static function provide_text_domains(): array {
@@ -142,7 +175,7 @@ final class ReleaseWorkflowTest extends TestCase {
 			)
 		);
 
-		$result = $this->run_build_step( 'Verify the POT covers the scoped strings', array( 'REQUIRES_SCOPED' => 'true' ) );
+		$result = $this->run_build_step( 'Verify the POT covers the scoped strings', array() );
 
 		self::assertSame( $expected_status, $result['status'], $result['output'] );
 	}
@@ -151,15 +184,50 @@ final class ReleaseWorkflowTest extends TestCase {
 	 * @return array<string, array{array<string, string>, array<string, array<string, mixed>>, int, string}>
 	 */
 	public static function provide_header_floors(): array {
-		$framework = array(
+		$framework   = array(
 			'require' => array( 'php' => '>=8.5' ),
 			'extra'   => array(
 				'requires-wp'      => '7.1',
 				'requires-plugins' => array( 'woocommerce' ),
 			),
 		);
+		$woocommerce = array(
+			'extra' => array(
+				'requires-wc'      => '11.2',
+				'requires-plugins' => array( 'woocommerce' ),
+			),
+		);
 
 		return array(
+			'woocommerce-header-covers-a-package'       => array(
+				array(
+					'Requires PHP'         => '8.5',
+					'Requires Plugins'     => 'woocommerce',
+					'WC requires at least' => '11.2',
+				),
+				array( 'acme/commerce' => $woocommerce ),
+				0,
+				'',
+			),
+			'woocommerce-header-below-a-package'        => array(
+				array(
+					'Requires PHP'         => '8.5',
+					'Requires Plugins'     => 'woocommerce',
+					'WC requires at least' => '11.1',
+				),
+				array( 'acme/commerce' => $woocommerce ),
+				1,
+				'acme/commerce',
+			),
+			'woocommerce-header-missing'                => array(
+				array(
+					'Requires PHP'     => '8.5',
+					'Requires Plugins' => 'woocommerce',
+				),
+				array( 'acme/commerce' => $woocommerce ),
+				1,
+				'acme/commerce',
+			),
 			'headers-cover-every-package'               => array(
 				array(
 					'Requires PHP'      => '8.5',
@@ -234,6 +302,7 @@ final class ReleaseWorkflowTest extends TestCase {
 	public function test_headers_must_cover_the_shipped_packages( array $headers, array $scoped, int $expected_status, string $named ): void {
 		$files = array(
 			'main.php'                       => self::plugin_header( $headers ),
+			'composer.json'                  => '{}',
 			'vendor/composer/installed.json' => (string) \json_encode(
 				array(
 					'packages'          => array(
@@ -263,6 +332,41 @@ final class ReleaseWorkflowTest extends TestCase {
 		if ( '' !== $named ) {
 			self::assertMatchesRegularExpression( '/^::error::.*' . \preg_quote( $named, '/' ) . '/m', $result['output'] );
 		}
+	}
+
+	/**
+	 * @return array<string, array{string, string}>
+	 */
+	public static function provide_vendor_directories(): array {
+		return array(
+			'default-vendor-directory' => array( '{}', 'vendor' ),
+			'custom-vendor-directory'  => array( '{"config": {"vendor-dir": "lib/deps"}}', 'lib/deps' ),
+		);
+	}
+
+	#[DataProvider( 'provide_vendor_directories' )]
+	public function test_headers_must_cover_the_packages_in_composer_s_vendor_directory( string $manifest, string $vendor_dir ): void {
+		$this->write_project(
+			array(
+				'main.php'                            => self::plugin_header( array( 'Requires PHP' => '8.5' ) ),
+				'composer.json'                       => $manifest,
+				"$vendor_dir/composer/installed.json" => (string) \json_encode(
+					array(
+						'packages' => array(
+							array(
+								'name'    => 'acme/runtime',
+								'require' => array( 'php' => '>=8.6' ),
+							),
+						),
+					)
+				),
+			)
+		);
+
+		$result = $this->run_build_step( 'Verify the headers cover the shipped packages', array() );
+
+		self::assertSame( 1, $result['status'], $result['output'] );
+		self::assertMatchesRegularExpression( '/^::error::.*acme\/runtime/m', $result['output'] );
 	}
 
 	/**
@@ -302,15 +406,26 @@ final class ReleaseWorkflowTest extends TestCase {
 	 */
 	public static function provide_archive_entries(): array {
 		return array(
-			'plugin-files-only'     => array( 'src/Plugin.php', 0 ),
-			'tests-ruleset'         => array( 'phpcs.tests.dist.xml', 1 ),
-			'hidden-tests-ruleset'  => array( '.phpcs.tests.xml', 1 ),
-			'dist-suffixed-ruleset' => array( 'phpcs.xml.dist', 1 ),
-			'dist-named-phpunit'    => array( 'phpunit.dist.xml', 1 ),
-			'node-modules'          => array( 'node_modules/x', 1 ),
-			'secret-env-file'       => array( '.env', 1 ),
-			'nested-auth-json'      => array( 'nested/auth.json', 1 ),
-			'bundled-certificate'   => array( 'vendor/acme/ca.pem', 0 ),
+			'plugin-files-only'          => array( 'src/Plugin.php', 0 ),
+			'changelog-file'             => array( 'CHANGELOG.md', 0 ),
+			'tests-ruleset'              => array( 'phpcs.tests.dist.xml', 1 ),
+			'hidden-tests-ruleset'       => array( '.phpcs.tests.xml', 1 ),
+			'dist-suffixed-ruleset'      => array( 'phpcs.xml.dist', 1 ),
+			'profile-phpstan-config'     => array( 'phpstan.bootstrap.neon', 1 ),
+			'hidden-dist-phpstan-config' => array( '.phpstan.neon.dist', 1 ),
+			'dist-named-phpunit'         => array( 'phpunit.dist.xml', 1 ),
+			'phpunit-result-cache'       => array( '.phpunit.result.cache', 1 ),
+			'phpunit-cache-directory'    => array( '.phpunit.cache/test-results', 1 ),
+			'agent-instructions'         => array( 'AGENTS.md', 1 ),
+			'agent-instructions-link'    => array( 'CLAUDE.md', 1 ),
+			'changelog-fragment'         => array( 'changelog/fix-the-thing', 1 ),
+			'node-modules'               => array( 'node_modules/x', 1 ),
+			'secret-env-file'            => array( '.env', 1 ),
+			'nested-auth-json'           => array( 'nested/auth.json', 1 ),
+			'bundled-certificate'        => array( 'vendor/acme/ca.pem', 0 ),
+			'bundled-scoped-certificate' => array( 'vendor-prefixed/acme/ca.pem', 0 ),
+			'private-key-under-vendor'   => array( 'vendor/acme/private.key', 1 ),
+			'private-key-under-scoped'   => array( 'vendor-prefixed/acme/private.key', 1 ),
 		);
 	}
 
@@ -327,13 +442,16 @@ final class ReleaseWorkflowTest extends TestCase {
 	 * @return array<string, array{list<string>, bool, int, string}>
 	 */
 	public static function provide_scoped_archives(): array {
-		$complete = array( 'acme-plugin.php', 'vendor-prefixed/scoper-autoload.php', 'vendor-prefixed/acme/library/src/Client.php' );
+		$autoloader = 'vendor-prefixed/scoper-autoload.php';
+		$client     = 'vendor-prefixed/acme/library/src/Client.php';
+		$server     = 'vendor-prefixed/acme/library/src/Server.php';
 
 		return array(
-			'every-scoped-file-shipped' => array( $complete, true, 0, '' ),
-			'autoloader-missing'        => array( array( 'acme-plugin.php', 'vendor-prefixed/acme/library/src/Client.php' ), true, 1, 'scoper-autoload.php' ),
-			'scoped-package-missing'    => array( array( 'acme-plugin.php', 'vendor-prefixed/scoper-autoload.php' ), true, 1, 'vendor-prefixed/acme/library/' ),
-			'scoping-never-ran'         => array( $complete, false, 1, 'did not run' ),
+			'every-scoped-file-shipped' => array( array( 'acme-plugin.php', $autoloader, $client, $server ), true, 0, '' ),
+			'autoloader-missing'        => array( array( 'acme-plugin.php', $client, $server ), true, 1, 'scoper-autoload.php' ),
+			'scoped-file-missing'       => array( array( 'acme-plugin.php', $autoloader, $client ), true, 1, $server ),
+			'scoped-package-missing'    => array( array( 'acme-plugin.php', $autoloader ), true, 1, $client ),
+			'scoping-never-ran'         => array( array( 'acme-plugin.php', $autoloader, $client, $server ), false, 1, 'did not run' ),
 		);
 	}
 
@@ -341,10 +459,19 @@ final class ReleaseWorkflowTest extends TestCase {
 	 * @param list<string> $archived
 	 */
 	#[DataProvider( 'provide_scoped_archives' )]
-	public function test_the_archive_must_ship_every_scoped_package( array $archived, bool $scoped, int $expected_status, string $named ): void {
+	public function test_the_archive_must_ship_every_scoped_php_file( array $archived, bool $scoped, int $expected_status, string $named ): void {
 		$this->write_archive( $archived );
 		if ( $scoped ) {
-			$this->write_project( array( 'vendor-prefixed/acme/library/composer.json' => '{"name": "acme/library"}' ) );
+			// A distribution may leave a scoped package's metadata out, but never its PHP.
+			$this->write_project(
+				array(
+					'vendor-prefixed/scoper-autoload.php' => "<?php\n",
+					'vendor-prefixed/acme/library/composer.json' => '{"name": "acme/library"}',
+					'vendor-prefixed/acme/library/README.md' => "# acme/library\n",
+					'vendor-prefixed/acme/library/src/Client.php' => "<?php\n",
+					'vendor-prefixed/acme/library/src/Server.php' => "<?php\n",
+				)
+			);
 		}
 
 		$result = $this->run_build_step( 'Assert scoped packages bundled', array() );
@@ -414,13 +541,19 @@ final class ReleaseWorkflowTest extends TestCase {
 	 */
 	public static function provide_release_inputs(): array {
 		return array(
-			'version-tag'             => array( 'tag', 'v1.2.3', '.', 'true', 'acme-plugin', 0, '1.2.3' ),
-			'tag-with-a-leading-zero' => array( 'tag', 'v1.02.3', '.', 'true', 'acme-plugin', 1, 'no leading zeros' ),
-			'branch-with-publish'     => array( 'branch', 'trunk', '.', 'true', 'acme-plugin', 1, 'is not a tag' ),
-			'branch-without-publish'  => array( 'branch', 'trunk', 'plugins/acme-plugin', 'false', 'acme-plugin', 0, '' ),
-			'dot-dot-path-segment'    => array( 'tag', 'v1.2.3', 'plugins/../acme-plugin', 'true', 'acme-plugin', 1, 'must not contain a .. path segment' ),
-			'absolute-path'           => array( 'tag', 'v1.2.3', '/tmp/acme-plugin', 'true', 'acme-plugin', 1, 'must be relative' ),
-			'slug-out-of-pattern'     => array( 'tag', 'v1.2.3', '.', 'true', 'Acme_Plugin', 1, 'plugin-slug must match' ),
+			'version-tag'                           => array( 'tag', 'v1.2.3', '.', 'true', 'acme-plugin', 0, '1.2.3' ),
+			'tag-with-a-leading-zero'               => array( 'tag', 'v1.02.3', '.', 'true', 'acme-plugin', 1, 'no leading zeros' ),
+			'prerelease-tag'                        => array( 'tag', 'v1.3.0-beta.1', '.', 'true', 'acme-plugin', 0, '1.3.0-beta.1' ),
+			'prerelease-tag-without-a-number'       => array( 'tag', 'v1.3.0-rc', '.', 'true', 'acme-plugin', 0, '1.3.0-rc' ),
+			'prerelease-label-outside-the-set'      => array( 'tag', 'v1.3.0-pre.1', '.', 'true', 'acme-plugin', 1, 'Releases run from version tags only' ),
+			'uppercase-prerelease-label'            => array( 'tag', 'v1.3.0-RC.1', '.', 'true', 'acme-plugin', 1, 'Releases run from version tags only' ),
+			'prerelease-number-with-a-leading-zero' => array( 'tag', 'v1.3.0-beta.01', '.', 'true', 'acme-plugin', 1, 'no leading zeros' ),
+			'branch-with-publish'                   => array( 'branch', 'trunk', '.', 'true', 'acme-plugin', 1, 'is not a tag' ),
+			'branch-without-publish'                => array( 'branch', 'trunk', 'plugins/acme-plugin', 'false', 'acme-plugin', 0, '' ),
+			'dot-dot-path-segment'                  => array( 'tag', 'v1.2.3', 'plugins/../acme-plugin', 'true', 'acme-plugin', 1, 'project-path must be a relative path' ),
+			'absolute-path'                         => array( 'tag', 'v1.2.3', '/tmp/acme-plugin', 'true', 'acme-plugin', 1, 'project-path must be a relative path' ),
+			'path-out-of-pattern'                   => array( 'tag', 'v1.2.3', 'plugins/acme plugin', 'true', 'acme-plugin', 1, 'project-path must be a relative path' ),
+			'slug-out-of-pattern'                   => array( 'tag', 'v1.2.3', '.', 'true', 'Acme_Plugin', 1, 'plugin-slug must match' ),
 		);
 	}
 
@@ -446,25 +579,55 @@ final class ReleaseWorkflowTest extends TestCase {
 	}
 
 	/**
-	 * @return array<string, array{string|null, int, string}>
+	 * @return array<string, array{string|null, string, int, string}>
 	 */
 	public static function provide_changelogs(): array {
 		return array(
-			'dated-section'              => array( "# Changelog\n\n## 1.2.0 - 2026-10-29\n\n- Fixed a thing.\n\n## 1.1.0 - 2026-10-01\n\n- An older thing.\n", 0, "\n- Fixed a thing.\n\n" ),
-			'bracketed-section'          => array( "## [1.2.0] - 2026-10-29\n\n- Fixed a thing.\n", 0, "\n- Fixed a thing.\n" ),
-			'dots-are-not-wildcards'     => array( "## 1a2a0 - 2026-10-29\n\n- Not this version.\n", 1, '' ),
-			'no-section-for-the-version' => array( "## 1.1.0 - 2026-10-01\n\n- An older thing.\n", 1, '' ),
-			'no-changelog'               => array( null, 0, '' ),
+			'dated-section'              => array( "# Changelog\n\n## 1.2.0 - 2026-10-29\n\n- Fixed a thing.\n\n## 1.1.0 - 2026-10-01\n\n- An older thing.\n", '1.2.0', 0, "\n- Fixed a thing.\n" ),
+			'bracketed-section'          => array( "## [1.2.0] - 2026-10-29\n\n- Fixed a thing.\n", '1.2.0', 0, "\n- Fixed a thing." ),
+			'prerelease-section'         => array( "## 1.3.0-beta.1 - 2026-11-06\n\n- A beta thing.\n\n## 1.2.0 - 2026-10-29\n\n- Fixed a thing.\n", '1.3.0-beta.1', 0, "\n- A beta thing.\n" ),
+			'dots-are-not-wildcards'     => array( "## 1a2a0 - 2026-10-29\n\n- Not this version.\n", '1.2.0', 1, '' ),
+			'no-section-for-the-version' => array( "## 1.1.0 - 2026-10-01\n\n- An older thing.\n", '1.2.0', 1, '' ),
+			'blank-section'              => array( "## 1.2.0 - 2026-10-29\n\n \n\t\n## 1.1.0 - 2026-10-01\n\n- An older thing.\n", '1.2.0', 1, '' ),
+			'no-changelog'               => array( null, '1.2.0', 0, '' ),
 		);
 	}
 
 	#[DataProvider( 'provide_changelogs' )]
-	public function test_the_release_notes_are_the_version_s_changelog_section( ?string $changelog, int $expected_status, string $notes ): void {
-		$this->write_executable( 'bin/gh', "#!/usr/bin/env bash\nprintf '%s\\n' \"\$@\" > \"\$HOME/gh-arguments\"\n" );
+	public function test_the_build_takes_the_release_notes_from_the_version_s_changelog_section( ?string $changelog, string $version, int $expected_status, string $notes ): void {
 		if ( ! \is_null( $changelog ) ) {
 			$this->write_project( array( 'CHANGELOG.md' => $changelog ) );
 		}
 
+		$result = $this->run_build_step( 'Verify the changelog section', array( 'VERSION' => $version ) );
+
+		self::assertSame( $expected_status, $result['status'], $result['output'] );
+		if ( 1 === $expected_status ) {
+			self::assertMatchesRegularExpression( '/^::error::.*no section for ' . \preg_quote( $version, '/' ) . '/m', $result['output'] );
+			return;
+		}
+
+		self::assertSame( $notes, $result['outputs']['release-notes'] ?? '' );
+	}
+
+	/**
+	 * @return array<string, array{string, string, list<string>, list<string>}>
+	 */
+	public static function provide_release_notes(): array {
+		return array(
+			'changelog-notes' => array( '1.2.0', "\n- Fixed a thing.", array( '--notes-file' ), array( '--generate-notes', '--prerelease' ) ),
+			'generated-notes' => array( '1.2.0', '', array( '--generate-notes' ), array( '--notes-file', '--prerelease' ) ),
+			'prerelease'      => array( '1.3.0-beta.1', "\n- A beta thing.", array( '--notes-file', '--prerelease' ), array( '--generate-notes' ) ),
+		);
+	}
+
+	/**
+	 * @param list<string> $passed
+	 * @param list<string> $absent
+	 */
+	#[DataProvider( 'provide_release_notes' )]
+	public function test_the_release_publishes_the_build_s_notes( string $version, string $notes, array $passed, array $absent ): void {
+		$this->write_executable( 'bin/gh', "#!/usr/bin/env bash\nprintf '%s\\n' \"\$@\" > \"\$HOME/gh-arguments\"\n" );
 		\mkdir( $this->work_dir . '/runner-temp' );
 
 		$result = $this->run_step(
@@ -473,31 +636,37 @@ final class ReleaseWorkflowTest extends TestCase {
 			'Create the GitHub release',
 			array(
 				'GH_TOKEN'          => 'token',
-				'CHANGELOG'         => 'CHANGELOG.md',
-				'VERSION'           => '1.2.0',
+				'RELEASE_NOTES'     => $notes,
+				'VERSION'           => $version,
 				'RUNNER_TEMP'       => $this->work_dir . '/runner-temp',
 				'GITHUB_REPOSITORY' => 'acme/acme-plugin',
-				'GITHUB_REF_NAME'   => 'v1.2.0',
+				'GITHUB_REF_NAME'   => "v$version",
 				'PLUGIN_SLUG'       => 'acme-plugin',
 			)
 		);
 
-		self::assertSame( $expected_status, $result['status'], $result['output'] );
-		if ( 1 === $expected_status ) {
-			self::assertMatchesRegularExpression( '/^::error::.*no section for 1\.2\.0/m', $result['output'] );
-			self::assertFileDoesNotExist( $this->work_dir . '/gh-arguments' );
-			return;
-		}
-
+		self::assertSame( 0, $result['status'], $result['output'] );
 		$arguments = \file( $this->work_dir . '/gh-arguments', \FILE_IGNORE_NEW_LINES );
 		self::assertIsArray( $arguments );
-		if ( \is_null( $changelog ) ) {
-			self::assertContains( '--generate-notes', $arguments );
-			self::assertNotContains( '--notes-file', $arguments );
-		} else {
-			self::assertContains( '--notes-file', $arguments );
-			self::assertSame( $notes, \file_get_contents( $this->work_dir . '/runner-temp/release-notes.md' ) );
+		self::assertSame( array( 'release', 'create', "v$version", './dist/acme-plugin.zip' ), \array_slice( $arguments, 0, 4 ) );
+		foreach ( $passed as $argument ) {
+			self::assertContains( $argument, $arguments );
 		}
+
+		foreach ( $absent as $argument ) {
+			self::assertNotContains( $argument, $arguments );
+		}
+
+		if ( '' !== $notes ) {
+			self::assertSame( "$notes\n", \file_get_contents( $this->work_dir . '/runner-temp/release-notes.md' ) );
+		}
+	}
+
+	public function test_the_wp_org_deploy_refuses_a_prerelease_tag(): void {
+		$result = $this->run_step( 'reusable-release.yml', 'wp-org', 'Re-verify version tag before deploy', array( 'REF_NAME' => 'v1.3.0-beta.1' ) );
+
+		self::assertSame( 1, $result['status'], $result['output'] );
+		self::assertMatchesRegularExpression( '/^::error::Refusing to deploy/m', $result['output'] );
 	}
 
 	public function test_required_files_are_found_in_a_large_archive(): void {
@@ -546,7 +715,7 @@ final class ReleaseWorkflowTest extends TestCase {
 
 		self::assertSame( 0, $result['status'], $result['output'] );
 		$tools = $this->work_dir . '/runner-temp/release-tools';
-		self::assertSame( array( "composer install --working-dir=$tools --no-interaction --no-progress --prefer-dist" ), \file( $this->work_dir . '/calls', \FILE_IGNORE_NEW_LINES ) );
+		self::assertSame( array( "composer install --working-dir=$tools --no-interaction --no-progress --prefer-dist --ignore-platform-req=php+" ), \file( $this->work_dir . '/calls', \FILE_IGNORE_NEW_LINES ) );
 		self::assertFileEquals( $this->work_dir . '/project/vendor/ahegyes/wordpress-configs/php/release/composer.lock', "$tools/composer.lock" );
 		self::assertSame( "$tools/vendor/bin\n", \file_get_contents( $this->work_dir . '/github-path' ) );
 	}
@@ -590,8 +759,60 @@ final class ReleaseWorkflowTest extends TestCase {
 		self::assertSame( "$expected_arguments\n", \file_get_contents( $this->work_dir . '/project/wp-env-arguments' ) );
 	}
 
-	public function test_artifact_redirect_defaults_to_the_standard_config(): void {
-		$this->write_project( array( '.wp-env.json' => (string) \json_encode( array( 'mappings' => array( 'wp-content/plugins/acme-plugin' => '.' ) ) ) ) );
+	/**
+	 * @return array<string, array{string, array<string, mixed>|null, array<string, mixed>}>
+	 */
+	public static function provide_artifact_redirects(): array {
+		$built    = array( 'wp-content/plugins/acme-plugin' => '/built/acme-plugin' );
+		$redirect = array(
+			'core'     => null,
+			'mappings' => $built,
+		);
+
+		return array(
+			'standard-config'               => array(
+				'',
+				null,
+				$redirect + array(
+					'env' => array(
+						'development' => $redirect,
+						'tests'       => $redirect,
+					),
+				),
+			),
+			'named-config-with-an-override' => array(
+				'.wp-env.tests.json',
+				array(
+					'config'   => array( 'WP_DEBUG' => true ),
+					'mappings' => array( 'wp-content/plugins/woocommerce' => './woocommerce' ),
+					'env'      => array( 'tests' => array( 'port' => 8899 ) ),
+				),
+				array(
+					'core'     => null,
+					'config'   => array( 'WP_DEBUG' => true ),
+					'mappings' => array( 'wp-content/plugins/woocommerce' => './woocommerce' ) + $built,
+					'env'      => array(
+						'development' => $redirect,
+						'tests'       => array( 'port' => 8899 ) + $redirect,
+					),
+				),
+			),
+		);
+	}
+
+	/**
+	 * @param array<string, mixed>|null $override
+	 * @param array<string, mixed>      $expected
+	 */
+	#[DataProvider( 'provide_artifact_redirects' )]
+	public function test_the_artifact_redirect_joins_the_config_s_override( string $config_file, ?array $override, array $expected ): void {
+		$config = '' === $config_file ? '.wp-env.json' : $config_file;
+		$files  = array( $config => (string) \json_encode( array( 'mappings' => array( 'wp-content/plugins/acme-plugin' => '.' ) ) ) );
+		if ( ! \is_null( $override ) ) {
+			$files[ \substr( $config, 0, -5 ) . '.override.json' ] = (string) \json_encode( $override );
+		}
+
+		$this->write_project( $files );
 
 		$result = $this->run_step(
 			'reusable-release.yml',
@@ -599,42 +820,35 @@ final class ReleaseWorkflowTest extends TestCase {
 			'Redirect wp-env at built artifact',
 			array(
 				'PLUGIN_SLUG'        => 'acme-plugin',
-				'WP_ENV_CONFIG_FILE' => '',
+				'WP_ENV_CONFIG_FILE' => $config_file,
 				'BUILT_PATH'         => '/built/acme-plugin',
 			)
 		);
 
-		$mapping = array( 'wp-content/plugins/acme-plugin' => '/built/acme-plugin' );
 		self::assertSame( 0, $result['status'], $result['output'] );
-		self::assertJsonStringEqualsJsonString(
-			(string) \json_encode(
-				array(
-					'core'     => null,
-					'mappings' => $mapping,
-					'env'      => array(
-						'development' => array( 'mappings' => $mapping ),
-						'tests'       => array( 'mappings' => $mapping ),
-					),
-				)
-			),
-			(string) \file_get_contents( $this->work_dir . '/project/.wp-env.override.json' )
-		);
+		self::assertJsonStringEqualsJsonString( (string) \json_encode( $expected ), (string) \file_get_contents( $this->work_dir . '/project/' . \substr( $config, 0, -5 ) . '.override.json' ) );
 	}
 
 	/**
-	 * @return array<string, array{string, string}>
+	 * @return array<string, array{string, ?string, string}>
 	 */
 	public static function provide_wp_env_ports(): array {
 		return array(
-			'development-port' => array( '{ "port": 8811, "env": { "development": { "port": 8822 } } }', '8822' ),
-			'root-port'        => array( '{ "port": 8811 }', '8811' ),
-			'no-port'          => array( '{}', '8888' ),
+			'development-port'          => array( '{ "port": 8811, "env": { "development": { "port": 8822 } } }', null, '8822' ),
+			'root-port'                 => array( '{ "port": 8811 }', null, '8811' ),
+			'no-port'                   => array( '{}', null, '8888' ),
+			'override-development-port' => array( '{ "port": 8811 }', '{ "env": { "development": { "port": 8833 } } }', '8833' ),
+			'override-root-port'        => array( '{ "port": 8811 }', '{ "port": 8844 }', '8844' ),
 		);
 	}
 
 	#[DataProvider( 'provide_wp_env_ports' )]
-	public function test_the_site_is_requested_on_the_config_s_development_port( string $config, string $port ): void {
+	public function test_the_site_is_requested_on_the_effective_development_port( string $config, ?string $override, string $port ): void {
 		$this->write_project( array( '.wp-env.json' => $config ) );
+		if ( ! \is_null( $override ) ) {
+			$this->write_project( array( '.wp-env.override.json' => $override ) );
+		}
+
 		$this->write_executable( 'bin/curl', "#!/usr/bin/env bash\nprintf '%s\\n' \"\$@\" > \"\$HOME/curl-arguments\"\n" );
 
 		$result = $this->run_step( 'reusable-release.yml', 'test', 'Assert the site serves', array( 'WP_ENV_CONFIG_FILE' => '' ) );

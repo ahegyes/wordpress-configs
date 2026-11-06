@@ -3,9 +3,9 @@ name: Workflow Checks
 on:
   push:
     branches: [trunk]
-    paths: ['.github/workflows/**']
+    paths: ['.github/**']
   pull_request:
-    paths: ['.github/workflows/**']
+    paths: ['.github/**']
   schedule:
     # A weekly run off the hour keeps zizmor's online audits current between workflow changes.
     - cron: '17 6 * * 1'

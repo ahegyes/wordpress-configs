@@ -9,6 +9,9 @@
 .gitattributes
 .gitignore
 .distignore
+AGENTS.md
+CLAUDE.md
+/changelog
 node_modules
 tests
 vendor/bin
@@ -18,9 +21,11 @@ package.json
 package-lock.json
 .phpcs*.xml*
 phpcs*.xml*
-.phpstan.neon
-phpstan.dist.neon
+.phpstan*.neon*
+phpstan*.neon*
 phpunit*.xml*
+.phpunit.result.cache
+.phpunit.cache
 infection.json*
 eslint.config.*
 stylelint.config.*
@@ -31,10 +36,10 @@ scoper.inc.php
 .wordpress-org
 
 # Secret material — never ship, even when a consumer forgets to list it.
-# .pem/.key are root-anchored (leading /) so certs bundled under vendor/ (e.g. CA bundles) still ship.
+# .pem is root-anchored (leading /) so certs bundled under vendor/ (e.g. CA bundles) still ship.
 .env*
 /*.pem
-/*.key
+*.key
 id_rsa*
 .npmrc
 auth.json

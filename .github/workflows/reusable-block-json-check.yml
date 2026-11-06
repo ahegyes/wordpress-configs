@@ -23,16 +23,32 @@ jobs:
         with:
           persist-credentials: false
 
+      # The validator installs from this workflow's own commit of configs, whose lock Dependabot keeps current.
+      - name: Check out the block.json tools
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .block-json-tools
+          sparse-checkout: node/block-json
+          persist-credentials: false
+
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '26'
 
+      - name: Install ajv-cli
+        working-directory: .block-json-tools/node/block-json
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
       - name: Validate block.json files against the WordPress schema
         working-directory: ${{ inputs.project-path }}
+        env:
+          AJV: ${{ github.workspace }}/.block-json-tools/node/block-json/node_modules/.bin/ajv
         run: |
           # Validate one file per -d invocation; a single joined string breaks multi-block plugins.
-          mapfile -d '' files < <(find . -path ./node_modules -prune -o -path ./vendor -prune -o -name 'block.json' -print0)
+          mapfile -d '' files < <(find . -path ./node_modules -prune -o -path ./vendor -prune -o -path ./.block-json-tools -prune -o -name 'block.json' -print0)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No block.json files found — nothing to validate."
             exit 0
@@ -43,7 +59,7 @@ jobs:
           curl -fsSL https://schemas.wp.org/trunk/block.json -o "$schema"
           for file in "${files[@]}"; do
             echo "Validating $file"
-            npx --yes ajv-cli@5.0.0 validate \
+            "$AJV" validate \
               -s "$schema" \
               -d "$file" \
               --strict=false

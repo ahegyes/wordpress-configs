@@ -73,7 +73,6 @@ jobs:
       - name: Scan fixture with php/quality-assurance/phpcs.dist.xml
         shell: bash
         run: |
-          set -e -o pipefail
           # The production profile skips */tests/*, so a temp copy is scanned outside that path.
           cp -R tests/fixtures/plugin-stub "$RUNNER_TEMP/plugin-stub"
           vendor/bin/phpcs -v --standard=php/quality-assurance/phpcs.dist.xml "$RUNNER_TEMP/plugin-stub" | tee phpcs-scan.log
@@ -90,12 +89,27 @@ jobs:
 
   supply-chain:
     name: Supply-chain audit
-    # npm gate audits production deps only — the dev-tooling graph (wp-scripts/playwright trees) is advisory via dependabot alerts.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-supply-chain-audit.yml
+
+  supply-chain-release-tools:
+    name: Supply-chain audit (release tools)
     permissions:
       contents: read
     uses: ./.github/workflows/reusable-supply-chain-audit.yml
     with:
-      npm-audit-flags: '--omit=dev --audit-level=high'
+      project-path: php/release
+      npm-audit: false
+
+  supply-chain-block-json-tools:
+    name: Supply-chain audit (block.json tools)
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-supply-chain-audit.yml
+    with:
+      project-path: node/block-json
+      composer-audit: false
 
   block-json:
     name: block.json schema check

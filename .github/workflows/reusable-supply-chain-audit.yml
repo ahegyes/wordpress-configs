@@ -14,7 +14,7 @@ on:
         required: false
         default: true
       npm-audit:
-        description: 'Run `npm audit` against package-lock.json, so the lockfile is required. Set false for repos without package.json. Audits the full dependency graph (dev/build deps included) by default. At least one of composer-audit / npm-audit must stay enabled.'
+        description: 'Run `npm audit` against package-lock.json, so the lockfile is required. Set false for repos without package.json. At least one of composer-audit / npm-audit must stay enabled.'
         type: boolean
         required: false
         default: true
@@ -24,10 +24,10 @@ on:
         required: false
         default: '--abandoned=report'
       npm-audit-flags:
-        description: 'Extra flags passed to `npm audit`. Defaults to --audit-level=high — audits the full graph (dev/build deps included) and fails only on high/critical advisories; low/moderate are surfaced without failing. Pass --omit=dev to audit production deps only.'
+        description: 'Extra flags passed to `npm audit`. The default audits production dependencies only and fails on high and critical advisories, surfacing low and moderate ones without failing; drop --omit=dev to audit development dependencies too.'
         type: string
         required: false
-        default: '--audit-level=high'
+        default: '--omit=dev --audit-level=high'
       fail-on-findings:
         description: 'Fail the job when an audit reports findings. Set false to run the audit advisory-only — findings are surfaced in the logs without blocking, except a Composer filter-list match such as the malware list, which always fails.'
         type: boolean
@@ -74,34 +74,35 @@ jobs:
           FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
         run: |
           audit_json="$(mktemp)"
-          set +e
+          status=0
           # Composer has no distinct findings exit code, so the JSON report decides; advisory mode softens advisories and abandoned packages, never a filter-list match.
           # shellcheck disable=SC2086
-          composer audit --locked $AUDIT_FLAGS --format=json > "$audit_json"
-          status=$?
-          set -e
+          composer audit --locked $AUDIT_FLAGS --format=json > "$audit_json" || status=$?
           cat "$audit_json"
 
           if [ "$status" -eq 0 ]; then
             exit 0
           fi
 
-          # shellcheck disable=SC2016
-          findings=$(AUDIT_JSON="$audit_json" php -r '
-          $data = json_decode((string) file_get_contents(getenv("AUDIT_JSON")), true);
-          if (!is_array($data) || !array_key_exists("advisories", $data)) {
-              exit(1);
+          findings=$(AUDIT_JSON="$audit_json" php <<'PHP'
+          <?php
+          $data = json_decode( (string) file_get_contents( getenv( 'AUDIT_JSON' ) ), true );
+          if ( ! is_array( $data ) || ! array_key_exists( 'advisories', $data ) ) {
+              exit( 1 );
           }
-          $filtered = [];
-          foreach ((array) ($data["filter"] ?? []) as $package => $entries) {
-              $filtered[] = $package . " (" . implode(", ", array_unique(array_column((array) $entries, "listName"))) . ")";
+
+          $filtered = array();
+          foreach ( (array) ( $data['filter'] ?? array() ) as $package => $entries ) {
+              $filtered[] = $package . ' (' . implode( ', ', array_unique( array_column( (array) $entries, 'listName' ) ) ) . ')';
           }
-          if ($filtered !== []) {
-              echo "filter:", implode(", ", $filtered);
-          } elseif (count((array) $data["advisories"]) + count((array) ($data["abandoned"] ?? [])) > 0) {
-              echo "findings";
+
+          if ( array() !== $filtered ) {
+              echo 'filter:', implode( ', ', $filtered );
+          } elseif ( count( (array) $data['advisories'] ) + count( (array) ( $data['abandoned'] ?? array() ) ) + count( (array) ( $data['cooldown'] ?? array() ) ) > 0 ) {
+              echo 'findings';
           }
-          ') || findings="invalid"
+          PHP
+          ) || findings="invalid"
 
           case "$findings" in
             filter:*)
@@ -141,11 +142,9 @@ jobs:
           FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
         run: |
           audit_json="$(mktemp)"
-          set +e
+          status=0
           # shellcheck disable=SC2086
-          npm audit --package-lock-only $AUDIT_FLAGS --json > "$audit_json"
-          status=$?
-          set -e
+          npm audit --package-lock-only $AUDIT_FLAGS --json > "$audit_json" || status=$?
           cat "$audit_json"
 
           if [ "$status" -eq 0 ]; then
@@ -156,25 +155,7 @@ jobs:
             exit "$status"
           fi
 
-          AUDIT_JSON="$audit_json" node <<'NODE' || {
-          const fs = require('fs');
-
-          let data;
-          try {
-            data = JSON.parse(fs.readFileSync(process.env.AUDIT_JSON, 'utf8'));
-          } catch {
-            process.exit(1);
-          }
-
-          if (data.error || !data.metadata || !data.metadata.vulnerabilities) {
-            process.exit(1);
-          }
-
-          const total = Object.values(data.metadata.vulnerabilities).reduce((sum, value) => sum + (Number(value) || 0), 0);
-          process.exit(total > 0 ? 0 : 1);
-          NODE
-            echo "::error::npm audit failed before producing a valid findings report."
-            exit "$status"
-          }
+          # Only a report that counts vulnerabilities is softened, while an error or an unreadable report fails.
+          jq -e '(.error | not) and ([.metadata.vulnerabilities // {} | .[] | numbers] | add // 0) > 0' "$audit_json" > /dev/null 2>&1 || { echo "::error::npm audit failed before producing a valid findings report."; exit "$status"; }
 
           echo "::warning::npm audit reported findings; fail-on-findings=false leaves this advisory-only."

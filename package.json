@@ -15,6 +15,7 @@
     },
     "files": [
         "node/",
+        "!node/block-json/",
         "LICENSE"
     ],
     "exports": {

@@ -1,5 +1,5 @@
 name: Release
-# Callers grant `contents: write` and `actions: read`; a caller must grant every permission the called jobs declare, or the call fails at startup.
+# Callers grant `contents: write`, `actions: read`, `id-token: write` and `attestations: write`; a caller must grant every permission the called jobs declare, or the call fails at startup.
 
 on:
   workflow_call:
@@ -75,6 +75,7 @@ jobs:
       WP_ORG: ${{ inputs.wp-org }}
     outputs:
       digest: ${{ steps.archive-digest.outputs.digest }}
+      release-notes: ${{ steps.changelog.outputs.release-notes }}
       requires-scoped: ${{ steps.scoping.outputs.requires-scoped }}
       version: ${{ steps.versions.outputs.version }}
     steps:
@@ -86,37 +87,10 @@ jobs:
           PROJECT_PATH: ${{ inputs.project-path }}
           PUBLISH: ${{ inputs.publish }}
         run: |
-          # Slash-wrap so a `..` segment anywhere (start, middle, end, or whole) is caught.
-          has_dotdot_segment() {
-            case "/$1/" in
-              */../*) return 0 ;;
-              *) return 1 ;;
-            esac
-          }
-
-          validate_path_input() {
-            name="$1"
-            value="$2"
-            if ! printf '%s' "$value" | grep -Eq '^[A-Za-z0-9._/-]+$'; then
-              echo "::error::$name must match ^[A-Za-z0-9._/-]+$ — got '$value'."
-              exit 1
-            fi
-            case "$value" in
-              /*)
-                echo "::error::$name must be relative — got '$value'."
-                exit 1
-                ;;
-            esac
-            if has_dotdot_segment "$value"; then
-              echo "::error::$name must not contain a .. path segment — got '$value'."
-              exit 1
-            fi
-          }
-
           tag_version=''
           if [ "$REF_TYPE" = "tag" ]; then
-            if ! printf '%s' "$REF_NAME" | grep -Eq '^v(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}$'; then
-              echo "::error::Releases run from version tags only (vMAJOR.MINOR.PATCH, no leading zeros) — got '$REF_NAME'."
+            if ! printf '%s' "$REF_NAME" | grep -Eq '^v(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}(-(dev|alpha|beta|rc)(\.(0|[1-9][0-9]*))?)?$'; then
+              echo "::error::Releases run from version tags only (vMAJOR.MINOR.PATCH, or a prerelease such as vMAJOR.MINOR.PATCH-beta.N with a dev, alpha, beta or rc label, no leading zeros) — got '$REF_NAME'."
               exit 1
             fi
             tag_version="${REF_NAME#v}"
@@ -128,7 +102,11 @@ jobs:
             echo "::error::plugin-slug must match ^[a-z0-9-]+$ — got '$PLUGIN_SLUG'."
             exit 1
           fi
-          validate_path_input 'project-path' "$PROJECT_PATH"
+          # Slash-wrapping catches a .. segment at the start, in the middle, at the end or as the whole path.
+          if ! [[ "$PROJECT_PATH" =~ ^[A-Za-z0-9._/-]+$ ]] || [[ "$PROJECT_PATH" == /* || "/$PROJECT_PATH/" == */../* ]]; then
+            echo "::error::project-path must be a relative path of [A-Za-z0-9._/-] characters without a .. segment — got '$PROJECT_PATH'."
+            exit 1
+          fi
 
           echo "tag-version=$tag_version" >> "$GITHUB_OUTPUT"
 
@@ -191,13 +169,38 @@ jobs:
             echo "::error::A wp.org release needs readme.txt, whose Stable tag must equal the release version."
             exit 1
           fi
+          # A prerelease leaves the Stable tag at the last stable release, which wp.org keeps offering.
           if [ -z "$header_version" ] \
             || { [ -n "$TAG_VERSION" ] && [ "$TAG_VERSION" != "$header_version" ]; } \
-            || { [ -f readme.txt ] && [ "$stable_tag" != "$header_version" ]; }; then
+            || { [ -f readme.txt ] && [[ "$header_version" != *-* ]] && [ "$stable_tag" != "$header_version" ]; }; then
             echo "::error::Release versions disagree — tag: '${TAG_VERSION:-none}', $ENTRY_FILE Version header: '$header_version', readme.txt Stable tag: '${stable_tag:-none}'."
             exit 1
           fi
           echo "version=$header_version" >> "$GITHUB_OUTPUT"
+
+      # The notes reach the release job as this output, so a dry run checks the notes a tagged run publishes.
+      - name: Verify the changelog section
+        id: changelog
+        working-directory: ${{ inputs.project-path }}
+        env:
+          VERSION: ${{ steps.versions.outputs.version }}
+        run: |
+          if [ ! -f CHANGELOG.md ]; then
+            exit 0
+          fi
+          notes=$(mktemp)
+          # index() matches the heading as text; a regex would read the version's dots as wildcards.
+          awk -v v="$VERSION" '
+            $0 == "## " v || index($0, "## " v " ") == 1 || index($0, "## [" v "]") == 1 { capture = 1; next }
+            capture && /^## / { exit }
+            capture { print }
+          ' CHANGELOG.md > "$notes"
+          if ! grep -q '[^[:space:]]' "$notes"; then
+            echo "::error::CHANGELOG.md has no section for $VERSION, or only a blank one, so the release would describe nothing."
+            exit 1
+          fi
+          delimiter="notes-$(openssl rand -hex 16)"
+          { echo "release-notes<<$delimiter"; cat "$notes"; echo "$delimiter"; } >> "$GITHUB_OUTPUT"
 
       - name: Verify the text domain
         working-directory: ${{ inputs.project-path }}
@@ -217,7 +220,6 @@ jobs:
         working-directory: ${{ inputs.project-path }}
         run: |
           requires_scoped=$(jq -r 'if (.extra["scoping-prefix"] | type) == "string" then "true" else "false" end' composer.json)
-          echo "REQUIRES_SCOPED=$requires_scoped" >> "$GITHUB_ENV"
           echo "requires-scoped=$requires_scoped" >> "$GITHUB_OUTPUT"
 
       - name: Setup PHP
@@ -259,7 +261,7 @@ jobs:
           tools="$RUNNER_TEMP/release-tools"
           mkdir -p "$tools"
           cp "$locked/composer.json" "$locked/composer.lock" "$tools/"
-          composer install --working-dir="$tools" --no-interaction --no-progress --prefer-dist
+          composer install --working-dir="$tools" --no-interaction --no-progress --prefer-dist --ignore-platform-req=php+
           echo "$tools/vendor/bin" >> "$GITHUB_PATH"
 
       - name: Build assets
@@ -276,11 +278,10 @@ jobs:
           wp i18n make-pot . "languages/$PLUGIN_SLUG.pot" --domain="$PLUGIN_SLUG"
 
       - name: Verify the POT covers the scoped strings
-        if: ${{ inputs.generate-pot }}
+        if: ${{ inputs.generate-pot && steps.scoping.outputs.requires-scoped == 'true' }}
         working-directory: ${{ inputs.project-path }}
         run: |
-          if [ "$REQUIRES_SCOPED" = "true" ] \
-            && [ -d vendor-prefixed ] \
+          if [ -d vendor-prefixed ] \
             && grep -rqF --include='*.php' "'$PLUGIN_SLUG'" vendor-prefixed \
             && ! grep -Fq '#: vendor-prefixed/' "languages/$PLUGIN_SLUG.pot"; then
             echo "::error::vendor-prefixed/ carries strings in the '$PLUGIN_SLUG' text domain, but languages/$PLUGIN_SLUG.pot has none of them."
@@ -290,98 +291,123 @@ jobs:
       # --no-scripts avoids invoking handlers that were just pruned from require-dev.
       - name: Prune to production dependencies
         working-directory: ${{ inputs.project-path }}
-        run: composer install --no-dev --prefer-dist --ignore-platform-req=php+ --optimize-autoloader --no-scripts
+        run: composer install --no-dev --no-interaction --no-progress --prefer-dist --ignore-platform-req=php+ --optimize-autoloader --no-scripts
 
       - name: Verify the headers cover the shipped packages
         working-directory: ${{ inputs.project-path }}
         run: |
-          php <<'PHP'
+          vendor_dir=$(composer config vendor-dir)
+          VENDOR_DIR="$vendor_dir" php <<'PHP'
           <?php
-          $entry_file = (string) getenv('ENTRY_FILE');
-          $source = (string) file_get_contents($entry_file);
-          $header = static fn (string $name): string => preg_match('/^[ \t\/*#@]*' . preg_quote($name, '/') . ':[ \t]*(.*?)[ \t]*$/mi', $source, $match) ? $match[1] : '';
+          $entry_file = (string) getenv( 'ENTRY_FILE' );
+          $source     = (string) file_get_contents( $entry_file );
+          $header     = static fn ( string $name ): string => 1 === preg_match( '/^[ \t\/*#@]*' . preg_quote( $name, '/' ) . ':[ \t]*(.*?)[ \t]*$/mi', $source, $match ) ? $match[1] : '';
           // Three numeric segments, so version_compare() reads 8.5 and 8.5.0 alike.
-          $normalize = static fn (string $version): string => implode('.', array_pad(array_slice(array_map('intval', explode('.', $version)), 0, 3), 3, 0));
+          $normalize = static fn ( string $version ): string => implode( '.', array_pad( array_slice( array_map( 'intval', explode( '.', $version ) ), 0, 3 ), 3, 0 ) );
           // Composer's platform-check reading: the lowest version an alternative admits, and the lowest across alternatives.
-          $lower_bound = static function (string $constraint) use ($normalize): ?string {
+          $lower_bound = static function ( string $constraint ) use ( $normalize ): ?string {
               $lowest = null;
-              foreach (preg_split('/\s*\|\|?\s*/', trim($constraint)) as $alternative) {
-                  $bound = '0.0.0';
-                  $alternative = (string) preg_replace(['/(?<=[<>=~^!])\s+/', '/\s+-\s+\S+/'], '', $alternative);
-                  foreach (preg_split('/[\s,]+/', $alternative) as $part) {
-                      if ('*' === $part || preg_match('/^(?:<|<=|!=)/', $part)) {
+              foreach ( preg_split( '/\s*\|\|?\s*/', trim( $constraint ) ) as $alternative ) {
+                  $bound       = '0.0.0';
+                  $alternative = (string) preg_replace( array( '/(?<=[<>=~^!])\s+/', '/\s+-\s+\S+/' ), '', $alternative );
+                  foreach ( preg_split( '/[\s,]+/', $alternative ) as $part ) {
+                      if ( '*' === $part || 1 === preg_match( '/^(?:<|<=|!=)/', $part ) ) {
                           continue;
                       }
-                      if (!preg_match('/^(?:>=|>|==?|\^|~)?v?(\d+(?:\.\d+)*)(?:\.[*x])?(?:-[a-z]+[.\d]*)?(?:@\w+)?$/i', $part, $match)) {
+
+                      if ( 1 !== preg_match( '/^(?:>=|>|==?|\^|~)?v?(\d+(?:\.\d+)*)(?:\.[*x])?(?:-[a-z]+[.\d]*)?(?:@\w+)?$/i', $part, $match ) ) {
                           return null;
                       }
-                      if (version_compare($normalize($match[1]), $bound, '>')) {
-                          $bound = $normalize($match[1]);
+
+                      if ( version_compare( $normalize( $match[1] ), $bound, '>' ) ) {
+                          $bound = $normalize( $match[1] );
                       }
                   }
-                  if (null === $lowest || version_compare($bound, $lowest, '<')) {
+
+                  if ( is_null( $lowest ) || version_compare( $bound, $lowest, '<' ) ) {
                       $lowest = $bound;
                   }
               }
+
               return $lowest;
           };
 
           // The project's own manifest states the floor of the plugin's code, and scoped packages ship from vendor-prefixed/ although Composer counts them as development packages.
-          $packages = [];
-          $project = is_file('composer.json') ? json_decode((string) file_get_contents('composer.json'), true) : null;
-          if (is_array($project)) {
+          $packages = array();
+          $project  = is_file( 'composer.json' ) ? json_decode( (string) file_get_contents( 'composer.json' ), true ) : null;
+          if ( is_array( $project ) ) {
               $packages[] = $project;
           }
-          if (is_file('vendor/composer/installed.json')) {
-              $installed = json_decode((string) file_get_contents('vendor/composer/installed.json'), true);
-              foreach ($installed['packages'] ?? [] as $package) {
-                  if (!in_array($package['name'], $installed['dev-package-names'] ?? [], true)) {
+
+          $installed_file = getenv( 'VENDOR_DIR' ) . '/composer/installed.json';
+          if ( is_file( $installed_file ) ) {
+              $installed = json_decode( (string) file_get_contents( $installed_file ), true );
+              foreach ( $installed['packages'] ?? array() as $package ) {
+                  if ( ! in_array( $package['name'], $installed['dev-package-names'] ?? array(), true ) ) {
                       $packages[] = $package;
                   }
               }
           }
-          foreach (glob('vendor-prefixed/*/*/composer.json') ?: [] as $manifest) {
-              $packages[] = json_decode((string) file_get_contents($manifest), true);
+
+          foreach ( glob( 'vendor-prefixed/*/*/composer.json' ) ?: array() as $manifest ) {
+              $packages[] = json_decode( (string) file_get_contents( $manifest ), true );
           }
 
-          $errors = [];
-          $floors = ['Requires PHP' => [], 'Requires at least' => []];
-          $plugins = [];
-          foreach ($packages as $package) {
+          $errors  = array();
+          $floors  = array(
+              'Requires PHP'         => array(),
+              'Requires at least'    => array(),
+              'WC requires at least' => array(),
+          );
+          $plugins = array();
+          foreach ( $packages as $package ) {
               $name = $package['name'] ?? '(unnamed)';
-              if (is_string($package['require']['php'] ?? null)) {
-                  $bound = $lower_bound($package['require']['php']);
-                  if (null === $bound) {
+              if ( is_string( $package['require']['php'] ?? null ) ) {
+                  $bound = $lower_bound( $package['require']['php'] );
+                  if ( is_null( $bound ) ) {
                       $errors[] = "Cannot read the PHP constraint '{$package['require']['php']}' of $name.";
                   } else {
-                      $floors['Requires PHP'][$name] = $bound;
+                      $floors['Requires PHP'][ $name ] = $bound;
                   }
               }
-              if (is_string($package['extra']['requires-wp'] ?? null)) {
-                  $floors['Requires at least'][$name] = $normalize($package['extra']['requires-wp']);
+
+              if ( is_string( $package['extra']['requires-wp'] ?? null ) ) {
+                  $floors['Requires at least'][ $name ] = $normalize( $package['extra']['requires-wp'] );
               }
-              foreach ((array) ($package['extra']['requires-plugins'] ?? []) as $slug) {
-                  $plugins[(string) $slug][] = $name;
+
+              if ( is_string( $package['extra']['requires-wc'] ?? null ) ) {
+                  $floors['WC requires at least'][ $name ] = $normalize( $package['extra']['requires-wc'] );
+              }
+
+              foreach ( (array) ( $package['extra']['requires-plugins'] ?? array() ) as $slug ) {
+                  $plugins[ (string) $slug ][] = $name;
               }
           }
 
-          foreach ($floors as $header_name => $bounds) {
-              $declared = $header($header_name);
-              $above = array_filter($bounds, static fn (string $bound): bool => version_compare($bound, $normalize($declared), '>'));
-              if ([] !== $above) {
-                  $needs = implode(', ', array_map(static fn (string $package, string $bound): string => "$package ($bound)", array_keys($above), $above));
-                  $errors[] = "$entry_file $header_name '$declared' is below what shipped packages require: $needs.";
+          foreach ( $floors as $header_name => $bounds ) {
+              $declared = $header( $header_name );
+              $needs    = array();
+              foreach ( $bounds as $package => $bound ) {
+                  if ( version_compare( $bound, $normalize( $declared ), '>' ) ) {
+                      $needs[] = "$package ($bound)";
+                  }
+              }
+
+              if ( array() !== $needs ) {
+                  $errors[] = "$entry_file $header_name '$declared' is below what shipped packages require: " . implode( ', ', $needs ) . '.';
               }
           }
-          $declared_plugins = array_map('trim', explode(',', $header('Requires Plugins')));
-          foreach (array_diff_key($plugins, array_flip($declared_plugins)) as $slug => $names) {
-              $errors[] = "$entry_file Requires Plugins lacks '$slug', which " . implode(', ', $names) . ' requires.';
+
+          $declared_plugins = array_map( 'trim', explode( ',', $header( 'Requires Plugins' ) ) );
+          foreach ( array_diff_key( $plugins, array_flip( $declared_plugins ) ) as $slug => $names ) {
+              $errors[] = "$entry_file Requires Plugins lacks '$slug', which " . implode( ', ', $names ) . ' requires.';
           }
 
-          foreach ($errors as $error) {
+          foreach ( $errors as $error ) {
               echo "::error::$error\n";
           }
-          exit([] === $errors ? 0 : 1);
+
+          exit( array() === $errors ? 0 : 1 );
           PHP
 
       - name: Create plugin archive
@@ -409,27 +435,18 @@ jobs:
         if: ${{ steps.scoping.outputs.requires-scoped == 'true' }}
         working-directory: ${{ inputs.project-path }}
         run: |
-          entries=$(unzip -Z1 "$PLUGIN_SLUG.zip")
-          status=0
-
-          if ! grep -qxF -- "$PLUGIN_SLUG/vendor-prefixed/scoper-autoload.php" <<< "$entries"; then
-            echo "::error::Archive is missing $PLUGIN_SLUG/vendor-prefixed/scoper-autoload.php."
-            status=1
-          fi
-
-          scoped_package_roots=$(find vendor-prefixed -mindepth 3 -maxdepth 3 -type f -name composer.json -exec dirname {} \; 2>/dev/null | LC_ALL=C sort -u)
-          if [ -z "$scoped_package_roots" ]; then
+          if [ -z "$(find vendor-prefixed -mindepth 3 -maxdepth 3 -type f -name composer.json 2>/dev/null)" ]; then
             echo "::error::No scoped package under vendor-prefixed/<vendor>/<package>/ — the scoping pipeline did not run."
-            status=1
+            exit 1
           fi
-          while IFS= read -r pkg; do
-            [ -n "$pkg" ] || continue
-            if ! grep -F -- "$PLUGIN_SLUG/$pkg/" <<< "$entries" | grep -q '[^/]$'; then
-              echo "::error::Archive is missing scoped package $pkg/."
-              status=1
-            fi
-          done <<< "$scoped_package_roots"
-          exit "$status"
+          # Every scoped PHP file ships, scoper-autoload.php included, while a distribution may leave a package's metadata out.
+          missing=$(LC_ALL=C comm -23 <(find vendor-prefixed -type f -name '*.php' | sed "s|^|$PLUGIN_SLUG/|" | LC_ALL=C sort) <(unzip -Z1 "$PLUGIN_SLUG.zip" | LC_ALL=C sort))
+          if [ -n "$missing" ]; then
+            while IFS= read -r file; do
+              echo "::error::Archive is missing $file."
+            done <<< "$missing"
+            exit 1
+          fi
 
       - name: Assert forbidden entries absent
         working-directory: ${{ inputs.project-path }}
@@ -438,41 +455,19 @@ jobs:
           status=0
           while IFS= read -r entry; do
             case "$entry" in
-              "$PLUGIN_SLUG/node_modules/"*|"$PLUGIN_SLUG/"*/node_modules/*|"$PLUGIN_SLUG/tests/"*|"$PLUGIN_SLUG/"*/tests/*|"$PLUGIN_SLUG/vendor/bin/"*|"$PLUGIN_SLUG/"*/vendor/bin/*)
-                echo "::error::Archive must not contain $entry."
-                status=1
-                ;;
-              "$PLUGIN_SLUG/.git/"*|"$PLUGIN_SLUG/.github/"*|"$PLUGIN_SLUG/.idea/"*|"$PLUGIN_SLUG/.vscode/"*|"$PLUGIN_SLUG/.wordpress-org/"*)
-                echo "::error::Archive must not contain $entry."
-                status=1
-                ;;
-              "$PLUGIN_SLUG/.editorconfig"|"$PLUGIN_SLUG/.gitattributes"|"$PLUGIN_SLUG/.gitignore"|"$PLUGIN_SLUG/.distignore")
-                echo "::error::Archive must not contain $entry."
-                status=1
-                ;;
-              "$PLUGIN_SLUG/composer.json"|"$PLUGIN_SLUG/composer.lock"|"$PLUGIN_SLUG/package.json"|"$PLUGIN_SLUG/package-lock.json")
-                echo "::error::Archive must not contain $entry."
-                status=1
-                ;;
-              "$PLUGIN_SLUG/phpcs"*.xml*|"$PLUGIN_SLUG/.phpcs"*.xml*|"$PLUGIN_SLUG/.phpstan.neon"|"$PLUGIN_SLUG/phpstan.dist.neon")
-                echo "::error::Archive must not contain $entry."
-                status=1
-                ;;
-              "$PLUGIN_SLUG/phpunit"*.xml*|"$PLUGIN_SLUG/infection.json"|"$PLUGIN_SLUG/infection.json."*)
-                echo "::error::Archive must not contain $entry."
-                status=1
-                ;;
-              "$PLUGIN_SLUG/eslint.config."*|"$PLUGIN_SLUG/stylelint.config."*|"$PLUGIN_SLUG/tsconfig.json"|"$PLUGIN_SLUG/playwright.config."*)
-                echo "::error::Archive must not contain $entry."
-                status=1
-                ;;
-              "$PLUGIN_SLUG/scoper.inc.php"|"$PLUGIN_SLUG/.wp-env"*)
+              "$PLUGIN_SLUG/node_modules/"*|"$PLUGIN_SLUG/"*/node_modules/*|"$PLUGIN_SLUG/tests/"*|"$PLUGIN_SLUG/"*/tests/*|"$PLUGIN_SLUG/vendor/bin/"*|"$PLUGIN_SLUG/"*/vendor/bin/* \
+                |"$PLUGIN_SLUG/.git/"*|"$PLUGIN_SLUG/.github/"*|"$PLUGIN_SLUG/.idea/"*|"$PLUGIN_SLUG/.vscode/"*|"$PLUGIN_SLUG/.wordpress-org/"* \
+                |"$PLUGIN_SLUG/.editorconfig"|"$PLUGIN_SLUG/.gitattributes"|"$PLUGIN_SLUG/.gitignore"|"$PLUGIN_SLUG/.distignore"|"$PLUGIN_SLUG/AGENTS.md"|"$PLUGIN_SLUG/CLAUDE.md"|"$PLUGIN_SLUG/changelog/"* \
+                |"$PLUGIN_SLUG/composer.json"|"$PLUGIN_SLUG/composer.lock"|"$PLUGIN_SLUG/package.json"|"$PLUGIN_SLUG/package-lock.json" \
+                |"$PLUGIN_SLUG/phpcs"*.xml*|"$PLUGIN_SLUG/.phpcs"*.xml*|"$PLUGIN_SLUG/phpstan"*.neon*|"$PLUGIN_SLUG/.phpstan"*.neon* \
+                |"$PLUGIN_SLUG/phpunit"*.xml*|"$PLUGIN_SLUG/.phpunit.result.cache"|"$PLUGIN_SLUG/.phpunit.cache/"*|"$PLUGIN_SLUG/infection.json"|"$PLUGIN_SLUG/infection.json."* \
+                |"$PLUGIN_SLUG/eslint.config."*|"$PLUGIN_SLUG/stylelint.config."*|"$PLUGIN_SLUG/tsconfig.json"|"$PLUGIN_SLUG/playwright.config."* \
+                |"$PLUGIN_SLUG/scoper.inc.php"|"$PLUGIN_SLUG/.wp-env"*)
                 echo "::error::Archive must not contain $entry."
                 status=1
                 ;;
               # Bundled certificates are runtime resources, and this arm stays ahead of the secret arm below because case stops at the first match.
-              "$PLUGIN_SLUG/vendor/"*.pem|"$PLUGIN_SLUG/"*"/vendor/"*.pem|"$PLUGIN_SLUG/vendor/"*.key|"$PLUGIN_SLUG/"*"/vendor/"*.key \
-                |"$PLUGIN_SLUG/vendor-prefixed/"*.pem|"$PLUGIN_SLUG/vendor-prefixed/"*.key)
+              "$PLUGIN_SLUG/vendor/"*.pem|"$PLUGIN_SLUG/"*"/vendor/"*.pem|"$PLUGIN_SLUG/vendor-prefixed/"*.pem)
                 ;;
               "$PLUGIN_SLUG/.env"*|"$PLUGIN_SLUG/"*"/.env"* \
                 |"$PLUGIN_SLUG/.npmrc"|"$PLUGIN_SLUG/"*"/.npmrc" \
@@ -507,6 +502,8 @@ jobs:
           build-dir: ${{ inputs.project-path }}/plugin-check-build/${{ inputs.plugin-slug }}
           slug: ${{ inputs.plugin-slug }}
           exclude-checks: ${{ steps.excluded.outputs.checks }}
+          # A prerelease leaves the Stable tag at the last stable release, which the readme check reports as a mismatch.
+          ignore-codes: ${{ contains(steps.versions.outputs.version, '-') && 'stable_tag_mismatch' || '' }}
           # An empty token skips the pull request comment, which this job's token has no permission to post.
           repo-token: ''
 
@@ -579,15 +576,6 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      # Without a declared version, setup-node only warns and runs the runner's own Node.
-      - name: Require a Node version in package.json
-        working-directory: ${{ inputs.project-path }}
-        run: |
-          if ! jq -e '[.volta.node, .volta.extends, ([.devEngines.runtime] | flatten[] | objects | select((.name | strings | ascii_downcase) == "node") | .version), .engines.node] | any' package.json > /dev/null; then
-            echo "::error::package.json declares no Node version — add engines.node, volta.node or a devEngines.runtime entry named node."
-            exit 1
-          fi
-
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -618,9 +606,11 @@ jobs:
             echo "::error::Release contract violation — $config must exist and map \"$key\" to the plugin source; found mappings: $(jq -c '.mappings // {}' "$config" 2> /dev/null || echo 'none')."
             exit 1
           fi
-          # wp-env layers env-scoped mappings over root, so cover root plus development and tests — otherwise a consumer's env.tests mapping shadows the built artifact and the E2E runs against source.
+          # wp-env layers env-scoped settings over root, so the redirect and the latest core cover root plus development and tests, or an env-scoped mapping or core pin would run the E2E against source.
           override="${config%.json}.override.json"
-          jq -n --arg key "$key" --arg built "$BUILT_PATH" '{core: null, mappings: {($key): $built}, env: {development: {mappings: {($key): $built}}, tests: {mappings: {($key): $built}}}}' > "$override"
+          [ -f "$override" ] || echo '{}' > "$override"
+          jq --arg key "$key" --arg built "$BUILT_PATH" '. * ({core: null, mappings: {($key): $built}} | . + {env: {development: ., tests: .}})' "$override" > "$override.tmp"
+          mv "$override.tmp" "$override"
           echo "Generated $override:"
           cat "$override"
 
@@ -664,9 +654,13 @@ jobs:
       - name: Assert the site serves
         working-directory: ${{ inputs.project-path }}
         run: |
-          # A boot-path fatal that survives activation surfaces on the next request. The consumer's
-          # config governs the development port — the override file never touches it.
-          port=$(jq -r '.env.development.port // .port // 8888' "${WP_ENV_CONFIG_FILE:-.wp-env.json}")
+          # A boot-path fatal that survives activation surfaces on the next request.
+          config="${WP_ENV_CONFIG_FILE:-.wp-env.json}"
+          files=("$config")
+          if [ -f "${config%.json}.override.json" ]; then
+            files+=("${config%.json}.override.json")
+          fi
+          port=$(jq -r -s 'reduce .[] as $file ({}; . * $file) | .env.development.port // .port // 8888' "${files[@]}")
           curl --fail --silent --show-error --output /dev/null "http://localhost:${port}/"
 
       - name: Run E2E tests against built artifact
@@ -727,14 +721,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
+      attestations: write
       contents: write
+      id-token: write
     env:
       PLUGIN_SLUG: ${{ inputs.plugin-slug }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
       - name: Download built artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -751,24 +743,27 @@ jobs:
             exit 1
           fi
 
+      # Attestations need GitHub Enterprise Cloud in a private or internal repository, where the step would fail the release.
+      - name: Attest the archive's provenance
+        if: ${{ github.event.repository.visibility == 'public' }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ./dist/${{ inputs.plugin-slug }}.zip
+
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          CHANGELOG: ${{ inputs.project-path }}/CHANGELOG.md
+          RELEASE_NOTES: ${{ needs.build.outputs.release-notes }}
           VERSION: ${{ needs.build.outputs.version }}
         run: |
           args=(--repo "$GITHUB_REPOSITORY" --verify-tag)
-          if [ -f "$CHANGELOG" ]; then
-            # index() matches the heading as text; a regex would read the version's dots as wildcards.
-            awk -v v="$VERSION" '
-              $0 == "## " v || index($0, "## " v " ") == 1 || index($0, "## [" v "]") == 1 { capture = 1; next }
-              capture && /^## / { exit }
-              capture { print }
-            ' "$CHANGELOG" > "$RUNNER_TEMP/release-notes.md"
-            if [ ! -s "$RUNNER_TEMP/release-notes.md" ]; then
-              echo "::error::$CHANGELOG has no section for $VERSION, so the release would describe nothing."
-              exit 1
-            fi
+          # GitHub's latest release, which the stable update channel reads, skips prereleases.
+          if [[ "$VERSION" == *-* ]]; then
+            args+=(--prerelease)
+          fi
+          # The build fails on a CHANGELOG.md without the version's section, so empty notes mean the project keeps none.
+          if [ -n "$RELEASE_NOTES" ]; then
+            printf '%s\n' "$RELEASE_NOTES" > "$RUNNER_TEMP/release-notes.md"
             args+=(--notes-file "$RUNNER_TEMP/release-notes.md")
           else
             args+=(--generate-notes)
@@ -778,7 +773,8 @@ jobs:
   wp-org:
     name: Deploy to wp.org
     needs: [build, test, provenance, release]
-    if: ${{ inputs.publish && inputs.wp-org }}
+    # wp.org offers sites only its Stable tag, so a prerelease ships through GitHub alone.
+    if: ${{ inputs.publish && inputs.wp-org && !contains(needs.build.outputs.version, '-') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: wp-org-release
@@ -808,12 +804,11 @@ jobs:
             exit 1
           fi
 
+      # The deploy re-checks its own ref, so no change to the build's checks lets a branch or prerelease ref reach SVN.
       - name: Re-verify version tag before deploy
         env:
           REF_NAME: ${{ github.ref_name }}
-        run: |
-          printf '%s' "$REF_NAME" | grep -Eq '^v(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}$' || { echo "::error::Refusing to deploy from non-version ref '$REF_NAME'."; exit 1; }
-          echo "VERSION=${REF_NAME#v}" >> "$GITHUB_ENV"
+        run: printf '%s' "$REF_NAME" | grep -Eq '^v(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}$' || { echo "::error::Refusing to deploy from non-version ref '$REF_NAME'."; exit 1; }
 
       - name: Verify SVN credentials
         env:
@@ -848,6 +843,6 @@ jobs:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
           SLUG: ${{ inputs.plugin-slug }}
-          VERSION: ${{ env.VERSION }}
+          VERSION: ${{ needs.build.outputs.version }}
           BUILD_DIR: ./publish/${{ inputs.plugin-slug }}
           ASSETS_DIR: ./wp-org-assets
