@@ -3,7 +3,7 @@
 namespace DeepWebSolutions\Config\Composer;
 
 use Composer\InstalledVersions;
-use DeepWebSolutions\Config\Composer\Internal\StubSymbolCollector;
+use DeepWebSolutions\Config\Composer\Visitors\StubSymbolCollector;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\ParserFactory;
@@ -11,8 +11,19 @@ use Symfony\Component\Finder\Finder;
 
 /**
  * Collects the WordPress, Action Scheduler, stub-declared and dropped-package symbols that scoping leaves global.
+ *
+ * @internal
  */
-final class CollectScopingStubs {
+final class GlobalSymbols {
+	// region MAGIC METHODS
+
+	/**
+	 * Constructor.
+	 */
+	protected function __construct() {}
+
+	// endregion
+
 	// region METHODS
 
 	/**

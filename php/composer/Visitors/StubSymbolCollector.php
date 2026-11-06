@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Config\Composer\Internal;
+namespace DeepWebSolutions\Config\Composer\Visitors;
 
 use PhpParser\Node;
 use PhpParser\NodeVisitor;
@@ -28,21 +28,21 @@ final class StubSymbolCollector extends NodeVisitorAbstract {
 	 *
 	 * @var     list<string>
 	 */
-	public array $classes = array();
+	protected(set) array $classes = array();
 
 	/**
 	 * The function names the stubs declare.
 	 *
 	 * @var     list<string>
 	 */
-	public array $functions = array();
+	protected(set) array $functions = array();
 
 	/**
 	 * The constant names the stubs declare, through const statements and define() calls.
 	 *
 	 * @var     list<string>
 	 */
-	public array $constants = array();
+	protected(set) array $constants = array();
 
 	// endregion
 

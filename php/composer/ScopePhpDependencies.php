@@ -6,7 +6,7 @@ use Composer\ClassMapGenerator\ClassMapGenerator;
 use Composer\Factory;
 use Composer\InstalledVersions;
 use Composer\Script\Event;
-use DeepWebSolutions\Config\Composer\Internal\ScopedSymbolCollector;
+use DeepWebSolutions\Config\Composer\Visitors\ScopedSymbolCollector;
 use Humbug\PhpScoper\Configuration\RegexChecker;
 use JetBrains\PHPStormStub\PhpStormStubsMap;
 use PhpParser\Error;
@@ -21,6 +21,15 @@ use Symfony\Component\Finder\Finder;
  * Scopes a project's dependencies into its vendor-prefixed directory with php-scoper and writes their autoloader.
  */
 final class ScopePhpDependencies {
+	// region MAGIC METHODS
+
+	/**
+	 * Constructor.
+	 */
+	protected function __construct() {}
+
+	// endregion
+
 	// region METHODS
 
 	/**
@@ -40,6 +49,8 @@ final class ScopePhpDependencies {
 
 	/**
 	 * Scopes a project's dependencies into its vendor-prefixed directory with the project's scoper.inc.php, writes vendor-prefixed/scoper-autoload.php, then checks that the scoped code declares every prefixed name it references.
+	 *
+	 * @internal
 	 *
 	 * @param   string $project_dir The root directory of the project.
 	 *

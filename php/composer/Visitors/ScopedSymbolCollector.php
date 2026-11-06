@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Config\Composer\Internal;
+namespace DeepWebSolutions\Config\Composer\Visitors;
 
 use PhpParser\Error;
 use PhpParser\Node;
@@ -25,7 +25,7 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 	 *
 	 * @var     array{class: array<string, string>, function: array<string, string>, constant: array<string, string>}
 	 */
-	public array $declared = array(
+	protected(set) array $declared = array(
 		'class'    => array(),
 		'function' => array(),
 		'constant' => array(),
@@ -36,7 +36,7 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 	 *
 	 * @var     list<array{name: string, location: string, keys: array<'class'|'function'|'constant'|'namespace', string>, checked: bool}>
 	 */
-	public array $references = array();
+	protected(set) array $references = array();
 
 	/**
 	 * The file the next traversal reads.

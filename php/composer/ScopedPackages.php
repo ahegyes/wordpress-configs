@@ -4,8 +4,19 @@ namespace DeepWebSolutions\Config\Composer;
 
 /**
  * Resolves the packages a project scopes from the names it gives and from Composer's record of the installed packages.
+ *
+ * @internal
  */
 final class ScopedPackages {
+	// region MAGIC METHODS
+
+	/**
+	 * Constructor.
+	 */
+	protected function __construct() {}
+
+	// endregion
+
 	// region METHODS
 
 	/**

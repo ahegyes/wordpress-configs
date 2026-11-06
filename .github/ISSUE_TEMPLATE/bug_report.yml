@@ -7,7 +7,7 @@ body:
     attributes:
       label: Affected area
       options:
-        - Composer scripts (CollectScopingStubs, ScopePhpDependencies)
+        - Composer scripts (GlobalSymbols, ScopePhpDependencies)
         - php-scoper base config (scoper-base)
         - PHPCS ruleset (phpcs.dist.xml)
         - PHPStan config (phpstan.dist.neon)

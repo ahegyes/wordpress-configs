@@ -9,7 +9,7 @@ wordpress-configs/
 ├── php/
 │   ├── quality-assurance/      # the shared PHPCS profiles and base, the PHPStan profile and base, opt-in path discovery
 │   ├── php-scoper/             # scoper-base.inc.php and per-library recipes/<vendor>/<package>.inc.php
-│   ├── composer/               # ScopePhpDependencies, ScopedPackages, CollectScopingStubs and their AST visitors
+│   ├── composer/               # ScopePhpDependencies, ScopedPackages, GlobalSymbols, Manifest and their AST visitors
 │   ├── phpstan/                # GlobalTagVisitor, which the PHPStan profile registers
 │   └── release/                # the manifest and lock of the WP-CLI commands reusable-release.yml installs, which Dependabot keeps current
 ├── node/                       # tsconfig, ESLint, Stylelint, PostCSS and Playwright baselines

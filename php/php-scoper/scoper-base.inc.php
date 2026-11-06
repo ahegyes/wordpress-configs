@@ -5,7 +5,7 @@
  * @package DeepWebSolutions\Config
  */
 
-use DeepWebSolutions\Config\Composer\CollectScopingStubs;
+use DeepWebSolutions\Config\Composer\GlobalSymbols;
 use DeepWebSolutions\Config\Composer\Manifest;
 use DeepWebSolutions\Config\Composer\ScopedPackages;
 use Symfony\Component\Finder\Finder;
@@ -30,7 +30,7 @@ return static function ( string $project_dir, string ...$names ): array {
 	if ( array() === $packages['scoped'] ) {
 		throw new RuntimeException( "No package to scope is installed in '$vendor_dir'." ); // Without finders, php-scoper scopes the whole working directory.
 	}
-	$symbols = CollectScopingStubs::collect( $project_dir, array_values( $packages['scoped'] ), array_values( $packages['dropped'] ) );
+	$symbols = GlobalSymbols::collect( $project_dir, array_values( $packages['scoped'] ), array_values( $packages['dropped'] ) );
 
 	$exclude_files      = array();
 	$exclude_namespaces = array();

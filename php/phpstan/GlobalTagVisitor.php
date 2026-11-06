@@ -13,6 +13,8 @@ use PHPStan\PhpDocParser\Parser\TokenIterator;
  * Gives each global statement the types that the @global tags of its function's or method's docblock declare, as WordPress's documentation standard writes them.
  *
  * PHPStan types a global as mixed but reads an inline @var on the statement, so the visitor attaches one; a global no tag declares stays mixed, and a statement with its own docblock keeps it.
+ *
+ * @internal
  */
 final class GlobalTagVisitor extends NodeVisitorAbstract {
 	// region FIELDS AND CONSTANTS
@@ -35,8 +37,8 @@ final class GlobalTagVisitor extends NodeVisitorAbstract {
 	 * @param   PhpDocParser $parser PHPStan's PHPDoc parser.
 	 */
 	public function __construct(
-		protected Lexer $lexer,
-		protected PhpDocParser $parser
+		protected readonly Lexer $lexer,
+		protected readonly PhpDocParser $parser
 	) {}
 
 	// endregion
