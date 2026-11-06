@@ -179,11 +179,11 @@ A scope run:
 - prefixes the strings that start with a scoped package's own namespace, which libraries use to build class names;
 - applies the recipe of each scoped package that has one in `php/php-scoper/recipes/<vendor>/<package>.inc.php`;
 - rewrites the text domain a scoped package declares under `extra.scoping-text-domain` to the project's `extra.text-domain`;
-- fails, naming each one, when the scoped code references a prefixed name it does not declare: a host symbol no stubs file declares, a dependency outside the scoped packages, or a string php-scoper took for a class name;
+- fails, naming each one, when the scoped code references a prefixed name it does not declare as the kind of symbol the reference needs: a host symbol no stubs file declares, a dependency outside the scoped packages, a string php-scoper took for a class name, or the class of a `Class::MEMBER` string;
 - passes a `function_exists()` check of the prefixed name of a function it leaves global, PHP's own included, which php-scoper adds to every guard of that function and which is false while nothing declares the name;
 - writes `vendor-prefixed/scoper-autoload.php`, a class map over each scoped package's `psr-4`, `psr-0` and `classmap` paths that honors `exclude-from-classmap`, followed by its `files` entries.
 
-The run also fails when `extra.scoping-prefix` is missing or empty, when a name matches no installed package, when a scoped package requires one that is not installed, when a declared stubs file is missing, when a scoped package declares a text domain and the project declares none, when a declared text domain survives outside a string literal of its own, and when a recipe's target is gone.
+The run also fails when `extra.scoping-prefix` is missing or empty, when a name matches no installed package, when a scoped package requires one that is not installed, when a declared stubs file is missing, when a scoped file does not parse, when a scoped package declares a text domain and the project declares none, when a declared text domain survives outside a string literal of its own, and when a recipe's target is gone.
 
 The project or a scoped package declares the stubs files of the host symbols the scoped code calls, each as `./path/to/file.php` relative to its `composer.json`, as `vendor/package` for that package's `<package>.php`, or as `vendor/package:path/to/file.php`:
 

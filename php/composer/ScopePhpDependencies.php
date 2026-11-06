@@ -9,6 +9,7 @@ use Composer\Script\Event;
 use DeepWebSolutions\Config\Composer\Internal\ScopedSymbolCollector;
 use Humbug\PhpScoper\Configuration\RegexChecker;
 use JetBrains\PHPStormStub\PhpStormStubsMap;
+use PhpParser\Error;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\NodeVisitor\ParentConnectingVisitor;
@@ -42,7 +43,7 @@ final class ScopePhpDependencies {
 	 *
 	 * @param   string $project_dir The root directory of the project.
 	 *
-	 * @throws  \RuntimeException Thrown when the project, its scoping prefix or php-scoper is missing, vendor-prefixed is a symbolic link, php-scoper fails, a prefixed name is declared by no scoped package, or a scoped package manifest cannot be read.
+	 * @throws  \RuntimeException Thrown when the project, its scoping prefix or php-scoper is missing, vendor-prefixed is a symbolic link, php-scoper fails, a scoped file does not parse, a prefixed name is declared by no scoped package, or a scoped package manifest cannot be read.
 	 *
 	 * @return  void
 	 */
@@ -119,7 +120,7 @@ final class ScopePhpDependencies {
 	 * @param   string       $prefix           The scoping prefix.
 	 * @param   list<string> $global_functions The names and patterns of the functions the run leaves global.
 	 *
-	 * @throws  \RuntimeException Thrown when a prefixed name is declared by no scoped package.
+	 * @throws  \RuntimeException Thrown when a scoped file does not parse, or a prefixed name is declared by no scoped package.
 	 *
 	 * @return  void
 	 */
@@ -128,15 +129,20 @@ final class ScopePhpDependencies {
 		$collector = new ScopedSymbolCollector( $prefix, $parser );
 		foreach ( Finder::create()->files()->in( $output_dir )->name( '*.php' )->sortByName() as $file ) {
 			$collector->file = $file->getPathname();
-			new NodeTraverser( new NameResolver(), new ParentConnectingVisitor(), $collector )->traverse( $parser->parse( $file->getContents() ) ?? array() );
+			try {
+				$statements = $parser->parse( $file->getContents() ) ?? array();
+			} catch ( Error $error ) {
+				throw new \RuntimeException( "Could not parse the scoped file '" . $file->getPathname() . "': " . $error->getMessage(), 0, $error );
+			}
+			new NodeTraverser( new NameResolver(), new ParentConnectingVisitor(), $collector )->traverse( $statements );
 		}
 
 		$namespaces = array();
-		foreach ( $collector->declared as $name ) {
+		foreach ( \array_merge( ...\array_values( $collector->declared ) ) as $name ) {
 			$namespace = '';
 			foreach ( \array_slice( \explode( '\\', $name ), 0, -1 ) as $segment ) {
-				$namespace                = \ltrim( "$namespace\\$segment", '\\' );
-				$namespaces[ $namespace ] = $namespace;
+				$namespace                               = \ltrim( "$namespace\\$segment", '\\' );
+				$namespaces[ \strtolower( $namespace ) ] = $namespace;
 			}
 		}
 
@@ -154,11 +160,10 @@ final class ScopePhpDependencies {
 
 		$undeclared = array();
 		foreach ( $collector->references as $reference ) {
-			$reference_name = \rtrim( $reference['name'], '\\' );
-			$name           = \strtolower( $reference_name );
-			$function       = \ltrim( \substr( $reference_name, \strlen( $prefix ) + 1 ), '\\' );
-			$global         = $reference['checked'] && ( isset( $names[ \strtolower( $function ) ] ) || \array_any( $patterns, static fn ( string $pattern ): bool => 1 === \preg_match( $pattern, $function ) ) );
-			if ( ! $global && ! isset( $collector->declared[ $name ] ) && ! isset( $namespaces[ $name ] ) ) {
+			$function = \ltrim( \substr( \rtrim( $reference['name'], '\\' ), \strlen( $prefix ) + 1 ), '\\' );
+			$global   = $reference['checked'] && ( isset( $names[ \strtolower( $function ) ] ) || \array_any( $patterns, static fn ( string $pattern ): bool => 1 === \preg_match( $pattern, $function ) ) );
+			$declared = \array_any( $reference['keys'], static fn ( string $key, string $kind ): bool => 'namespace' === $kind ? isset( $namespaces[ $key ] ) : isset( $collector->declared[ $kind ][ $key ] ) );
+			if ( ! $global && ! $declared ) {
 				$undeclared[] = $reference['name'] . ' in ' . $reference['location'];
 			}
 		}

@@ -2,6 +2,7 @@
 
 namespace DeepWebSolutions\Config\Composer\Internal;
 
+use PhpParser\Error;
 use PhpParser\Node;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
@@ -20,16 +21,20 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 	// region FIELDS AND CONSTANTS
 
 	/**
-	 * The lowercase names of the declared classes, interfaces, traits, enums, functions and constants, keyed by themselves.
+	 * The names of the declared classes, interfaces, traits and enums, functions and constants, by kind, each keyed by its lookup key.
 	 *
-	 * @var     array<string, string>
+	 * @var     array{class: array<string, string>, function: array<string, string>, constant: array<string, string>}
 	 */
-	public array $declared = array();
+	public array $declared = array(
+		'class'    => array(),
+		'function' => array(),
+		'constant' => array(),
+	);
 
 	/**
-	 * The prefixed names the code references, each with its location and whether a function_exists() call checks it.
+	 * The prefixed names the code references, each with its location, its lookup key for each kind of symbol it can name, and whether a function_exists() call checks it.
 	 *
-	 * @var     list<array{name: string, location: string, checked: bool}>
+	 * @var     list<array{name: string, location: string, keys: array<'class'|'function'|'constant'|'namespace', string>, checked: bool}>
 	 */
 	public array $references = array();
 
@@ -64,17 +69,29 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 	 */
 	#[\Override]
 	public function enterNode( Node $node ): int|null {
-		if ( $node instanceof Node\Stmt\ClassLike || $node instanceof Node\Stmt\Function_ ) {
-			$this->declare( $node->namespacedName );
+		$parent = $node->getAttribute( 'parent' );
+		if ( $node instanceof Node\Stmt\ClassLike ) {
+			$this->declare( 'class', $node->namespacedName?->toString() );
+		} elseif ( $node instanceof Node\Stmt\Function_ ) {
+			$this->declare( 'function', $node->namespacedName?->toString() );
 		} elseif ( $node instanceof Node\Stmt\Const_ ) {
 			foreach ( $node->consts as $const ) {
-				$this->declare( $const->namespacedName );
+				$this->declare( 'constant', $const->namespacedName?->toString() );
 			}
 		} elseif ( $node instanceof Node\Scalar\String_ ) {
 			$this->string( $node );
-		} elseif ( $node instanceof Node\Name && ! $node->getAttribute( 'parent' ) instanceof Node\Stmt\Namespace_ ) {
-			$use = $node->getAttribute( 'parent' ) instanceof Node\UseItem ? $node->getAttribute( 'parent' )->getAttribute( 'parent' ) : null;
-			$this->reference( $use instanceof Node\Stmt\GroupUse ? $use->prefix->toString() . '\\' . $node->toString() : $node->toString(), $node );
+		} elseif ( $node instanceof Node\Name && ! $parent instanceof Node\Stmt\Namespace_ ) {
+			$use   = $parent instanceof Node\UseItem ? $parent->getAttribute( 'parent' ) : null;
+			$type  = $parent instanceof Node\UseItem && ( $use instanceof Node\Stmt\Use_ || $use instanceof Node\Stmt\GroupUse ) ? ( $parent->type ?: $use->type ) : null;
+			$kinds = match ( true ) {
+				$parent instanceof Node\Expr\FuncCall, Node\Stmt\Use_::TYPE_FUNCTION === $type => array( 'function' ),
+				$parent instanceof Node\Expr\ConstFetch, Node\Stmt\Use_::TYPE_CONSTANT === $type => array( 'constant' ),
+				$parent instanceof Node\Stmt\GroupUse => array( 'namespace' ),
+				// An import can name a namespace, which the code then extends.
+				$parent instanceof Node\UseItem => array( 'class', 'namespace' ),
+				default => array( 'class' ),
+			};
+			$this->reference( $use instanceof Node\Stmt\GroupUse ? $use->prefix->toString() . '\\' . $node->toString() : $node->toString(), $node, $kinds );
 		}
 
 		return null;
@@ -86,13 +103,9 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 	#[\Override]
 	public function leaveNode( Node $node ): null {
 		// The names in a call's arguments are resolved only once the traversal has visited them.
-		if ( $node instanceof Node\Expr\FuncCall && $node->name instanceof Node\Name && \in_array( $node->name->toLowerString(), array( 'define', 'class_alias' ), true ) ) {
-			$argument = $node->args[ 'define' === $node->name->toLowerString() ? 0 : 1 ] ?? null;
-			if ( $argument instanceof Node\Arg && $argument->value instanceof Node\Scalar\String_ ) {
-				$this->declare( new Node\Name( \ltrim( $argument->value->value, '\\' ) ) );
-			} elseif ( $argument instanceof Node\Arg && $argument->value instanceof Node\Expr\ClassConstFetch && $argument->value->class instanceof Node\Name ) {
-				$this->declare( $argument->value->class );
-			}
+		$declaration = $node instanceof Node\Expr\FuncCall ? StubSymbolCollector::declared_by_call( $node ) : null;
+		if ( ! \is_null( $declaration ) ) {
+			$this->declare( $declaration[0], $declaration[1] );
 		}
 
 		return null;
@@ -105,48 +118,78 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 	/**
 	 * Records a declared symbol.
 	 *
-	 * @param   Node\Name|null $name The resolved name of the symbol, or null for an anonymous class.
+	 * @param   'class'|'function'|'constant' $kind The kind of symbol.
+	 * @param   string|null                   $name The name of the symbol, or null for an anonymous class.
 	 *
 	 * @return  void
 	 */
-	protected function declare( ?Node\Name $name ): void {
+	protected function declare( string $kind, ?string $name ): void {
 		if ( ! \is_null( $name ) ) {
-			$this->declared[ $name->toLowerString() ] = $name->toLowerString();
+			$this->declared[ $kind ][ self::key( $kind, $name ) ] = $name;
 		}
 	}
 
 	/**
-	 * Records a string literal shaped like a symbol name, and reads the PHP code of a nowdoc string that opens with a PHP tag, which php-scoper scopes like a file.
+	 * Records a string literal shaped like a symbol name, or the class of one shaped like a class constant, and reads the PHP code of a nowdoc string that opens with a PHP tag, which php-scoper scopes like a file.
 	 *
 	 * @param   Node\Scalar\String_ $node The string literal.
 	 *
 	 * @return  void
 	 */
 	protected function string( Node\Scalar\String_ $node ): void {
-		if ( Node\Scalar\String_::KIND_NOWDOC === $node->getAttribute( 'kind' ) && \str_starts_with( $node->value, '<?php' ) ) {
-			new NodeTraverser( new NameResolver(), new ParentConnectingVisitor(), $this )->traverse( $this->parser->parse( $node->value ) ?? array() );
-		} elseif ( 1 === \preg_match( '/^\\\\?([A-Za-z_\x80-\xff][\w\x80-\xff\\\\]*)$/', $node->value, $match ) ) {
-			$this->reference( $match[1], $node );
+		$code = \ltrim( $node->value );
+		if ( Node\Scalar\String_::KIND_NOWDOC === $node->getAttribute( 'kind' ) && \str_starts_with( $code, '<?php' ) ) {
+			try {
+				$statements = $this->parser->parse( $code ) ?? array();
+			} catch ( Error ) {
+				return; // php-scoper leaves a nowdoc that does not parse as PHP unscoped.
+			}
+			new NodeTraverser( new NameResolver(), new ParentConnectingVisitor(), $this )->traverse( $statements );
+		} else {
+			$parts = \explode( '::', $node->value, 2 );
+			if ( 1 === \preg_match( StubSymbolCollector::SYMBOL_NAME_REGEX, $parts[0] ) ) {
+				$this->reference( \ltrim( $parts[0], '\\' ), $node, isset( $parts[1] ) ? array( 'class' ) : array( 'class', 'function', 'constant', 'namespace' ) );
+			}
 		}
 	}
 
 	/**
-	 * Records a name that carries the prefix, with its location and whether a function_exists() call checks it.
+	 * Records a name that carries the prefix, with its location, its lookup key for each kind of symbol it can name, and whether a function_exists() call checks it.
 	 *
-	 * @param   string $name The name.
-	 * @param   Node   $node The node that references it.
+	 * @param   string                                                    $name  The name.
+	 * @param   Node                                                      $node  The node that references it.
+	 * @param   non-empty-list<'class'|'function'|'constant'|'namespace'> $kinds The kinds of symbol the name can stand for where it appears.
 	 *
 	 * @return  void
 	 */
-	protected function reference( string $name, Node $node ): void {
+	protected function reference( string $name, Node $node, array $kinds ): void {
 		if ( 0 === \stripos( $name, $this->prefix . '\\' ) ) {
 			$call               = $node->getAttribute( 'parent' ) instanceof Node\Arg ? $node->getAttribute( 'parent' )->getAttribute( 'parent' ) : null;
 			$this->references[] = array(
 				'name'     => $name,
 				'location' => $this->file . ':' . $node->getStartLine(),
+				'keys'     => \array_combine( $kinds, \array_map( static fn ( string $kind ): string => self::key( $kind, $name ), $kinds ) ),
 				'checked'  => $call instanceof Node\Expr\FuncCall && $call->name instanceof Node\Name && 'function_exists' === $call->name->toString(),
 			);
 		}
+	}
+
+	/**
+	 * Returns the key a symbol of a kind is looked up by: its lowercase name, but a constant keeps the case of its name below a lowercase namespace, as PHP compares them.
+	 *
+	 * @param   string $kind The kind of symbol: class, function, constant or namespace.
+	 * @param   string $name The name of the symbol.
+	 *
+	 * @return  string
+	 */
+	protected static function key( string $kind, string $name ): string {
+		$name      = \trim( $name, '\\' );
+		$separator = \strrpos( $name, '\\' );
+		if ( 'constant' !== $kind ) {
+			return \strtolower( $name );
+		}
+
+		return false === $separator ? $name : \strtolower( \substr( $name, 0, $separator ) ) . \substr( $name, $separator );
 	}
 
 	// endregion

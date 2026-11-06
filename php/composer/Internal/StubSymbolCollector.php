@@ -21,7 +21,7 @@ final class StubSymbolCollector extends NodeVisitorAbstract {
 	 *
 	 * @var     string
 	 */
-	protected const SYMBOL_NAME_REGEX = '/^\\\\?[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff\\\\]*$/';
+	public const SYMBOL_NAME_REGEX = '/^\\\\?[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff\\\\]*$/';
 
 	/**
 	 * The class names the stubs declare, including the aliases class_alias() calls declare.
@@ -74,21 +74,55 @@ final class StubSymbolCollector extends NodeVisitorAbstract {
 					}
 				}
 				break;
-			case Node\Expr\FuncCall::class:
-				if ( ! $node->name instanceof Node\Name ) {
-					break;
-				}
-				// A define() name and a class_alias() alias are real symbols, so scoped code that references them must keep them unprefixed.
-				$function = $node->name->toString();
-				if ( 'define' === $function ) {
-					$this->collect_string_argument( $this->constants, $node, 0 );
-				} elseif ( 'class_alias' === $function ) {
-					$this->collect_string_argument( $this->classes, $node, 1 );
-				}
-				break;
 		}
 
 		return null;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	#[\Override]
+	public function leaveNode( Node $node ): null {
+		// A define() name and a class_alias() alias are real symbols, so scoped code that references them must keep them unprefixed.
+		$declaration = $node instanceof Node\Expr\FuncCall ? self::declared_by_call( $node ) : null;
+		if ( 'class' === ( $declaration[0] ?? null ) ) {
+			$this->collect( $this->classes, $declaration[1] );
+		} elseif ( 'constant' === ( $declaration[0] ?? null ) ) {
+			$this->collect( $this->constants, $declaration[1] );
+		}
+
+		return null;
+	}
+
+	// endregion
+
+	// region METHODS
+
+	/**
+	 * Returns the kind and name of the symbol a define() or class_alias() call declares, or null when the call declares none by a string or a Foo::class name.
+	 *
+	 * The call's arguments must have been visited, since a NameResolver resolves a Foo::class name only when the traversal reaches it.
+	 *
+	 * @param   Node\Expr\FuncCall $node The function call.
+	 *
+	 * @return  array{'class'|'constant', string}|null
+	 */
+	public static function declared_by_call( Node\Expr\FuncCall $node ): ?array {
+		$function = $node->name instanceof Node\Name ? $node->name->toLowerString() : '';
+		$argument = match ( $function ) {
+			'define'      => $node->args[0] ?? null,
+			'class_alias' => $node->args[1] ?? null,
+			default       => null,
+		};
+		$value = $argument instanceof Node\Arg ? $argument->value : null;
+		$name  = match ( true ) {
+			$value instanceof Node\Scalar\String_ => \ltrim( $value->value, '\\' ),
+			$value instanceof Node\Expr\ClassConstFetch && $value->class instanceof Node\Name && $value->name instanceof Node\Identifier && 'class' === $value->name->toLowerString() => $value->class->toString(),
+			default => null,
+		};
+
+		return \is_null( $name ) ? null : array( 'define' === $function ? 'constant' : 'class', $name );
 	}
 
 	// endregion
@@ -106,25 +140,6 @@ final class StubSymbolCollector extends NodeVisitorAbstract {
 	protected function collect( array &$symbols, string $symbol ): void {
 		if ( 1 === \preg_match( self::SYMBOL_NAME_REGEX, $symbol ) ) {
 			$symbols[] = $symbol;
-		}
-	}
-
-	/**
-	 * Adds the string literal a function call passes at a position, when there is one.
-	 *
-	 * @param   list<string>       $symbols The symbol list to append to.
-	 * @param   Node\Expr\FuncCall $node    The function call.
-	 * @param   int                $index   The zero-based argument position.
-	 *
-	 * @return  void
-	 */
-	protected function collect_string_argument( array &$symbols, Node\Expr\FuncCall $node, int $index ): void {
-		if (
-			isset( $node->args[ $index ] )
-			&& $node->args[ $index ] instanceof Node\Arg
-			&& $node->args[ $index ]->value instanceof Node\Scalar\String_
-		) {
-			$this->collect( $symbols, $node->args[ $index ]->value->value );
 		}
 	}
 
