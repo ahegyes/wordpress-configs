@@ -73,7 +73,6 @@ jobs:
       - name: Scan fixture with php/quality-assurance/phpcs.dist.xml
         shell: bash
         run: |
-          set -e -o pipefail
           # The production profile skips */tests/*, so a temp copy is scanned outside that path.
           cp -R tests/fixtures/plugin-stub "$RUNNER_TEMP/plugin-stub"
           vendor/bin/phpcs -v --standard=php/quality-assurance/phpcs.dist.xml "$RUNNER_TEMP/plugin-stub" | tee phpcs-scan.log
