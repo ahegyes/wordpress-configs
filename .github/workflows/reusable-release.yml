@@ -658,7 +658,7 @@ jobs:
           if [ -f "${config%.json}.override.json" ]; then
             files+=("${config%.json}.override.json")
           fi
-          port=$(jq -s 'reduce .[] as $file ({}; . * $file) | .env.development.port // .port // 8888' "${files[@]}")
+          port=$(jq -r -s 'reduce .[] as $file ({}; . * $file) | .env.development.port // .port // 8888' "${files[@]}")
           curl --fail --silent --show-error --output /dev/null "http://localhost:${port}/"
 
       - name: Run E2E tests against built artifact
@@ -802,7 +802,7 @@ jobs:
             exit 1
           fi
 
-      # The privileged job checks its own ref instead of trusting the jobs it follows.
+      # The deploy re-checks its own ref, so no change to the build's checks lets a branch or prerelease ref reach SVN.
       - name: Re-verify version tag before deploy
         env:
           REF_NAME: ${{ github.ref_name }}
