@@ -86,22 +86,25 @@ jobs:
             exit 0
           fi
 
-          # shellcheck disable=SC2016
-          findings=$(AUDIT_JSON="$audit_json" php -r '
-          $data = json_decode((string) file_get_contents(getenv("AUDIT_JSON")), true);
-          if (!is_array($data) || !array_key_exists("advisories", $data)) {
-              exit(1);
+          findings=$(AUDIT_JSON="$audit_json" php <<'PHP'
+          <?php
+          $data = json_decode( (string) file_get_contents( getenv( 'AUDIT_JSON' ) ), true );
+          if ( ! is_array( $data ) || ! array_key_exists( 'advisories', $data ) ) {
+              exit( 1 );
           }
-          $filtered = [];
-          foreach ((array) ($data["filter"] ?? []) as $package => $entries) {
-              $filtered[] = $package . " (" . implode(", ", array_unique(array_column((array) $entries, "listName"))) . ")";
+
+          $filtered = array();
+          foreach ( (array) ( $data['filter'] ?? array() ) as $package => $entries ) {
+              $filtered[] = $package . ' (' . implode( ', ', array_unique( array_column( (array) $entries, 'listName' ) ) ) . ')';
           }
-          if ($filtered !== []) {
-              echo "filter:", implode(", ", $filtered);
-          } elseif (count((array) $data["advisories"]) + count((array) ($data["abandoned"] ?? [])) + count((array) ($data["cooldown"] ?? [])) > 0) {
-              echo "findings";
+
+          if ( array() !== $filtered ) {
+              echo 'filter:', implode( ', ', $filtered );
+          } elseif ( count( (array) $data['advisories'] ) + count( (array) ( $data['abandoned'] ?? array() ) ) + count( (array) ( $data['cooldown'] ?? array() ) ) > 0 ) {
+              echo 'findings';
           }
-          ') || findings="invalid"
+          PHP
+          ) || findings="invalid"
 
           case "$findings" in
             filter:*)

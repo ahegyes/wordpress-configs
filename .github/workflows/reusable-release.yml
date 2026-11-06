@@ -299,95 +299,115 @@ jobs:
           vendor_dir=$(composer config vendor-dir)
           VENDOR_DIR="$vendor_dir" php <<'PHP'
           <?php
-          $entry_file = (string) getenv('ENTRY_FILE');
-          $source = (string) file_get_contents($entry_file);
-          $header = static fn (string $name): string => preg_match('/^[ \t\/*#@]*' . preg_quote($name, '/') . ':[ \t]*(.*?)[ \t]*$/mi', $source, $match) ? $match[1] : '';
+          $entry_file = (string) getenv( 'ENTRY_FILE' );
+          $source     = (string) file_get_contents( $entry_file );
+          $header     = static fn ( string $name ): string => 1 === preg_match( '/^[ \t\/*#@]*' . preg_quote( $name, '/' ) . ':[ \t]*(.*?)[ \t]*$/mi', $source, $match ) ? $match[1] : '';
           // Three numeric segments, so version_compare() reads 8.5 and 8.5.0 alike.
-          $normalize = static fn (string $version): string => implode('.', array_pad(array_slice(array_map('intval', explode('.', $version)), 0, 3), 3, 0));
+          $normalize = static fn ( string $version ): string => implode( '.', array_pad( array_slice( array_map( 'intval', explode( '.', $version ) ), 0, 3 ), 3, 0 ) );
           // Composer's platform-check reading: the lowest version an alternative admits, and the lowest across alternatives.
-          $lower_bound = static function (string $constraint) use ($normalize): ?string {
+          $lower_bound = static function ( string $constraint ) use ( $normalize ): ?string {
               $lowest = null;
-              foreach (preg_split('/\s*\|\|?\s*/', trim($constraint)) as $alternative) {
-                  $bound = '0.0.0';
-                  $alternative = (string) preg_replace(['/(?<=[<>=~^!])\s+/', '/\s+-\s+\S+/'], '', $alternative);
-                  foreach (preg_split('/[\s,]+/', $alternative) as $part) {
-                      if ('*' === $part || preg_match('/^(?:<|<=|!=)/', $part)) {
+              foreach ( preg_split( '/\s*\|\|?\s*/', trim( $constraint ) ) as $alternative ) {
+                  $bound       = '0.0.0';
+                  $alternative = (string) preg_replace( array( '/(?<=[<>=~^!])\s+/', '/\s+-\s+\S+/' ), '', $alternative );
+                  foreach ( preg_split( '/[\s,]+/', $alternative ) as $part ) {
+                      if ( '*' === $part || 1 === preg_match( '/^(?:<|<=|!=)/', $part ) ) {
                           continue;
                       }
-                      if (!preg_match('/^(?:>=|>|==?|\^|~)?v?(\d+(?:\.\d+)*)(?:\.[*x])?(?:-[a-z]+[.\d]*)?(?:@\w+)?$/i', $part, $match)) {
+
+                      if ( 1 !== preg_match( '/^(?:>=|>|==?|\^|~)?v?(\d+(?:\.\d+)*)(?:\.[*x])?(?:-[a-z]+[.\d]*)?(?:@\w+)?$/i', $part, $match ) ) {
                           return null;
                       }
-                      if (version_compare($normalize($match[1]), $bound, '>')) {
-                          $bound = $normalize($match[1]);
+
+                      if ( version_compare( $normalize( $match[1] ), $bound, '>' ) ) {
+                          $bound = $normalize( $match[1] );
                       }
                   }
-                  if (null === $lowest || version_compare($bound, $lowest, '<')) {
+
+                  if ( is_null( $lowest ) || version_compare( $bound, $lowest, '<' ) ) {
                       $lowest = $bound;
                   }
               }
+
               return $lowest;
           };
 
           // The project's own manifest states the floor of the plugin's code, and scoped packages ship from vendor-prefixed/ although Composer counts them as development packages.
-          $packages = [];
-          $project = is_file('composer.json') ? json_decode((string) file_get_contents('composer.json'), true) : null;
-          if (is_array($project)) {
+          $packages = array();
+          $project  = is_file( 'composer.json' ) ? json_decode( (string) file_get_contents( 'composer.json' ), true ) : null;
+          if ( is_array( $project ) ) {
               $packages[] = $project;
           }
-          $installed_file = getenv('VENDOR_DIR') . '/composer/installed.json';
-          if (is_file($installed_file)) {
-              $installed = json_decode((string) file_get_contents($installed_file), true);
-              foreach ($installed['packages'] ?? [] as $package) {
-                  if (!in_array($package['name'], $installed['dev-package-names'] ?? [], true)) {
+
+          $installed_file = getenv( 'VENDOR_DIR' ) . '/composer/installed.json';
+          if ( is_file( $installed_file ) ) {
+              $installed = json_decode( (string) file_get_contents( $installed_file ), true );
+              foreach ( $installed['packages'] ?? array() as $package ) {
+                  if ( ! in_array( $package['name'], $installed['dev-package-names'] ?? array(), true ) ) {
                       $packages[] = $package;
                   }
               }
           }
-          foreach (glob('vendor-prefixed/*/*/composer.json') ?: [] as $manifest) {
-              $packages[] = json_decode((string) file_get_contents($manifest), true);
+
+          foreach ( glob( 'vendor-prefixed/*/*/composer.json' ) ?: array() as $manifest ) {
+              $packages[] = json_decode( (string) file_get_contents( $manifest ), true );
           }
 
-          $errors = [];
-          $floors = ['Requires PHP' => [], 'Requires at least' => [], 'WC requires at least' => []];
-          $plugins = [];
-          foreach ($packages as $package) {
+          $errors  = array();
+          $floors  = array(
+              'Requires PHP'         => array(),
+              'Requires at least'    => array(),
+              'WC requires at least' => array(),
+          );
+          $plugins = array();
+          foreach ( $packages as $package ) {
               $name = $package['name'] ?? '(unnamed)';
-              if (is_string($package['require']['php'] ?? null)) {
-                  $bound = $lower_bound($package['require']['php']);
-                  if (null === $bound) {
+              if ( is_string( $package['require']['php'] ?? null ) ) {
+                  $bound = $lower_bound( $package['require']['php'] );
+                  if ( is_null( $bound ) ) {
                       $errors[] = "Cannot read the PHP constraint '{$package['require']['php']}' of $name.";
                   } else {
-                      $floors['Requires PHP'][$name] = $bound;
+                      $floors['Requires PHP'][ $name ] = $bound;
                   }
               }
-              if (is_string($package['extra']['requires-wp'] ?? null)) {
-                  $floors['Requires at least'][$name] = $normalize($package['extra']['requires-wp']);
+
+              if ( is_string( $package['extra']['requires-wp'] ?? null ) ) {
+                  $floors['Requires at least'][ $name ] = $normalize( $package['extra']['requires-wp'] );
               }
-              if (is_string($package['extra']['requires-wc'] ?? null)) {
-                  $floors['WC requires at least'][$name] = $normalize($package['extra']['requires-wc']);
+
+              if ( is_string( $package['extra']['requires-wc'] ?? null ) ) {
+                  $floors['WC requires at least'][ $name ] = $normalize( $package['extra']['requires-wc'] );
               }
-              foreach ((array) ($package['extra']['requires-plugins'] ?? []) as $slug) {
-                  $plugins[(string) $slug][] = $name;
+
+              foreach ( (array) ( $package['extra']['requires-plugins'] ?? array() ) as $slug ) {
+                  $plugins[ (string) $slug ][] = $name;
               }
           }
 
-          foreach ($floors as $header_name => $bounds) {
-              $declared = $header($header_name);
-              $above = array_filter($bounds, static fn (string $bound): bool => version_compare($bound, $normalize($declared), '>'));
-              if ([] !== $above) {
-                  $needs = implode(', ', array_map(static fn (string $package, string $bound): string => "$package ($bound)", array_keys($above), $above));
-                  $errors[] = "$entry_file $header_name '$declared' is below what shipped packages require: $needs.";
+          foreach ( $floors as $header_name => $bounds ) {
+              $declared = $header( $header_name );
+              $needs    = array();
+              foreach ( $bounds as $package => $bound ) {
+                  if ( version_compare( $bound, $normalize( $declared ), '>' ) ) {
+                      $needs[] = "$package ($bound)";
+                  }
+              }
+
+              if ( array() !== $needs ) {
+                  $errors[] = "$entry_file $header_name '$declared' is below what shipped packages require: " . implode( ', ', $needs ) . '.';
               }
           }
-          $declared_plugins = array_map('trim', explode(',', $header('Requires Plugins')));
-          foreach (array_diff_key($plugins, array_flip($declared_plugins)) as $slug => $names) {
-              $errors[] = "$entry_file Requires Plugins lacks '$slug', which " . implode(', ', $names) . ' requires.';
+
+          $declared_plugins = array_map( 'trim', explode( ',', $header( 'Requires Plugins' ) ) );
+          foreach ( array_diff_key( $plugins, array_flip( $declared_plugins ) ) as $slug => $names ) {
+              $errors[] = "$entry_file Requires Plugins lacks '$slug', which " . implode( ', ', $names ) . ' requires.';
           }
 
-          foreach ($errors as $error) {
+          foreach ( $errors as $error ) {
               echo "::error::$error\n";
           }
-          exit([] === $errors ? 0 : 1);
+
+          exit( array() === $errors ? 0 : 1 );
           PHP
 
       - name: Create plugin archive
