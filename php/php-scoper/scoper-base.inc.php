@@ -117,9 +117,10 @@ return static function ( string $project_dir, string ...$names ): array {
 				if ( 1 === preg_match( $scoped, $body ) || 1 !== preg_match( $own, $body, $match ) ) {
 					continue;
 				}
-				// A string that names a namespace php-scoper keeps global, or a symbol in one, names the host's symbol.
-				$named = 1 === preg_match( '/^\\\\{0,2}((?:[\w\x80-\xff]+\\\\{1,2})*[\w\x80-\xff]+)/', $body, $name_match ) ? (string) preg_replace( '/\\\\{2}/', '\\', $name_match[1] ) : '';
-				if ( array_any( $exclude_namespaces, static fn ( string $pattern ): bool => 1 === preg_match( $pattern, $named ) || 1 === preg_match( $pattern, substr( $named, 0, (int) strrpos( $named, '\\' ) ) ) ) ) {
+				// A string that names a namespace php-scoper keeps global, or a symbol in one, names the host's symbol, and a name the string follows with a separator is a namespace.
+				$named     = 1 === preg_match( '/^\\\\{0,2}((?:[\w\x80-\xff]+\\\\{1,2})*[\w\x80-\xff]+)(\\\\?)/', $body, $name_match ) ? (string) preg_replace( '/\\\\{2}/', '\\', $name_match[1] ) : '';
+				$namespace = '' === ( $name_match[2] ?? '' ) ? substr( $named, 0, (int) strrpos( $named, '\\' ) ) : $named;
+				if ( array_any( $exclude_namespaces, static fn ( string $pattern ): bool => 1 === preg_match( $pattern, $named ) || 1 === preg_match( $pattern, $namespace ) ) ) {
 					continue;
 				}
 				// Double-quoted strings and heredocs read escape sequences, so a prefix segment such as Vendor\name takes doubled backslashes there.

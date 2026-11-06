@@ -403,6 +403,17 @@ final class ScopePhpDependenciesTest extends TestCase {
 		self::assertStringContainsString( "\$checkout = 'Acme\\Commerce\\Gateway\\Checkout';", self::read( $project . '/vendor-prefixed' . self::SECTION ) );
 	}
 
+	public function test_a_scoped_package_s_namespace_string_is_prefixed_below_a_global_namespace(): void {
+		$project = self::make_project( array( 'acme/commerce' ), array( 'scoping-stubs' => array( './stubs/host-plugin.php', './stubs/acme.php' ) ) );
+		\file_put_contents( $project . '/stubs/acme.php', "<?php\n\nnamespace Acme;\n\nclass Host {}\n" );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\t\$root = 'Acme\\\\Commerce\\\\';\n\t\treturn \\__(", self::read( $section ) ) );
+
+		ScopePhpDependencies::scope( $project );
+
+		self::assertStringContainsString( "\$root = 'Acme\\\\Scoped\\\\Acme\\Commerce\\\\';", self::read( $project . '/vendor-prefixed' . self::SECTION ) );
+	}
+
 	#[DataProvider( 'provide_symbols_stubs_declare_through_calls' )]
 	public function test_a_symbol_a_stubs_file_declares_through_a_call_stays_global( string $stub, string $reference ): void {
 		$project = self::make_project( array( 'acme/commerce' ), array( 'scoping-stubs' => array( './stubs/host-plugin.php', './stubs/calls.php' ) ) );
