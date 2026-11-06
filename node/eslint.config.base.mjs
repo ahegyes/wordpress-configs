@@ -29,6 +29,7 @@ export default [
 	{
 		ignores: [
 			'vendor/**',
+			'vendor-prefixed/**',
 			'node_modules/**',
 			'**/build/**',
 			'**/*.min.js',

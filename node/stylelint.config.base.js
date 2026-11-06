@@ -7,6 +7,7 @@ module.exports = {
 	extends: [ '@wordpress/stylelint-config/scss' ],
 	ignoreFiles: [
 		'vendor/**',
+		'vendor-prefixed/**',
 		'node_modules/**',
 		'**/build/**',
 		'**/*.min.css',
