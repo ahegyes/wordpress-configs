@@ -384,6 +384,18 @@ final class ScopePhpDependenciesTest extends TestCase {
 		self::assertStringContainsString( "\\__('Other', 'acme-text-domain')", self::read( $project . '/vendor-prefixed' . self::SECTION ) );
 	}
 
+	public function test_a_text_domain_in_the_php_code_of_a_nowdoc_takes_the_project_s(): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\t\$template = <<<'PHP'\n\t\t\t<?php return \\__( 'Other', 'acme-commerce' );\n\t\t\tPHP;\n\t\treturn \\__(", self::read( $section ) ) );
+
+		ScopePhpDependencies::scope( $project );
+
+		$scoped = self::read( $project . '/vendor-prefixed' . self::SECTION );
+		self::assertStringContainsString( "'Other', 'acme-text-domain'", $scoped );
+		self::assertStringNotContainsString( 'acme-commerce', $scoped );
+	}
+
 	public function test_a_package_keeps_the_text_domain_it_shares_with_the_project(): void {
 		$project = self::make_project( array( 'acme/commerce' ), array( 'text-domain' => 'acme-commerce' ) );
 

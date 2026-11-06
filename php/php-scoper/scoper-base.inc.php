@@ -134,20 +134,26 @@ return static function ( string $project_dir, string ...$names ): array {
 	}
 
 	if ( array() !== $domains ) {
-		$patchers[] = static function ( string $file_path, string $prefix, string $contents ) use ( $domains, $text_domain ): string {
+		$rewrite    = static function ( string $code, string $domain, string $file_path ) use ( &$rewrite, $text_domain ): string {
+			$tokens = PhpToken::tokenize( $code );
+			foreach ( $tokens as $index => $token ) {
+				if ( $token->is( T_CONSTANT_ENCAPSED_STRING ) && in_array( $token->text, array( "'$domain'", "\"$domain\"" ), true ) ) {
+					$token->text = var_export( $text_domain, true );
+				} elseif ( $token->is( T_ENCAPSED_AND_WHITESPACE ) && $index > 0 && $tokens[ $index - 1 ]->is( T_START_HEREDOC ) && str_contains( $tokens[ $index - 1 ]->text, "'" ) && str_starts_with( ltrim( $token->text ), '<?php' ) ) {
+					// php-scoper scopes the PHP code of a nowdoc like a file, so its literals take the project's domain too.
+					$token->text = $rewrite( $token->text, $domain, $file_path );
+				} elseif ( ! $token->is( array( T_COMMENT, T_DOC_COMMENT, T_INLINE_HTML ) ) && 1 === preg_match( '/(?<![\w-])' . preg_quote( $domain, '/' ) . '(?![\w-])/', $token->text ) ) {
+					throw new RuntimeException( "'$file_path' still contains the text domain '$domain' after scoping, outside a string literal of its own." );
+				}
+			}
+
+			return implode( '', array_column( $tokens, 'text' ) );
+		};
+		$patchers[] = static function ( string $file_path, string $prefix, string $contents ) use ( $domains, $rewrite ): string {
 			foreach ( $domains as $dir => $domain ) {
-				if ( ! str_starts_with( $file_path, "$dir/" ) || ! str_ends_with( $file_path, '.php' ) ) {
-					continue;
+				if ( str_starts_with( $file_path, "$dir/" ) && str_ends_with( $file_path, '.php' ) ) {
+					$contents = $rewrite( $contents, $domain, $file_path );
 				}
-				$tokens = PhpToken::tokenize( $contents );
-				foreach ( $tokens as $token ) {
-					if ( $token->is( T_CONSTANT_ENCAPSED_STRING ) && in_array( $token->text, array( "'$domain'", "\"$domain\"" ), true ) ) {
-						$token->text = var_export( $text_domain, true );
-					} elseif ( ! $token->is( array( T_COMMENT, T_DOC_COMMENT, T_INLINE_HTML ) ) && 1 === preg_match( '/(?<![\w-])' . preg_quote( $domain, '/' ) . '(?![\w-])/', $token->text ) ) {
-						throw new RuntimeException( "'$file_path' still contains the text domain '$domain' after scoping, outside a string literal of its own." );
-					}
-				}
-				$contents = implode( '', array_column( $tokens, 'text' ) );
 			}
 
 			return $contents;
