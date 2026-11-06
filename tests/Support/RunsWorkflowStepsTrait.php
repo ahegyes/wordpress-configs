@@ -101,9 +101,21 @@ trait RunsWorkflowStepsTrait {
 		$pairs = array();
 		foreach ( $files as $key => $file ) {
 			$pairs[ $key ] = array();
-			foreach ( \file( $this->work_dir . '/' . $file, \FILE_IGNORE_NEW_LINES | \FILE_SKIP_EMPTY_LINES ) ?: array() as $line ) {
-				$pair                      = \explode( '=', $line, 2 );
-				$pairs[ $key ][ $pair[0] ] = $pair[1] ?? '';
+			$lines         = \file( $this->work_dir . '/' . $file, \FILE_IGNORE_NEW_LINES ) ?: array();
+			while ( array() !== $lines ) {
+				$line = \array_shift( $lines );
+
+				// GitHub Actions reads `name<<delimiter` as a value spanning the lines up to the delimiter.
+				if ( 1 === \preg_match( '/^([^=]+)<<(.+)$/', $line, $match ) ) {
+					$length = \array_search( $match[2], $lines, true );
+					self::assertIsInt( $length, "The $key value '$match[1]' has no closing delimiter." );
+
+					$pairs[ $key ][ $match[1] ] = \implode( "\n", \array_splice( $lines, 0, $length ) );
+					\array_shift( $lines );
+				} elseif ( '' !== $line ) {
+					$pair                      = \explode( '=', $line, 2 );
+					$pairs[ $key ][ $pair[0] ] = $pair[1] ?? '';
+				}
 			}
 		}
 

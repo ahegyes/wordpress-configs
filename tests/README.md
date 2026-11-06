@@ -9,7 +9,8 @@ The tests prove that the shared configs, the scoping pipeline and the reusable w
   - `PhpstanConfigTest` analyzes fixtures with the shared PHPStan rules: level 10 findings, nested `vendor/` directories scanned but not analyzed, and the types `@global` tags declare.
   - `ScopePhpDependenciesTest` scopes `fixtures/scoping-project/` end to end and checks the output, the generated autoloader, the recipes, the `function_exists()` checks php-scoper adds to guards of global functions, and every failure the scope run reports. Its dompdf render test is in the `slow` group.
   - `ScopedPackagesTest` resolves the packages to scope from inline packages through each link Composer records: a replaced dependency, a provided virtual package, a Composer plugin, a metapackage, and a requirement the root replaces or provides. `Support/RecordsInstalledPackagesTrait.php` writes `installed.json` and `installed.php` for both tests, as Composer does.
-  - `PhpunitWorkflowTest`, `PluginCheckWorkflowTest`, `ReleaseWorkflowTest` and `SupplyChainAuditWorkflowTest` run steps of `reusable-phpunit.yml`, `reusable-plugin-check.yml`, `reusable-release.yml` and `reusable-supply-chain-audit.yml`. `Support/RunsWorkflowStepsTrait.php` loads a workflow with `symfony/yaml`, finds a step by its job and `name`, and runs its script with `bash -e`, as GitHub Actions does for a step that names no shell. Renaming a tested step breaks its test.
+  - `BlockJsonCheckWorkflowTest`, `CodeqlWorkflowTest`, `PhpunitWorkflowTest`, `PlaywrightWorkflowTest`, `PluginCheckWorkflowTest`, `ReleaseWorkflowTest`, `SupplyChainAuditWorkflowTest` and `WorkflowChecksWorkflowTest` run steps of the reusable workflows they are named after. `Support/RunsWorkflowStepsTrait.php` loads a workflow with `symfony/yaml`, finds a step by its job and `name`, runs its script with `bash -e`, as GitHub Actions does for a step that names no shell, and reads the outputs and environment it writes, multi-line values included. Renaming a tested step breaks its test.
+  - `PhpunitWorkflowTest` also checks that the end-to-end workflow resolves the site's PHP with the PHPUnit workflow's own step, and `BlockJsonCheckWorkflowTest` that `node/block-json/`'s lock holds the ajv-cli the check runs.
 - **CI smokes** (`.github/workflows/quality.yml`). Checks that run a shared config as a consumer would:
   - the PHPCS production profile explains itself with `phpcs -e` and scans `fixtures/plugin-stub/`;
   - `npm run lint:config` loads each Node baseline against the installed toolchain through `fixtures/node-config/smoke.mjs`;
@@ -32,7 +33,7 @@ This repository's own CI runs the PHP lint, PHP syntax, PHPUnit, scripts lint, s
 | Fixture | Used by |
 | --- | --- |
 | `block-json/` | The block.json check: one schema-valid block. |
-| `composer-audit/` | `SupplyChainAuditWorkflowTest`: reports captured from real Composer runs, one with a malware filter-list match and one with an advisory. |
+| `composer-audit/` | `SupplyChainAuditWorkflowTest`: reports captured from real Composer runs, one with a malware filter-list match, one with an advisory and one with a package in its cooldown. |
 | `build-fixture/` | The older-PHP syntax lane and Plugin Check: a GitHub-distributed build with a scoped package under `vendor-prefixed/`. |
 | `node-config/` | `npm run lint:config`: the smoke harness and its probe inputs. |
 | `phpstan/` | `PhpstanConfigTest`: a level 10 probe, a project with nested vendor directories and a `@global` probe. |
