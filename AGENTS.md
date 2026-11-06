@@ -29,7 +29,7 @@ wordpress-configs/
 
 ```sh
 composer install
-composer quality-check          # PHPCS (both profiles), PHPStan, unit tests
+composer quality-check          # composer validate --strict, PHPCS (both profiles), PHPStan, unit tests
 composer test:unit:mutation     # opt-in Infection run, no floor
 npm run lint:scripts            # ESLint over node/, the smoke harness and eslint.config.mjs
 npm run lint:config             # load-smokes every Node baseline

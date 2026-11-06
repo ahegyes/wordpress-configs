@@ -307,7 +307,7 @@ Run the unit suite:
 composer test
 ```
 
-Run the PHP lint and the unit suite together:
+Validate the manifest and run the PHP lint and the unit suite together:
 
 ```sh
 composer quality-check

@@ -103,10 +103,12 @@
 		],
 
 		"quality-check": [
+			"@composer validate --strict",
 			"@lint:php",
 			"@test"
 		],
 		"quality-check:all": [
+			"@composer validate --strict",
 			"@lint:php",
 			"@test:all"
 		]
