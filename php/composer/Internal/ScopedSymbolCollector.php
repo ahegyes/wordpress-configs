@@ -79,7 +79,21 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 				$this->declare( 'constant', $const->namespacedName?->toString() );
 			}
 		} elseif ( $node instanceof Node\Scalar\String_ ) {
-			$this->string( $node );
+			// php-scoper scopes the PHP code of a nowdoc that opens with a PHP tag like a file, and a string that names a symbol or a class constant like a reference.
+			$code = \ltrim( $node->value );
+			if ( Node\Scalar\String_::KIND_NOWDOC === $node->getAttribute( 'kind' ) && \str_starts_with( $code, '<?php' ) ) {
+				try {
+					$statements = $this->parser->parse( $code ) ?? array();
+				} catch ( Error ) {
+					return null; // php-scoper leaves a nowdoc that does not parse as PHP unscoped.
+				}
+				new NodeTraverser( new NameResolver(), new ParentConnectingVisitor(), $this )->traverse( $statements );
+			} else {
+				$parts = \explode( '::', $node->value, 2 );
+				if ( 1 === \preg_match( StubSymbolCollector::SYMBOL_NAME_REGEX, $parts[0] ) ) {
+					$this->reference( \ltrim( $parts[0], '\\' ), $node, isset( $parts[1] ) ? array( 'class' ) : array( 'class', 'function', 'constant', 'namespace' ) );
+				}
+			}
 		} elseif ( $node instanceof Node\Name && ! $parent instanceof Node\Stmt\Namespace_ ) {
 			$use   = $parent instanceof Node\UseItem ? $parent->getAttribute( 'parent' ) : null;
 			$type  = $parent instanceof Node\UseItem && ( $use instanceof Node\Stmt\Use_ || $use instanceof Node\Stmt\GroupUse ) ? ( $parent->type ?: $use->type ) : null;
@@ -126,30 +140,6 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 	protected function declare( string $kind, ?string $name ): void {
 		if ( ! \is_null( $name ) ) {
 			$this->declared[ $kind ][ self::key( $kind, $name ) ] = $name;
-		}
-	}
-
-	/**
-	 * Records a string literal shaped like a symbol name, or the class of one shaped like a class constant, and reads the PHP code of a nowdoc string that opens with a PHP tag, which php-scoper scopes like a file.
-	 *
-	 * @param   Node\Scalar\String_ $node The string literal.
-	 *
-	 * @return  void
-	 */
-	protected function string( Node\Scalar\String_ $node ): void {
-		$code = \ltrim( $node->value );
-		if ( Node\Scalar\String_::KIND_NOWDOC === $node->getAttribute( 'kind' ) && \str_starts_with( $code, '<?php' ) ) {
-			try {
-				$statements = $this->parser->parse( $code ) ?? array();
-			} catch ( Error ) {
-				return; // php-scoper leaves a nowdoc that does not parse as PHP unscoped.
-			}
-			new NodeTraverser( new NameResolver(), new ParentConnectingVisitor(), $this )->traverse( $statements );
-		} else {
-			$parts = \explode( '::', $node->value, 2 );
-			if ( 1 === \preg_match( StubSymbolCollector::SYMBOL_NAME_REGEX, $parts[0] ) ) {
-				$this->reference( \ltrim( $parts[0], '\\' ), $node, isset( $parts[1] ) ? array( 'class' ) : array( 'class', 'function', 'constant', 'namespace' ) );
-			}
 		}
 	}
 

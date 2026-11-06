@@ -34,9 +34,23 @@ final class CollectScopingStubs {
 			'constants' => self::read_list( $wordpress . 'constants.json' ),
 		);
 
+		// A manifest declares each stubs file as ./path.php relative to itself, as vendor/package for that package's conventional package.php file, or as vendor/package:path.php.
 		$files = array();
 		foreach ( array( $project_dir, ...$package_dirs ) as $dir ) {
-			\array_push( $files, ...self::declared_stubs( $dir ) );
+			foreach ( (array) ( Manifest::extra( Manifest::read( $dir . '/composer.json' ) )['scoping-stubs'] ?? array() ) as $entry ) {
+				$entry = \is_string( $entry ) ? $entry : '';
+				if ( \str_starts_with( $entry, './' ) ) {
+					$path = $dir . \substr( $entry, 1 );
+				} else {
+					$parts   = \explode( ':', $entry, 2 );
+					$install = InstalledVersions::isInstalled( $parts[0] ) ? InstalledVersions::getInstallPath( $parts[0] ) : null;
+					$path    = \is_null( $install ) ? '' : $install . '/' . ( $parts[1] ?? \basename( $parts[0] ) . '.php' );
+				}
+				if ( ! \is_file( $path ) ) {
+					throw new \RuntimeException( \sprintf( "'%s/composer.json' declares the scoping stubs %s, which do not exist.", $dir, \var_export( $entry, true ) ) );
+				}
+				$files[] = $path;
+			}
 		}
 		foreach ( $dropped_dirs as $dir ) {
 			foreach ( Finder::create()->files()->in( $dir )->exclude( array( 'tests', 'Tests' ) )->name( '*.php' ) as $file ) {
@@ -70,37 +84,6 @@ final class CollectScopingStubs {
 	// endregion
 
 	// region HELPERS
-
-	/**
-	 * Returns the stubs files a manifest declares: ./path.php relative to the manifest, vendor/package for that package's conventional package.php file, or vendor/package:path.php.
-	 *
-	 * @param   string $dir The directory of the manifest.
-	 *
-	 * @throws  \RuntimeException Thrown when a declared stubs file is missing or the manifest cannot be read.
-	 *
-	 * @return  list<string>
-	 */
-	protected static function declared_stubs( string $dir ): array {
-		$extra = Manifest::extra( Manifest::read( $dir . '/composer.json' ) );
-
-		$stubs_files = array();
-		foreach ( (array) ( $extra['scoping-stubs'] ?? array() ) as $entry ) {
-			$entry = \is_string( $entry ) ? $entry : '';
-			if ( \str_starts_with( $entry, './' ) ) {
-				$path = $dir . \substr( $entry, 1 );
-			} else {
-				$parts   = \explode( ':', $entry, 2 );
-				$install = InstalledVersions::isInstalled( $parts[0] ) ? InstalledVersions::getInstallPath( $parts[0] ) : null;
-				$path    = \is_null( $install ) ? '' : $install . '/' . ( $parts[1] ?? \basename( $parts[0] ) . '.php' );
-			}
-			if ( ! \is_file( $path ) ) {
-				throw new \RuntimeException( \sprintf( "'%s/composer.json' declares the scoping stubs %s, which do not exist.", $dir, \var_export( $entry, true ) ) );
-			}
-			$stubs_files[] = $path;
-		}
-
-		return $stubs_files;
-	}
 
 	/**
 	 * Returns the strings of a JSON list file.

@@ -25,11 +25,22 @@ final class ScopedPackages {
 			throw new \RuntimeException( 'Name at least one package to scope.' );
 		}
 
-		$installed = self::installed( $vendor_dir );
+		$installed_file = $vendor_dir . '/composer/installed.json';
+		if ( ! \is_file( $installed_file ) ) {
+			throw new \RuntimeException( "Could not read '$installed_file'. Install the project's dependencies first." );
+		}
+		$recorded = Manifest::read( $installed_file );
+		if ( ! \is_array( $recorded['packages'] ?? null ) ) {
+			throw new \RuntimeException( "'$installed_file' lists no packages." );
+		}
+		$installed = array();
 		$replacers = array();
-		foreach ( $installed as $name => $package ) {
-			foreach ( \array_keys( (array) ( $package['replace'] ?? array() ) ) as $replaced ) {
-				$replacers[ (string) $replaced ][] = $name;
+		foreach ( $recorded['packages'] as $package ) {
+			if ( \is_array( $package ) && \is_string( $package['name'] ?? null ) ) {
+				$installed[ $package['name'] ] = $package;
+				foreach ( \array_keys( (array) ( $package['replace'] ?? array() ) ) as $replaced ) {
+					$replacers[ (string) $replaced ][] = $package['name'];
+				}
 			}
 		}
 		// Composer records every name a package or the root replaces or provides, so a requirement no installed package fills is met when it is recorded there.
@@ -99,35 +110,6 @@ final class ScopedPackages {
 	// endregion
 
 	// region HELPERS
-
-	/**
-	 * Returns the packages Composer recorded in the vendor directory's installed.json, keyed by name.
-	 *
-	 * @param   string $vendor_dir The project's Composer vendor directory.
-	 *
-	 * @throws  \RuntimeException Thrown when installed.json is missing or lists no packages.
-	 *
-	 * @return  array<string, array<array-key, mixed>>
-	 */
-	protected static function installed( string $vendor_dir ): array {
-		$file = $vendor_dir . '/composer/installed.json';
-		if ( ! \is_file( $file ) ) {
-			throw new \RuntimeException( "Could not read '$file'. Install the project's dependencies first." );
-		}
-		$decoded = Manifest::read( $file );
-		if ( ! \is_array( $decoded['packages'] ?? null ) ) {
-			throw new \RuntimeException( "'$file' lists no packages." );
-		}
-
-		$installed = array();
-		foreach ( $decoded['packages'] as $package ) {
-			if ( \is_array( $package ) && \is_string( $package['name'] ?? null ) ) {
-				$installed[ $package['name'] ] = $package;
-			}
-		}
-
-		return $installed;
-	}
 
 	/**
 	 * Returns the real directory a package is installed in.
