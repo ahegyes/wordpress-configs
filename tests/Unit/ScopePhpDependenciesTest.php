@@ -695,7 +695,6 @@ final class ScopePhpDependenciesTest extends TestCase {
 			$packages[] = array( 'install-path' => '../' . $name ) + $package;
 		}
 		self::record_installed_packages( $project . '/' . $vendor, $manifest, $packages );
-
 		return $project;
 	}
 

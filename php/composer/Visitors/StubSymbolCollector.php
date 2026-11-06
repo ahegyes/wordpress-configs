@@ -100,9 +100,9 @@ final class StubSymbolCollector extends NodeVisitorAbstract {
 	// region METHODS
 
 	/**
-	 * Returns the kind and name of the symbol a define() or class_alias() call declares, or null when the call declares none by a string or a Foo::class name.
+	 * Returns the kind and name of the symbol a define() or class_alias() call declares, or null when the call declares none by a string literal or a ::class constant.
 	 *
-	 * The call's arguments must have been visited, since a NameResolver resolves a Foo::class name only when the traversal reaches it.
+	 * The call's arguments must have been visited, since a NameResolver resolves a ::class constant's class only when the traversal reaches it.
 	 *
 	 * @param   Node\Expr\FuncCall $node The function call.
 	 *
