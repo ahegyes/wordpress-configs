@@ -96,7 +96,10 @@
 			"@test:unit"
 		],
 		"test:unit": "@php vendor/bin/phpunit --testsuite=Unit",
-		"test:unit:mutation": "@php vendor/bin/infection --threads=max --show-mutations=0",
+		"test:unit:mutation": [
+			"Composer\\Config::disableProcessTimeout",
+			"@php vendor/bin/infection --threads=max --show-mutations=0"
+		],
 		"test:all": [
 			"@test:unit",
 			"@test:unit:mutation"
