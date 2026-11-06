@@ -5,7 +5,7 @@ The tests prove that the shared configs, the scoping pipeline and the reusable w
 ## Tiers
 
 - **Unit** (`tests/Unit/`, `composer test`). PHPUnit tests that run PHPCS, PHPStan, php-scoper and workflow step scripts on fixtures copied to a temporary directory:
-  - `PhpcsProfilesTest` scans files with both PHPCS profiles: the case-sensitive vendor exclusions, the `index.php` stub waiver, the full `WordPress` standard, and the two ways a project lowers the PHP and WordPress floors.
+  - `PhpcsProfilesTest` scans files with both PHPCS profiles: the files each profile scans and the tooling, generated and case-sensitive vendor paths it skips, the `index.php` stub waiver, slash-separated hook names, generic docblock types over their native hints, the full `WordPress` standard, and the two ways a project lowers the PHP and WordPress floors.
   - `PhpstanConfigTest` analyzes fixtures with the shared PHPStan rules: level 10 findings, nested `vendor/` directories scanned but not analyzed, and the types `@global` tags declare.
   - `ScopePhpDependenciesTest` scopes `fixtures/scoping-project/` end to end and checks the output, the generated autoloader, the recipes, the `function_exists()` checks php-scoper adds to guards of global functions, and every failure the scope run reports. Its dompdf render test is in the `slow` group.
   - `ScopedPackagesTest` resolves the packages to scope from inline packages through each link Composer records: a replaced dependency, a provided virtual package, a Composer plugin, a metapackage, and a requirement the root replaces or provides. `Support/RecordsInstalledPackagesTrait.php` writes `installed.json` and `installed.php` for both tests, as Composer does.
