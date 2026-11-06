@@ -470,6 +470,16 @@ final class ScopePhpDependenciesTest extends TestCase {
 		self::assertStringContainsString( "\\class_alias('Acme\\Scoped\\Stringable', 'Stringable', \\false);", self::read( $project . '/vendor-prefixed/acme/commerce/lib/Polyfill.php' ) );
 	}
 
+	public function test_scope_run_passes_a_nowdoc_php_scoper_leaves_unscoped(): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		$section = $project . '/vendor' . self::SECTION;
+		\file_put_contents( $section, \str_replace( "\t\treturn \\__(", "\t\t\$template = <<<'PHP'\n\n\t\t\t<?php namespace Generated; class Example {}\n\t\t\tPHP;\n\t\treturn \\__(", self::read( $section ) ) );
+
+		ScopePhpDependencies::scope( $project );
+
+		self::assertStringContainsString( "\n<?php namespace Generated; class Example {}\n", self::read( $project . '/vendor-prefixed' . self::SECTION ) );
+	}
+
 	public function test_scope_run_passes_a_nowdoc_that_does_not_parse_as_php(): void {
 		$project = self::make_project( array( 'acme/commerce' ) );
 		$section = $project . '/vendor' . self::SECTION;
