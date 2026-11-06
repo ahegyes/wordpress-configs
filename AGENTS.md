@@ -57,3 +57,4 @@ zizmor --config .github/zizmor.yml .github/
 - `reusable-playwright-e2e.yml` and a full `reusable-release.yml` run have no target here: CI checks them with actionlint and zizmor, and the unit tests run the release's assertion steps.
 - `symfony/filesystem` and `symfony/finder` stay a major behind their latest release, because `humbug/php-scoper` caps them.
 - The release's PHP-floor check reads a strict `>` lower bound as inclusive.
+- `reusable-phpunit.yml`'s wp-env branch runs in no job here: every consumer's Integration lane runs it, and a pull request that moves a consumer's pin catches a break.

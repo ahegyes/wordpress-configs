@@ -23,7 +23,7 @@ Mutation testing is opt-in. `composer test:unit:mutation` runs Infection over th
 
 ## Not covered here
 
-This repository's own CI runs the PHP lint, PHP syntax, PHPUnit, scripts lint, supply-chain audit, block.json, Plugin Check, workflow checks and CodeQL workflows. `reusable-playwright-e2e.yml` and `reusable-release.yml` need a plugin to act on, so CI checks them only with actionlint and zizmor, and the unit tests run the release's assertion steps; a full run of either happens first in a consumer's CI.
+This repository's own CI runs the PHP lint, PHP syntax, PHPUnit, scripts lint, supply-chain audit, block.json, Plugin Check, workflow checks and CodeQL workflows. `reusable-playwright-e2e.yml` and `reusable-release.yml` need a plugin to act on, so CI checks them only with actionlint and zizmor, and the unit tests run the release's assertion steps; a full run of either happens first in a consumer's CI. `reusable-phpunit.yml`'s wp-env branch runs in no job here either: every consumer's Integration lane runs it, and a pull request that moves a consumer's pin catches a break.
 
 ## Fixtures
 
