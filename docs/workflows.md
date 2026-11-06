@@ -89,7 +89,7 @@ Runs `php -l` over the PHP files under `paths`, once per PHP version, without in
 | Input | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `project-path` | `string` | No | `'.'` | Path to the project, relative to the repository root. |
-| `php-versions` | `string` | No | `'["8.5"]'` | Non-empty JSON array of PHP versions, such as `'["8.5", "8.6"]'`. |
+| `php-versions` | `string` | No | `'["8.5", "8.6"]'` | Non-empty JSON array of PHP versions; the default adds the next PHP's nightly build. |
 | `paths` | `string` | No | `'["."]'` | Non-empty JSON array of files and directories to check, relative to `project-path`. |
 | `artifact` | `string` | No | `''` | Name of an artifact uploaded earlier in the calling workflow to check instead of the repository; `project-path` and `paths` are then relative to its contents. |
 

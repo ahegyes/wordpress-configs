@@ -12,7 +12,7 @@ on:
         description: 'Non-empty JSON array of PHP versions to check (e.g. [\"8.5\",\"8.6\"])'
         type: string
         required: false
-        default: '["8.5"]'
+        default: '["8.5", "8.6"]'
       paths:
         description: 'Non-empty JSON array of files and directories to check, relative to project-path. Directories are searched for *.php files, skipping any vendor/ and node_modules/ inside them.'
         type: string
