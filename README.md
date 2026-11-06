@@ -188,6 +188,8 @@ The run also fails when `extra.scoping-prefix` is missing or empty, when a name 
 
 A package that reaches a dependency only through a metapackage includes its `files` entries before that dependency's, because the autoloader orders them by each package's direct `require`.
 
+The run supports none of php-scoper's `expose-*` options, since each plugin keeps its own prefixed copy of what it scopes: the namespace-string patcher prefixes the global name in the alias php-scoper writes for an exposed class, so the class stays unexposed.
+
 The project or a scoped package declares the stubs files of the host symbols the scoped code calls, each as `./path/to/file.php` relative to its `composer.json`, as `vendor/package` for that package's `<package>.php`, or as `vendor/package:path/to/file.php`:
 
 ```json
