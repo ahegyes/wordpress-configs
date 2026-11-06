@@ -6,6 +6,7 @@
  */
 
 use DeepWebSolutions\Config\Composer\CollectScopingStubs;
+use DeepWebSolutions\Config\Composer\Manifest;
 use DeepWebSolutions\Config\Composer\ScopedPackages;
 use Symfony\Component\Finder\Finder;
 
@@ -20,18 +21,8 @@ use Symfony\Component\Finder\Finder;
  * @return  array<string, mixed>
  */
 return static function ( string $project_dir, string ...$names ): array {
-	$manifest = static function ( string $file ): array {
-		$decoded = json_decode( (string) file_get_contents( $file ), true, flags: JSON_THROW_ON_ERROR );
-
-		return is_array( $decoded ) ? $decoded : array();
-	};
-	$extra    = static fn ( array $decoded ): array => isset( $decoded['extra'] ) && is_array( $decoded['extra'] ) ? $decoded['extra'] : array();
-
-	$project = $manifest( "$project_dir/composer.json" );
-	$prefix  = $extra( $project )['scoping-prefix'] ?? null;
-	if ( ! is_string( $prefix ) || '' === trim( $prefix, '\\' ) ) {
-		throw new RuntimeException( "'$project_dir/composer.json' declares no extra.scoping-prefix." );
-	}
+	$project = Manifest::read( "$project_dir/composer.json" );
+	$prefix  = Manifest::scoping_prefix( $project_dir );
 
 	$vendor     = is_array( $project['config'] ?? null ) && is_string( $project['config']['vendor-dir'] ?? null ) ? $project['config']['vendor-dir'] : 'vendor';
 	$vendor_dir = str_starts_with( $vendor, '/' ) ? $vendor : "$project_dir/$vendor";
@@ -47,8 +38,8 @@ return static function ( string $project_dir, string ...$names ): array {
 	$roots              = array();
 	$domains            = array();
 	foreach ( $packages['scoped'] as $name => $dir ) {
-		$package  = $manifest( "$dir/composer.json" );
-		$domain   = $extra( $package )['scoping-text-domain'] ?? null;
+		$package  = Manifest::read( "$dir/composer.json" );
+		$domain   = Manifest::extra( $package )['scoping-text-domain'] ?? null;
 		$autoload = isset( $package['autoload'] ) && is_array( $package['autoload'] ) ? $package['autoload'] : array();
 		if ( ! is_null( $domain ) ) {
 			$domains[ $dir ] = is_string( $domain ) && '' !== $domain ? $domain : throw new RuntimeException( "'$dir/composer.json' declares an empty extra.scoping-text-domain." );
@@ -99,7 +90,7 @@ return static function ( string $project_dir, string ...$names ): array {
 		}
 	}
 
-	$text_domain = $extra( $project )['text-domain'] ?? null;
+	$text_domain = Manifest::extra( $project )['text-domain'] ?? null;
 	if ( array() !== $domains && ( ! is_string( $text_domain ) || '' === $text_domain ) ) {
 		throw new RuntimeException( "'$project_dir/composer.json' declares no extra.text-domain, which the strings of the scoped packages take." );
 	}
@@ -163,7 +154,7 @@ return static function ( string $project_dir, string ...$names ): array {
 	}
 
 	return array(
-		'prefix'                  => trim( $prefix, '\\' ),
+		'prefix'                  => $prefix,
 		// A package's tests run against development tools that are never scoped, so they would only ship dead, unresolvable code.
 		'finders'                 => array( Finder::create()->files()->in( array_values( $packages['scoped'] ) )->exclude( array( 'tests', 'Tests' ) ) ),
 		'exclude-files'           => $exclude_files,

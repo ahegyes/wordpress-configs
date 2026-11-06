@@ -49,11 +49,7 @@ final class ScopePhpDependencies {
 	 */
 	public static function scope( string $project_dir ): void {
 		$project_dir = \realpath( $project_dir ) ?: throw new \RuntimeException( "The project directory '$project_dir' does not exist." );
-		$prefix      = self::extra( $project_dir . '/composer.json' )['scoping-prefix'] ?? null;
-		$prefix      = \is_string( $prefix ) ? \trim( $prefix, '\\' ) : '';
-		if ( '' === $prefix ) {
-			throw new \RuntimeException( "'$project_dir/composer.json' declares no extra.scoping-prefix." );
-		}
+		$prefix      = Manifest::scoping_prefix( $project_dir );
 
 		$output_dir  = $project_dir . '/vendor-prefixed';
 		$scoping_dir = $output_dir . '.tmp';
@@ -206,7 +202,7 @@ final class ScopePhpDependencies {
 		foreach ( $manifests as $manifest ) {
 			$package_dir = \dirname( $manifest );
 			$relative    = \substr( $package_dir, \strlen( $output_dir ) );
-			$decoded     = self::manifest( $manifest );
+			$decoded     = Manifest::read( $manifest );
 			$autoload    = isset( $decoded['autoload'] ) && \is_array( $decoded['autoload'] ) ? $decoded['autoload'] : array();
 
 			$paths = self::strings( $autoload['classmap'] ?? array() );
@@ -278,21 +274,6 @@ final class ScopePhpDependencies {
 	}
 
 	/**
-	 * Returns the extra entries a manifest declares.
-	 *
-	 * @param   string $file The path of the manifest.
-	 *
-	 * @throws  \RuntimeException Thrown when the manifest cannot be read.
-	 *
-	 * @return  array<array-key, mixed>
-	 */
-	protected static function extra( string $file ): array {
-		$extra = self::manifest( $file )['extra'] ?? array();
-
-		return \is_array( $extra ) ? $extra : array();
-	}
-
-	/**
 	 * Returns the name a scoped package manifest declares.
 	 *
 	 * @param   string $file The path of the manifest.
@@ -302,31 +283,12 @@ final class ScopePhpDependencies {
 	 * @return  string
 	 */
 	protected static function package_name( string $file ): string {
-		$name = self::manifest( $file )['name'] ?? null;
+		$name = Manifest::read( $file )['name'] ?? null;
 		if ( ! \is_string( $name ) || ! \str_contains( $name, '/' ) ) {
 			throw new \RuntimeException( "'$file' declares no package name." );
 		}
 
 		return $name;
-	}
-
-	/**
-	 * Returns the decoded contents of a package manifest.
-	 *
-	 * @param   string $file The path of the manifest.
-	 *
-	 * @throws  \RuntimeException Thrown when the manifest cannot be read.
-	 *
-	 * @return  array<array-key, mixed>
-	 */
-	protected static function manifest( string $file ): array {
-		$contents = \file_get_contents( $file );
-		if ( false === $contents ) {
-			throw new \RuntimeException( "Could not read '$file'." );
-		}
-		$decoded = \json_decode( $contents, true, flags: \JSON_THROW_ON_ERROR );
-
-		return \is_array( $decoded ) ? $decoded : array();
 	}
 
 	/**

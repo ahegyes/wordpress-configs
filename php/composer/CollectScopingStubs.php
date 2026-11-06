@@ -81,8 +81,7 @@ final class CollectScopingStubs {
 	 * @return  list<string>
 	 */
 	protected static function declared_stubs( string $dir ): array {
-		$manifest = \json_decode( self::read( $dir . '/composer.json' ), true, flags: \JSON_THROW_ON_ERROR );
-		$extra    = \is_array( $manifest ) && isset( $manifest['extra'] ) && \is_array( $manifest['extra'] ) ? $manifest['extra'] : array();
+		$extra = Manifest::extra( Manifest::read( $dir . '/composer.json' ) );
 
 		$stubs_files = array();
 		foreach ( (array) ( $extra['scoping-stubs'] ?? array() ) as $entry ) {

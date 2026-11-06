@@ -110,13 +110,12 @@ final class ScopedPackages {
 	 * @return  array<string, array<array-key, mixed>>
 	 */
 	protected static function installed( string $vendor_dir ): array {
-		$file     = $vendor_dir . '/composer/installed.json';
-		$contents = \is_file( $file ) ? \file_get_contents( $file ) : false;
-		if ( false === $contents ) {
+		$file = $vendor_dir . '/composer/installed.json';
+		if ( ! \is_file( $file ) ) {
 			throw new \RuntimeException( "Could not read '$file'. Install the project's dependencies first." );
 		}
-		$decoded = \json_decode( $contents, true, flags: \JSON_THROW_ON_ERROR );
-		if ( ! \is_array( $decoded ) || ! \is_array( $decoded['packages'] ?? null ) ) {
+		$decoded = Manifest::read( $file );
+		if ( ! \is_array( $decoded['packages'] ?? null ) ) {
 			throw new \RuntimeException( "'$file' lists no packages." );
 		}
 
