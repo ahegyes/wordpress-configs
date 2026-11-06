@@ -228,7 +228,7 @@ A recipe returns php-scoper settings for one package, with paths relative to it:
 | --- | --- |
 | `node/tsconfig.base.json` | The deltas from TypeScript's defaults: `react-jsx`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `isolatedModules`, `resolveJsonModule`, `skipLibCheck` and `noEmit` |
 | `node/eslint.config.base.mjs` | `@wordpress/eslint-plugin`'s recommended flat config, with its unit-test and Playwright presets scoped to test globs |
-| `node/stylelint.config.base.js` | `@wordpress/stylelint-config/scss` with generated trees ignored, `selector-class-pattern` off, and reports on needless, descriptionless and invalid-scope disable comments |
+| `node/stylelint.config.base.js` | `@wordpress/stylelint-config/scss-stylistic`, WordPress's SCSS and formatting rules, with generated trees ignored, `selector-class-pattern` off, and reports on needless, descriptionless and invalid-scope disable comments |
 | `node/postcss.config.base.js` | `@wordpress/postcss-plugins-preset` plus the production minifier `@wordpress/scripts` uses when a project has no PostCSS config |
 | `node/playwright.config.base.js` | A factory over the `@wordpress/scripts` Playwright config, taking the project's wp-env `port` |
 
