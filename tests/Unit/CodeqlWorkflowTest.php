@@ -23,7 +23,6 @@ final class CodeqlWorkflowTest extends TestCase {
 
 	#[DataProvider( 'provide_probe_answers' )]
 	public function test_analyze_is_skipped_only_where_advanced_security_is_off( string $code, string $body, string $available, string $annotation ): void {
-		// Like curl, the stub writes the answer's body to the -o file and prints the status -w asks for.
 		$this->write_executable( 'bin/curl', "#!/usr/bin/env bash\necho call >> \"\$HOME/curl-calls\"\nwhile [ \$# -gt 0 ]; do\n\tcase \"\$1\" in\n\t\t-o) printf '%s' " . \escapeshellarg( $body ) . " > \"\$2\"; shift 2 ;;\n\t\t*) shift ;;\n\tesac\ndone\nprintf '%s' " . \escapeshellarg( $code ) . "\n" );
 		$this->write_executable( 'bin/sleep', "#!/usr/bin/env bash\n" );
 		\mkdir( $this->work_dir . '/runner-temp' );

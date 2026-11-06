@@ -848,6 +848,7 @@ final class ReleaseWorkflowTest extends TestCase {
 		if ( ! \is_null( $override ) ) {
 			$this->write_project( array( '.wp-env.override.json' => $override ) );
 		}
+
 		$this->write_executable( 'bin/curl', "#!/usr/bin/env bash\nprintf '%s\\n' \"\$@\" > \"\$HOME/curl-arguments\"\n" );
 
 		$result = $this->run_step( 'reusable-release.yml', 'test', 'Assert the site serves', array( 'WP_ENV_CONFIG_FILE' => '' ) );
