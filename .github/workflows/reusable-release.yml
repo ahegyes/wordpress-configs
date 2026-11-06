@@ -75,6 +75,7 @@ jobs:
       WP_ORG: ${{ inputs.wp-org }}
     outputs:
       digest: ${{ steps.archive-digest.outputs.digest }}
+      release-notes: ${{ steps.changelog.outputs.release-notes }}
       requires-scoped: ${{ steps.scoping.outputs.requires-scoped }}
       version: ${{ steps.versions.outputs.version }}
     steps:
@@ -199,6 +200,30 @@ jobs:
             exit 1
           fi
           echo "version=$header_version" >> "$GITHUB_OUTPUT"
+
+      # The notes reach the release job as this output, so a dry run checks the notes a tagged run publishes.
+      - name: Verify the changelog section
+        id: changelog
+        working-directory: ${{ inputs.project-path }}
+        env:
+          VERSION: ${{ steps.versions.outputs.version }}
+        run: |
+          if [ ! -f CHANGELOG.md ]; then
+            exit 0
+          fi
+          notes=$(mktemp)
+          # index() matches the heading as text; a regex would read the version's dots as wildcards.
+          awk -v v="$VERSION" '
+            $0 == "## " v || index($0, "## " v " ") == 1 || index($0, "## [" v "]") == 1 { capture = 1; next }
+            capture && /^## / { exit }
+            capture { print }
+          ' CHANGELOG.md > "$notes"
+          if ! grep -q '[^[:space:]]' "$notes"; then
+            echo "::error::CHANGELOG.md has no section for $VERSION, or only a blank one, so the release would describe nothing."
+            exit 1
+          fi
+          delimiter="notes-$(openssl rand -hex 16)"
+          { echo "release-notes<<$delimiter"; cat "$notes"; echo "$delimiter"; } >> "$GITHUB_OUTPUT"
 
       - name: Verify the text domain
         working-directory: ${{ inputs.project-path }}
@@ -732,10 +757,6 @@ jobs:
     env:
       PLUGIN_SLUG: ${{ inputs.plugin-slug }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
       - name: Download built artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -755,7 +776,7 @@ jobs:
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          CHANGELOG: ${{ inputs.project-path }}/CHANGELOG.md
+          RELEASE_NOTES: ${{ needs.build.outputs.release-notes }}
           VERSION: ${{ needs.build.outputs.version }}
         run: |
           args=(--repo "$GITHUB_REPOSITORY" --verify-tag)
@@ -763,17 +784,9 @@ jobs:
           if [[ "$VERSION" == *-* ]]; then
             args+=(--prerelease)
           fi
-          if [ -f "$CHANGELOG" ]; then
-            # index() matches the heading as text; a regex would read the version's dots as wildcards.
-            awk -v v="$VERSION" '
-              $0 == "## " v || index($0, "## " v " ") == 1 || index($0, "## [" v "]") == 1 { capture = 1; next }
-              capture && /^## / { exit }
-              capture { print }
-            ' "$CHANGELOG" > "$RUNNER_TEMP/release-notes.md"
-            if [ ! -s "$RUNNER_TEMP/release-notes.md" ]; then
-              echo "::error::$CHANGELOG has no section for $VERSION, so the release would describe nothing."
-              exit 1
-            fi
+          # The build fails on a CHANGELOG.md without the version's section, so empty notes mean the project keeps none.
+          if [ -n "$RELEASE_NOTES" ]; then
+            printf '%s\n' "$RELEASE_NOTES" > "$RUNNER_TEMP/release-notes.md"
             args+=(--notes-file "$RUNNER_TEMP/release-notes.md")
           else
             args+=(--generate-notes)

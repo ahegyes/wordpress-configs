@@ -103,7 +103,7 @@ A project with a lower minimum WordPress version sets `WPCompat.requiresAtLeast`
 | --- | --- |
 | The main plugin file | The one PHP file at the project root with a `Plugin Name` header in its first 8 KB, as WordPress finds it. Its `Version` header equals the tag, its `Text Domain` equals `plugin-slug`, and its `Requires PHP`, `Requires at least` and `Requires Plugins` cover what the shipped packages need. |
 | `readme.txt` | Required with `wp-org: true`. When present, its `Stable tag` equals the release version, or, for a prerelease, the last stable release. |
-| `CHANGELOG.md` | Optional. When present, it has a section headed by the version, such as `## 1.2.3 - 2026-10-06` or `## [1.2.3] - 2026-10-06`, which becomes the release notes; a missing section fails the release. |
+| `CHANGELOG.md` | Optional. When present, it has a section headed by the version, such as `## 1.2.3 - 2026-10-06` or `## [1.2.3] - 2026-10-06`, which becomes the release notes; a missing or blank section fails the build, dry runs included. |
 | `.distignore` | Required; `wp dist-archive` builds the zip from it. Copy this package's baseline and extend it. |
 | `package.json` and `package-lock.json` | Declare a Node version and `@wordpress/env`. |
 | `.wp-env.json`, or the file `wp-env-config-file` names | Maps `wp-content/plugins/<plugin-slug>` to the plugin source. |
