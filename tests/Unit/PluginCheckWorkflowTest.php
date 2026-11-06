@@ -75,7 +75,7 @@ final class PluginCheckWorkflowTest extends TestCase {
 	}
 
 	/**
-	 * @return array{status: int, output: string, outputs: array<string, string>}
+	 * @return array{status: int, output: string, outputs: array<string, string>, env: array<string, string>}
 	 */
 	protected function resolve( string $workflow, string $job, string $wp_org, string $exclude_checks ): array {
 		return $this->run_step(

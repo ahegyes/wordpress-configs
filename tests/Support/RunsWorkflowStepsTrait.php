@@ -35,15 +35,18 @@ trait RunsWorkflowStepsTrait {
 		}
 	}
 
-	protected function write_executable( string $name, string $script ): void {
-		\file_put_contents( $this->work_dir . '/bin/' . $name, $script );
-		\chmod( $this->work_dir . '/bin/' . $name, 0755 );
+	protected function write_executable( string $path, string $script ): void {
+		if ( ! \is_dir( \dirname( $this->work_dir . '/' . $path ) ) ) {
+			\mkdir( \dirname( $this->work_dir . '/' . $path ), 0777, true );
+		}
+		\file_put_contents( $this->work_dir . '/' . $path, $script );
+		\chmod( $this->work_dir . '/' . $path, 0755 );
 	}
 
 	/**
 	 * @param array<string, string> $env
 	 *
-	 * @return array{status: int, output: string, outputs: array<string, string>}
+	 * @return array{status: int, output: string, outputs: array<string, string>, env: array<string, string>}
 	 */
 	protected function run_step( string $workflow, string $job, string $name, array $env ): array {
 		$definition = Yaml::parseFile( __DIR__ . '/../../.github/workflows/' . $workflow );
@@ -63,7 +66,9 @@ trait RunsWorkflowStepsTrait {
 
 		$log = $this->work_dir . '/step.log';
 		\file_put_contents( $this->work_dir . '/step.sh', $script );
-		\file_put_contents( $this->work_dir . '/github-output', '' );
+		foreach ( array( 'github-output', 'github-env', 'github-path' ) as $file ) {
+			\file_put_contents( $this->work_dir . '/' . $file, '' );
+		}
 		\file_put_contents( $log, '' );
 		$process = \proc_open(
 			array( 'bash', '-e', $this->work_dir . '/step.sh' ), // GitHub Actions runs a step that names no shell this way, so a script fails here exactly as it fails in CI.
@@ -78,22 +83,31 @@ trait RunsWorkflowStepsTrait {
 				'HOME'          => $this->work_dir,
 				'GITHUB_OUTPUT' => $this->work_dir . '/github-output',
 				'GITHUB_ENV'    => $this->work_dir . '/github-env',
+				'GITHUB_PATH'   => $this->work_dir . '/github-path',
 			)
 		);
 		self::assertIsResource( $process );
 		$status = \proc_close( $process );
 		$output = (string) \file_get_contents( $log );
 
-		$outputs = array();
-		foreach ( \file( $this->work_dir . '/github-output', \FILE_IGNORE_NEW_LINES | \FILE_SKIP_EMPTY_LINES ) ?: array() as $line ) {
-			$pair                = \explode( '=', $line, 2 );
-			$outputs[ $pair[0] ] = $pair[1] ?? '';
+		$files = array(
+			'outputs' => 'github-output',
+			'env'     => 'github-env',
+		);
+		$pairs = array();
+		foreach ( $files as $key => $file ) {
+			$pairs[ $key ] = array();
+			foreach ( \file( $this->work_dir . '/' . $file, \FILE_IGNORE_NEW_LINES | \FILE_SKIP_EMPTY_LINES ) ?: array() as $line ) {
+				$pair                      = \explode( '=', $line, 2 );
+				$pairs[ $key ][ $pair[0] ] = $pair[1] ?? '';
+			}
 		}
 
 		return array(
 			'status'  => $status,
 			'output'  => $output,
-			'outputs' => $outputs,
+			'outputs' => $pairs['outputs'],
+			'env'     => $pairs['env'],
 		);
 	}
 }
