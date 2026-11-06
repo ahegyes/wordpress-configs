@@ -321,7 +321,8 @@ jobs:
       - name: Verify the headers cover the shipped packages
         working-directory: ${{ inputs.project-path }}
         run: |
-          php <<'PHP'
+          vendor_dir=$(composer config vendor-dir)
+          VENDOR_DIR="$vendor_dir" php <<'PHP'
           <?php
           $entry_file = (string) getenv('ENTRY_FILE');
           $source = (string) file_get_contents($entry_file);
@@ -358,8 +359,9 @@ jobs:
           if (is_array($project)) {
               $packages[] = $project;
           }
-          if (is_file('vendor/composer/installed.json')) {
-              $installed = json_decode((string) file_get_contents('vendor/composer/installed.json'), true);
+          $installed_file = getenv('VENDOR_DIR') . '/composer/installed.json';
+          if (is_file($installed_file)) {
+              $installed = json_decode((string) file_get_contents($installed_file), true);
               foreach ($installed['packages'] ?? [] as $package) {
                   if (!in_array($package['name'], $installed['dev-package-names'] ?? [], true)) {
                       $packages[] = $package;
@@ -371,7 +373,7 @@ jobs:
           }
 
           $errors = [];
-          $floors = ['Requires PHP' => [], 'Requires at least' => []];
+          $floors = ['Requires PHP' => [], 'Requires at least' => [], 'WC requires at least' => []];
           $plugins = [];
           foreach ($packages as $package) {
               $name = $package['name'] ?? '(unnamed)';
@@ -385,6 +387,9 @@ jobs:
               }
               if (is_string($package['extra']['requires-wp'] ?? null)) {
                   $floors['Requires at least'][$name] = $normalize($package['extra']['requires-wp']);
+              }
+              if (is_string($package['extra']['requires-wc'] ?? null)) {
+                  $floors['WC requires at least'][$name] = $normalize($package['extra']['requires-wc']);
               }
               foreach ((array) ($package['extra']['requires-plugins'] ?? []) as $slug) {
                   $plugins[(string) $slug][] = $name;

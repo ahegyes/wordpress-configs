@@ -101,7 +101,7 @@ A project with a lower minimum WordPress version sets `WPCompat.requiresAtLeast`
 
 | File | Requirement |
 | --- | --- |
-| The main plugin file | The one PHP file at the project root with a `Plugin Name` header in its first 8 KB, as WordPress finds it. Its `Version` header equals the tag, its `Text Domain` equals `plugin-slug`, and its `Requires PHP`, `Requires at least` and `Requires Plugins` cover what the shipped packages need. |
+| The main plugin file | The one PHP file at the project root with a `Plugin Name` header in its first 8 KB, as WordPress finds it. Its `Version` header equals the tag, its `Text Domain` equals `plugin-slug`, and its `Requires PHP`, `Requires at least`, `WC requires at least` and `Requires Plugins` cover what the shipped packages need. |
 | `readme.txt` | Required with `wp-org: true`. When present, its `Stable tag` equals the release version, or, for a prerelease, the last stable release. |
 | `CHANGELOG.md` | Optional. When present, it has a section headed by the version, such as `## 1.2.3 - 2026-10-06` or `## [1.2.3] - 2026-10-06`, which becomes the release notes; a missing or blank section fails the build, dry runs included. |
 | `.distignore` | Required; `wp dist-archive` builds the zip from it. Copy this package's baseline and extend it. |
@@ -111,12 +111,13 @@ A project with a lower minimum WordPress version sets `WPCompat.requiresAtLeast`
 | `.wordpress-org/` | Optional wp.org assets, deployed with `wp-org: true`. |
 | `.github/workflows/quality.yml` and `.github/workflows/tests.yml` | Each has a successful push run on the released commit, unless `required-workflows` names other files. |
 
-A package the plugin ships states the WordPress version and the plugins it needs in its own `composer.json`, and the release checks the plugin's headers against them:
+A package the plugin ships states the WordPress version, the WooCommerce version and the plugins it needs in its own `composer.json`, and the release checks the plugin's headers against them:
 
 ```json
 {
   "extra": {
     "requires-wp": "7.1",
+    "requires-wc": "11.2",
     "requires-plugins": ["woocommerce"]
   }
 }
