@@ -180,6 +180,7 @@ A scope run:
 - applies the recipe of each scoped package that has one in `php/php-scoper/recipes/<vendor>/<package>.inc.php`;
 - rewrites the text domain a scoped package declares under `extra.scoping-text-domain` to the project's `extra.text-domain`;
 - fails, naming each one, when the scoped code references a prefixed name it does not declare as the kind of symbol the reference needs: a host symbol no stubs file declares, a dependency outside the scoped packages, a string php-scoper took for a class name, or the class of a `Class::MEMBER` string;
+- fails, naming its namespace, when the scoped code declares a class, interface, trait or enum outside the prefix, which a copy the host or another plugin loads can replace, other than the polyfill of a PHP class;
 - passes a `function_exists()` check of the prefixed name of a function it leaves global, PHP's own included, which php-scoper adds to every guard of that function and which is false while nothing declares the name;
 - writes `vendor-prefixed/scoper-autoload.php`, a class map over each scoped package's `psr-4`, `psr-0` and `classmap` paths that honors `exclude-from-classmap`, followed by its `files` entries.
 

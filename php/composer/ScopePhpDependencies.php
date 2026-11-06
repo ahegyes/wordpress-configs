@@ -43,7 +43,7 @@ final class ScopePhpDependencies {
 	 *
 	 * @param   string $project_dir The root directory of the project.
 	 *
-	 * @throws  \RuntimeException Thrown when the project, its scoping prefix or php-scoper is missing, vendor-prefixed is a symbolic link, php-scoper fails, a scoped file does not parse, a prefixed name is declared by no scoped package, or a scoped package manifest cannot be read.
+	 * @throws  \RuntimeException Thrown when the project, its scoping prefix or php-scoper is missing, vendor-prefixed is a symbolic link, php-scoper fails, a scoped file does not parse, a scoped package declares a class outside the prefix, a prefixed name is declared by no scoped package, or a scoped package manifest cannot be read.
 	 *
 	 * @return  void
 	 */
@@ -120,7 +120,7 @@ final class ScopePhpDependencies {
 	 * @param   string       $prefix           The scoping prefix.
 	 * @param   list<string> $global_functions The names and patterns of the functions the run leaves global.
 	 *
-	 * @throws  \RuntimeException Thrown when a scoped file does not parse, or a prefixed name is declared by no scoped package.
+	 * @throws  \RuntimeException Thrown when a scoped file does not parse, a scoped package declares a class outside the prefix, or a prefixed name is declared by no scoped package.
 	 *
 	 * @return  void
 	 */
@@ -135,6 +135,19 @@ final class ScopePhpDependencies {
 				throw new \RuntimeException( "Could not parse the scoped file '" . $file->getPathname() . "': " . $error->getMessage(), 0, $error );
 			}
 			new NodeTraverser( new NameResolver(), new ParentConnectingVisitor(), $collector )->traverse( $statements );
+		}
+
+		// A class outside the prefix collides with the copy the host or another plugin loads, but for the polyfill of a PHP class, which php-scoper aliases to its global name.
+		$php_classes = \array_change_key_case( PhpStormStubsMap::CLASSES );
+		$outside     = array();
+		foreach ( $collector->declared['class'] as $key => $class ) {
+			if ( 0 !== \stripos( $class, $prefix . '\\' ) && ! isset( $php_classes[ $key ] ) ) {
+				$separator = \strrpos( $class, '\\' );
+				$outside[] = false === $separator ? 'the global namespace' : \substr( $class, 0, $separator );
+			}
+		}
+		if ( array() !== $outside ) {
+			throw new \RuntimeException( "The scoped packages declare classes in these namespaces outside the prefix, where the copy the host or another plugin loads can replace them. Drop the package that declares one with !vendor/package, or stop excluding the namespace in scoper.inc.php:\n" . \implode( "\n", \array_unique( $outside ) ) );
 		}
 
 		$namespaces = array();
