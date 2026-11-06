@@ -13,6 +13,7 @@ wordpress-configs/
 │   ├── phpstan/                # GlobalTagVisitor, which the PHPStan profile registers
 │   └── release/                # the manifest and lock of the WP-CLI commands reusable-release.yml installs, which Dependabot keeps current
 ├── node/                       # tsconfig, ESLint, Stylelint, PostCSS and Playwright baselines
+│   └── block-json/             # the manifest and lock of the ajv-cli reusable-block-json-check.yml installs, which the npm package leaves out
 ├── docs/                       # workflows.md (input reference) and scripts-contract.md (scripts, files, floors)
 ├── tests/
 │   ├── Unit/                   # PHPUnit tests that run the real tools

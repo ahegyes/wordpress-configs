@@ -21,7 +21,7 @@ A reusable workflow cannot elevate above the caller's token, so a caller grants 
 
 ## block.json schema check — `reusable-block-json-check.yml`
 
-Finds every `block.json` under the project path, skipping the `node_modules/` and `vendor/` directories at its top level, and validates each against the trunk schema from `schemas.wp.org`. It succeeds with a message when it finds none.
+Finds every `block.json` under the project path, skipping the `node_modules/` and `vendor/` directories at its top level, and validates each against the trunk schema from `schemas.wp.org`. It succeeds with a message when it finds none. The validator is the ajv-cli that `node/block-json/package-lock.json` locks, checked out from this workflow's own commit of configs, whose `overrides` keep its `fast-json-patch` at the release that fixes its prototype-pollution advisory.
 
 | Input | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |

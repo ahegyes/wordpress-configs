@@ -103,6 +103,15 @@ jobs:
       project-path: php/release
       npm-audit: false
 
+  supply-chain-block-json-tools:
+    name: Supply-chain audit (block.json tools)
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-supply-chain-audit.yml
+    with:
+      project-path: node/block-json
+      composer-audit: false
+
   block-json:
     name: block.json schema check
     # Dogfoods reusable-block-json-check against a throwaway fixture; this tooling repo ships no real blocks.
