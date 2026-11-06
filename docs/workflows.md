@@ -242,7 +242,7 @@ The `build` job fails when:
 
 A strict `>` lower bound in a package's PHP constraint is read as inclusive. The version is taken from the tag and verified against the files, never stamped in.
 
-A prerelease tag publishes a GitHub prerelease, which GitHub's latest release skips, so only sites on a prerelease update channel are offered it. It never deploys to wp.org, which offers sites only the `Stable tag:` of `readme.txt`, so that header keeps naming the last stable release.
+A prerelease tag publishes a GitHub prerelease, which GitHub's latest release skips, so only sites on a prerelease update channel are offered it. It never deploys to wp.org, which offers sites only the `Stable tag:` of `readme.txt`, so that header keeps naming the last stable release, and Plugin Check ignores its `stable_tag_mismatch` for a prerelease version.
 
 The artifact test needs the wp-env config to map `wp-content/plugins/<plugin-slug>` to the plugin source: it remaps exactly that `mappings` key at the built zip and pins the latest stable WordPress core, at the root and in the development and tests environments, through the config's override file, merged into any override the project keeps, so co-mounted plugins, the port and lifecycle scripts survive. It requests the site on the development port the config and its override set.
 

@@ -502,6 +502,8 @@ jobs:
           build-dir: ${{ inputs.project-path }}/plugin-check-build/${{ inputs.plugin-slug }}
           slug: ${{ inputs.plugin-slug }}
           exclude-checks: ${{ steps.excluded.outputs.checks }}
+          # A prerelease leaves the Stable tag at the last stable release, which the readme check reports as a mismatch.
+          ignore-codes: ${{ contains(steps.versions.outputs.version, '-') && 'stable_tag_mismatch' || '' }}
           # An empty token skips the pull request comment, which this job's token has no permission to post.
           repo-token: ''
 
