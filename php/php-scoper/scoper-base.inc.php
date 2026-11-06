@@ -103,6 +103,7 @@ return static function ( string $project_dir, string ...$names ): array {
 	if ( array() !== $domains && ( ! is_string( $text_domain ) || '' === $text_domain ) ) {
 		throw new RuntimeException( "'$project_dir/composer.json' declares no extra.text-domain, which the strings of the scoped packages take." );
 	}
+	$domains = array_filter( $domains, static fn ( string $domain ): bool => $text_domain !== $domain );
 
 	// Libraries build class names in strings php-scoper cannot see, and a string that starts with a scoped package's own namespace names one of its classes.
 	if ( array() !== $roots ) {
@@ -139,12 +140,15 @@ return static function ( string $project_dir, string ...$names ): array {
 				if ( ! str_starts_with( $file_path, "$dir/" ) || ! str_ends_with( $file_path, '.php' ) ) {
 					continue;
 				}
-				$contents = str_replace( array( "'$domain'", "\"$domain\"" ), var_export( $text_domain, true ), $contents );
-				foreach ( PhpToken::tokenize( $contents ) as $token ) {
-					if ( ! $token->is( array( T_COMMENT, T_DOC_COMMENT, T_INLINE_HTML ) ) && 1 === preg_match( '/(?<![\w-])' . preg_quote( $domain, '/' ) . '(?![\w-])/', $token->text ) ) {
+				$tokens = PhpToken::tokenize( $contents );
+				foreach ( $tokens as $token ) {
+					if ( $token->is( T_CONSTANT_ENCAPSED_STRING ) && in_array( $token->text, array( "'$domain'", "\"$domain\"" ), true ) ) {
+						$token->text = var_export( $text_domain, true );
+					} elseif ( ! $token->is( array( T_COMMENT, T_DOC_COMMENT, T_INLINE_HTML ) ) && 1 === preg_match( '/(?<![\w-])' . preg_quote( $domain, '/' ) . '(?![\w-])/', $token->text ) ) {
 						throw new RuntimeException( "'$file_path' still contains the text domain '$domain' after scoping, outside a string literal of its own." );
 					}
 				}
+				$contents = implode( '', array_column( $tokens, 'text' ) );
 			}
 
 			return $contents;
