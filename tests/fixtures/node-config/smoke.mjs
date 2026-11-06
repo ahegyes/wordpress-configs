@@ -5,7 +5,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -175,6 +175,7 @@ probes.push( [
 		// The base's noEmit stands in for the flag, so compiling the probe writes no JavaScript.
 		execFileSync( './node_modules/.bin/tsc', project, { stdio: 'pipe' } );
 		if ( existsSync( 'tests/fixtures/node-config/probe.js' ) ) {
+			rmSync( 'tests/fixtures/node-config/probe.js' );
 			throw new Error( 'tsc emitted probe.js' );
 		}
 		const options = JSON.parse(
