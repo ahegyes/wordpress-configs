@@ -6,7 +6,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 
 final class PhpstanConfigTest extends TestCase {
-	protected const string FIXTURE_DIR = __DIR__ . '/../fixtures/phpstan';
+	protected const string FIXTURE_DIR = __DIR__ . '/../Fixtures/phpstan';
 
 	public function test_shared_rules_report_implicit_mixed_and_missing_overrides(): void {
 		self::assertSame( array( 'method.missingOverride', 'return.type' ), $this->analyse( 'shared-rules.php' ) );

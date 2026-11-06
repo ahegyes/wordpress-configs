@@ -11,6 +11,8 @@
 .distignore
 AGENTS.md
 CLAUDE.md
+CONTRIBUTING.md
+SECURITY.md
 /changelog
 node_modules
 tests
@@ -31,6 +33,7 @@ eslint.config.*
 stylelint.config.*
 tsconfig.json
 playwright.config.*
+postcss.config.*
 scoper.inc.php
 .wp-env*
 .wordpress-org

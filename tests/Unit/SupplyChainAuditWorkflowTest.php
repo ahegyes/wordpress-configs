@@ -102,7 +102,7 @@ final class SupplyChainAuditWorkflowTest extends TestCase {
 	 * @return array{status: int, output: string, outputs: array<string, string>, env: array<string, string>}
 	 */
 	protected function audit( ?string $fixture, string $fail_on_findings ): array {
-		$report = \is_null( $fixture ) ? '/dev/null' : __DIR__ . '/../fixtures/composer-audit/' . $fixture;
+		$report = \is_null( $fixture ) ? '/dev/null' : __DIR__ . '/../Fixtures/composer-audit/' . $fixture;
 		$this->write_executable( 'bin/composer', "#!/usr/bin/env bash\ncat " . \escapeshellarg( $report ) . "\nexit 1\n" );
 
 		return $this->run_step(

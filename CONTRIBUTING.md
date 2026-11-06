@@ -9,7 +9,6 @@ Install the dependencies on the PHP, Composer, Node and npm versions the README 
 ```sh
 composer install
 npm install
-composer validate --strict
 composer quality-check
 composer audit --abandoned=report
 npm run lint:scripts
@@ -19,7 +18,7 @@ actionlint
 zizmor --config .github/zizmor.yml .github/
 ```
 
-`composer quality-check` runs both PHPCS profiles, PHPStan and the unit suite. CI also runs smokes with no local command, such as Plugin Check, the older-PHP syntax lane and CodeQL; [tests/README.md](tests/README.md) describes the test tiers.
+`composer quality-check` validates the manifest strictly, then runs both PHPCS profiles, PHPStan and the unit suite. CI also runs smokes with no local command, such as Plugin Check, the older-PHP syntax lane and CodeQL; [tests/README.md](tests/README.md) describes the test tiers.
 
 ## Reusable workflows are public API
 

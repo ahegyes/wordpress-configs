@@ -1,21 +1,22 @@
 /**
- * Load-smokes the five shared Node baselines against the installed toolchain —
+ * Load-smokes the four shared Node baselines against the installed toolchain —
  * the only behavioral check these exports get before a consumer's CI does.
  * Run from the repo root (`npm run lint:config`).
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const require = createRequire( import.meta.url );
-// Consumers lint through `wp-scripts lint-js`, which runs the ESLint @wordpress/scripts depends on; a
+// Consumers lint through `wp-scripts`, which runs the ESLint and Stylelint @wordpress/scripts depends on; a
 // bare `eslint` import resolves the older copy npm hoists for the ESLint plugins' peer ranges.
-const { ESLint } = createRequire(
+const scriptsRequire = createRequire(
 	require.resolve( '@wordpress/scripts/package.json' )
-)( 'eslint' );
+);
+const { ESLint } = scriptsRequire( 'eslint' );
 const probes = [];
 
 probes.push( [
@@ -36,13 +37,14 @@ probes.push( [
 			overrideConfigFile: resolve( 'node/eslint.config.base.mjs' ),
 		} );
 		const scopedProbePaths = [
-			'tests/fixtures/node-config/probe.js', // recommended baseline (unscoped rules)
-			'tests/fixtures/node-config/probe.ts', // TS recommended entries (ts/tsx/mts/cts)
-			'tests/fixtures/node-config/probe.tsx',
-			'tests/fixtures/node-config/probe.mts',
-			'tests/fixtures/node-config/probe.cts',
-			'tests/fixtures/node-config/probe.test.js', // test-unit files glob
-			'tests/e2e/probe.js', // test-playwright files glob
+			'tests/Fixtures/node-config/probe.js', // recommended baseline (unscoped rules)
+			'tests/Fixtures/node-config/probe.ts', // TS recommended entries (ts/tsx/mts/cts)
+			'tests/Fixtures/node-config/probe.tsx',
+			'tests/Fixtures/node-config/probe.mts',
+			'tests/Fixtures/node-config/probe.cts',
+			'tests/Fixtures/node-config/probe.jsx', // the .jsx files entry
+			'tests/Fixtures/node-config/probe.test.js', // test-unit files glob
+			'tests/EndToEnd/probe.js', // test-playwright files glob
 		];
 		for ( const probePath of scopedProbePaths ) {
 			await eslint.lintText( 'const probe = 42;\n', {
@@ -64,7 +66,7 @@ probes.push( [
 		] ) {
 			const config = await eslint.calculateConfigForFile(
 				resolve(
-					`tests/fixtures/node-config/probe.test.${ extension }`
+					`tests/Fixtures/node-config/probe.test.${ extension }`
 				)
 			);
 			if ( ! config?.rules?.[ 'vitest/expect-expect' ] ) {
@@ -73,28 +75,57 @@ probes.push( [
 				);
 			}
 		}
+		for ( const path of [
+			'tests/Fixtures/node-config/probe.jsx',
+			'tests/Fixtures/node-config/probe.spec.ts',
+			'tests/Fixtures/node-config/__tests__/probe.ts',
+			'tests/Fixtures/node-config/test/probe.ts',
+		] ) {
+			const config = await eslint.calculateConfigForFile(
+				resolve( path )
+			);
+			if ( ! config ) {
+				throw new Error( `${ path } is not linted` );
+			}
+			if (
+				! path.endsWith( '.jsx' ) &&
+				! config.rules?.[ 'vitest/expect-expect' ]
+			) {
+				throw new Error( `${ path } does not get the test-unit rules` );
+			}
+		}
 		for ( const name of [ 'probe.test.js.snap', 'probe.test.json' ] ) {
 			const config = await eslint.calculateConfigForFile(
-				resolve( `tests/fixtures/node-config/${ name }` )
+				resolve( `tests/Fixtures/node-config/${ name }` )
 			);
 			if ( undefined !== config ) {
 				throw new Error( `${ name } is linted as a script` );
 			}
 		}
 
-		const e2e = await eslint.calculateConfigForFile(
-			resolve( 'tests/e2e/probe.js' )
-		);
-		if (
-			! Object.keys( e2e?.rules ?? {} ).some( ( rule ) =>
-				rule.startsWith( 'playwright/' )
-			)
-		) {
-			throw new Error(
-				'tests/e2e/probe.js does not get the Playwright rules'
-			);
+		// A Playwright spec matches the test-unit suffixes too, so only its folder keeps the unit-test rules away.
+		for ( const path of [
+			'tests/EndToEnd/probe.js',
+			'tests/EndToEnd/probe.spec.ts',
+		] ) {
+			const e2e = await eslint.calculateConfigForFile( resolve( path ) );
+			const rules = Object.keys( e2e?.rules ?? {} );
+			if (
+				! rules.some( ( rule ) => rule.startsWith( 'playwright/' ) )
+			) {
+				throw new Error(
+					`${ path } does not get the Playwright rules`
+				);
+			}
+			if ( rules.some( ( rule ) => rule.startsWith( 'vitest/' ) ) ) {
+				throw new Error( `${ path } gets the test-unit rules` );
+			}
 		}
-		for ( const path of [ 'build/x.js', 'vendor/x.js' ] ) {
+		for ( const path of [
+			'build/x.js',
+			'vendor/x.js',
+			'vendor-prefixed/x.js',
+		] ) {
 			if ( ! ( await eslint.isPathIgnored( resolve( path ) ) ) ) {
 				throw new Error( `${ path } is linted` );
 			}
@@ -104,13 +135,13 @@ probes.push( [
 
 probes.push( [
 	'stylelint.config.base.js',
-	() => {
+	async () => {
 		const config = JSON.parse(
 			execFileSync(
 				'./node_modules/.bin/stylelint',
 				[
 					'--print-config',
-					'tests/fixtures/node-config/probe.css',
+					'tests/Fixtures/node-config/probe.css',
 					'--config',
 					'node/stylelint.config.base.js',
 				],
@@ -132,38 +163,27 @@ probes.push( [
 		if ( ! config.rules[ 'font-weight-notation' ] ) {
 			throw new Error( '@wordpress/stylelint-config is not extended' );
 		}
-	},
-] );
-
-probes.push( [
-	'postcss.config.base.js',
-	async () => {
-		const factory = require( resolve( 'node/postcss.config.base.js' ) );
-		const postcss = createRequire(
-			require.resolve( '@wordpress/scripts/package.json' )
-		)( 'postcss' );
-		const css = readFileSync(
-			'tests/fixtures/node-config/probe.css',
-			'utf8'
-		);
-		const transform = async ( env ) =>
-			(
-				await postcss( factory( { env } ).plugins ).process( css, {
-					from: undefined,
-				} )
-			).css;
-
-		const production = await transform( 'production' );
-		if ( production.includes( '/*' ) || production.includes( '\n' ) ) {
-			throw new Error(
-				`production CSS is not minified: ${ production }`
-			);
+		if ( ! config.rules[ '@stylistic/indentation' ] ) {
+			throw new Error( 'the stylistic SCSS preset is not extended' );
 		}
-		const development = await transform( 'development' );
-		if ( ! development.includes( '/*' ) ) {
-			throw new Error(
-				`development CSS lost its comment: ${ development }`
-			);
+
+		// A consumer spreads the base into its root config, which reads ignoreFiles from the project root.
+		const { default: stylelint } = await import(
+			pathToFileURL( scriptsRequire.resolve( 'stylelint' ) )
+		);
+		for ( const path of [
+			'build/x.css',
+			'vendor/x.css',
+			'vendor-prefixed/x.css',
+		] ) {
+			const { results } = await stylelint.lint( {
+				code: 'a {}\n',
+				codeFilename: resolve( path ),
+				config: require( resolve( 'node/stylelint.config.base.js' ) ),
+			} );
+			if ( ! results[ 0 ]?.ignored ) {
+				throw new Error( `${ path } is linted` );
+			}
 		}
 	},
 ] );
@@ -171,11 +191,11 @@ probes.push( [
 probes.push( [
 	'tsconfig.base.json',
 	() => {
-		const project = [ '-p', 'tests/fixtures/node-config/tsconfig.json' ];
+		const project = [ '-p', 'tests/Fixtures/node-config/tsconfig.json' ];
 		// The base's noEmit stands in for the flag, so compiling the probe writes no JavaScript.
 		execFileSync( './node_modules/.bin/tsc', project, { stdio: 'pipe' } );
-		if ( existsSync( 'tests/fixtures/node-config/probe.js' ) ) {
-			rmSync( 'tests/fixtures/node-config/probe.js' );
+		if ( existsSync( 'tests/Fixtures/node-config/probe.js' ) ) {
+			rmSync( 'tests/Fixtures/node-config/probe.js' );
 			throw new Error( 'tsc emitted probe.js' );
 		}
 		const options = JSON.parse(
@@ -229,7 +249,7 @@ probes.push( [
 		if ( ! config.outputDir.startsWith( 'tests/.cache/artifacts' ) ) {
 			throw new Error( `outputDir is ${ config.outputDir }` );
 		}
-		if ( 'tests/e2e' !== config.testDir ) {
+		if ( 'tests/EndToEnd' !== config.testDir ) {
 			throw new Error( `testDir is ${ config.testDir }` );
 		}
 	},

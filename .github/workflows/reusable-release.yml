@@ -457,11 +457,11 @@ jobs:
             case "$entry" in
               "$PLUGIN_SLUG/node_modules/"*|"$PLUGIN_SLUG/"*/node_modules/*|"$PLUGIN_SLUG/tests/"*|"$PLUGIN_SLUG/"*/tests/*|"$PLUGIN_SLUG/vendor/bin/"*|"$PLUGIN_SLUG/"*/vendor/bin/* \
                 |"$PLUGIN_SLUG/.git/"*|"$PLUGIN_SLUG/.github/"*|"$PLUGIN_SLUG/.idea/"*|"$PLUGIN_SLUG/.vscode/"*|"$PLUGIN_SLUG/.wordpress-org/"* \
-                |"$PLUGIN_SLUG/.editorconfig"|"$PLUGIN_SLUG/.gitattributes"|"$PLUGIN_SLUG/.gitignore"|"$PLUGIN_SLUG/.distignore"|"$PLUGIN_SLUG/AGENTS.md"|"$PLUGIN_SLUG/CLAUDE.md"|"$PLUGIN_SLUG/changelog/"* \
+                |"$PLUGIN_SLUG/.editorconfig"|"$PLUGIN_SLUG/.gitattributes"|"$PLUGIN_SLUG/.gitignore"|"$PLUGIN_SLUG/.distignore"|"$PLUGIN_SLUG/AGENTS.md"|"$PLUGIN_SLUG/CLAUDE.md"|"$PLUGIN_SLUG/CONTRIBUTING.md"|"$PLUGIN_SLUG/SECURITY.md"|"$PLUGIN_SLUG/changelog/"* \
                 |"$PLUGIN_SLUG/composer.json"|"$PLUGIN_SLUG/composer.lock"|"$PLUGIN_SLUG/package.json"|"$PLUGIN_SLUG/package-lock.json" \
                 |"$PLUGIN_SLUG/phpcs"*.xml*|"$PLUGIN_SLUG/.phpcs"*.xml*|"$PLUGIN_SLUG/phpstan"*.neon*|"$PLUGIN_SLUG/.phpstan"*.neon* \
                 |"$PLUGIN_SLUG/phpunit"*.xml*|"$PLUGIN_SLUG/.phpunit.result.cache"|"$PLUGIN_SLUG/.phpunit.cache/"*|"$PLUGIN_SLUG/infection.json"|"$PLUGIN_SLUG/infection.json."* \
-                |"$PLUGIN_SLUG/eslint.config."*|"$PLUGIN_SLUG/stylelint.config."*|"$PLUGIN_SLUG/tsconfig.json"|"$PLUGIN_SLUG/playwright.config."* \
+                |"$PLUGIN_SLUG/eslint.config."*|"$PLUGIN_SLUG/stylelint.config."*|"$PLUGIN_SLUG/tsconfig.json"|"$PLUGIN_SLUG/playwright.config."*|"$PLUGIN_SLUG/postcss.config."* \
                 |"$PLUGIN_SLUG/scoper.inc.php"|"$PLUGIN_SLUG/.wp-env"*)
                 echo "::error::Archive must not contain $entry."
                 status=1

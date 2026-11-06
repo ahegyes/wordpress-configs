@@ -1,13 +1,13 @@
 # Shared PHPStan profile: every consumer's phpstan.dist.neon extends this, so edits here reach every consumer project.
 includes:
-    - phpstan.base.dist.neon
+	- phpstan.base.dist.neon
 
 parameters:
-    WPCompat:
-        requiresAtLeast: '7.1'
+	WPCompat:
+		requiresAtLeast: '7.1'
 
 services:
-    -
-        class: DeepWebSolutions\Config\PHPStan\GlobalTagVisitor
-        tags:
-            - phpstan.parser.richParserNodeVisitor
+	-
+		class: DeepWebSolutions\Config\PHPStan\GlobalTagVisitor
+		tags:
+			- phpstan.parser.richParserNodeVisitor

@@ -6,14 +6,20 @@
 import wordpress from '@wordpress/eslint-plugin';
 
 export default [
+	// ESLint discovers only .js, .mjs and .cjs files on its own, and the recommended config names the TypeScript ones.
+	{ files: [ '**/*.jsx' ] },
 	...wordpress.configs.recommended,
 	...wordpress.configs[ 'test-unit' ].map( ( config ) => ( {
 		...config,
-		files: [ '**/test/**', '**/*.test.{js,jsx,ts,tsx,mjs,cjs,mts,cts}' ],
+		files: [
+			'**/@(test|__tests__)/**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}',
+			'**/*.@(test|spec).{js,jsx,ts,tsx,mjs,cjs,mts,cts}',
+		],
+		ignores: [ 'tests/EndToEnd/**' ],
 	} ) ),
 	...wordpress.configs[ 'test-playwright' ].map( ( config ) => ( {
 		...config,
-		files: [ 'tests/e2e/**' ],
+		files: [ 'tests/EndToEnd/**' ],
 	} ) ),
 	{
 		rules: {
@@ -23,6 +29,7 @@ export default [
 	{
 		ignores: [
 			'vendor/**',
+			'vendor-prefixed/**',
 			'node_modules/**',
 			'**/build/**',
 			'**/*.min.js',

@@ -12,6 +12,6 @@ module.exports = ( { port } ) => {
 
 	return {
 		...wpBaseConfig,
-		testDir: 'tests/e2e',
+		testDir: 'tests/EndToEnd',
 	};
 };

@@ -1,6 +1,14 @@
 tests/.cache
 /php/release/vendor/
 
+# Secret material is never tracked, so these match at any depth as a backstop against an accidental git add.
+.env*
+*.pem
+*.key
+id_rsa*
+.npmrc
+auth.json
+
 # Created by https://www.toptal.com/developers/gitignore/api/node,yarn,linux,macos,windows,composer,sublimetext,phpstorm+all,visualstudiocode,phpunit
 # Edit at https://www.toptal.com/developers/gitignore?templates=node,yarn,linux,macos,windows,composer,sublimetext,phpstorm+all,visualstudiocode,phpunit
 

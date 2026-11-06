@@ -222,14 +222,13 @@ A recipe returns php-scoper settings for one package, with paths relative to it:
 
 ## Node baselines
 
-`node/` holds one baseline per tool, which a project extends and overrides. The package declares the tools behind them as `>=` peer dependencies, floored at the versions it is tested against: `@wordpress/scripts`, `@wordpress/eslint-plugin`, `@wordpress/stylelint-config`, `@wordpress/postcss-plugins-preset`, `@playwright/test` and `typescript`, whose defaults `node/tsconfig.base.json` builds on.
+`node/` holds one baseline per tool, which a project extends and overrides. The package declares the tools behind them as `>=` peer dependencies, floored at the versions it is tested against: `@wordpress/scripts`, `@wordpress/eslint-plugin`, `@wordpress/stylelint-config`, `@playwright/test` and `typescript`, whose defaults `node/tsconfig.base.json` builds on. `typescript` stays below 7, because typescript-eslint, which the ESLint base loads, refuses TypeScript 7.
 
 | Baseline | Holds |
 | --- | --- |
 | `node/tsconfig.base.json` | The deltas from TypeScript's defaults: `react-jsx`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `isolatedModules`, `resolveJsonModule`, `skipLibCheck` and `noEmit` |
 | `node/eslint.config.base.mjs` | `@wordpress/eslint-plugin`'s recommended flat config, with its unit-test and Playwright presets scoped to test globs |
-| `node/stylelint.config.base.js` | `@wordpress/stylelint-config/scss` with generated trees ignored, `selector-class-pattern` off, and reports on needless, descriptionless and invalid-scope disable comments |
-| `node/postcss.config.base.js` | `@wordpress/postcss-plugins-preset` plus the production minifier `@wordpress/scripts` uses when a project has no PostCSS config |
+| `node/stylelint.config.base.js` | `@wordpress/stylelint-config/scss-stylistic`, WordPress's SCSS and formatting rules, with generated trees ignored, `selector-class-pattern` off, and reports on needless, descriptionless and invalid-scope disable comments |
 | `node/playwright.config.base.js` | A factory over the `@wordpress/scripts` Playwright config, taking the project's wp-env `port` |
 
 TypeScript extends the base by path:
@@ -257,12 +256,6 @@ const baseConfig = require( '@ahegyes/wordpress-configs/node/stylelint.config.ba
 module.exports = { ...baseConfig, rules: { ...baseConfig.rules } };
 ```
 
-PostCSS re-exports the base; a project that needs another plugin appends it to the chain and keeps the minifier:
-
-```js
-module.exports = require( '@ahegyes/wordpress-configs/node/postcss.config.base.js' );
-```
-
 Playwright calls the factory with the port the wp-env config serves on (8888 when it sets none) and spreads nested keys individually, or the top-level spread drops the WordPress defaults:
 
 ```js
@@ -272,7 +265,7 @@ const baseConfig = require( '@ahegyes/wordpress-configs/node/playwright.config.b
 module.exports = defineConfig( { ...baseConfig, use: { ...baseConfig.use } } );
 ```
 
-The Playwright factory sets `testDir` to `tests/e2e/` and artifacts under `tests/.cache/artifacts/`, and returns the `@wordpress/scripts` `webServer` on the given port, which runs `npm run wp-env start`. It sets `WP_BASE_URL` and `WP_ARTIFACTS_PATH` only when they are unset, before loading the `@wordpress/scripts` config, which reads them once, so an exported value wins over `port` and a second call in the same process reuses the first configuration; a project that starts wp-env through its own script spreads `webServer` and sets `command`. For WordPress fixtures, import from `@wordpress/e2e-test-utils-playwright`; for accessibility scans, add `@axe-core/playwright` to the project's own devDependencies.
+The Playwright factory sets `testDir` to `tests/EndToEnd/` and artifacts under `tests/.cache/artifacts/`, and returns the `@wordpress/scripts` `webServer` on the given port, which runs `npm run wp-env start`. It sets `WP_BASE_URL` and `WP_ARTIFACTS_PATH` only when they are unset, before loading the `@wordpress/scripts` config, which reads them once, so an exported value wins over `port` and a second call in the same process reuses the first configuration; a project that starts wp-env through its own script spreads `webServer` and sets `command`. For WordPress fixtures, import from `@wordpress/e2e-test-utils-playwright`; for accessibility scans, add `@axe-core/playwright` to the project's own devDependencies.
 
 ## Reusable workflows
 
@@ -296,9 +289,9 @@ The Playwright factory sets `testDir` to `tests/e2e/` and artifacts under `tests
 
 ## Distribution and editor files
 
-`.distignore` is the baseline of `wp dist-archive` exclusions: copy it to the project root and extend it with project-specific source paths. `reusable-release.yml` requires the file. It excludes tests, package-manager manifests, CI and IDE files, development configs such as every `phpcs*.xml*` ruleset, and secret material (`.env*`, root-anchored `*.pem`, `*.key`, `id_rsa*`, `.npmrc`, `auth.json`).
+`.distignore` is the baseline of `wp dist-archive` exclusions: copy it to the project root and extend it with project-specific source paths. `reusable-release.yml` requires the file. It excludes tests, package-manager manifests, CI and IDE files, the agent, contributing and security documents, development configs such as every `phpcs*.xml*` ruleset, and secret material (`.env*`, root-anchored `*.pem`, `*.key`, `id_rsa*`, `.npmrc`, `auth.json`).
 
-`.editorconfig` follows WordPress core: tabs by default, two spaces for YAML and JSON, trailing whitespace kept in Markdown, and CRLF line endings for `*.txt`.
+`.editorconfig` is WordPress core's with three changes: a tab is four columns wide, as PHPCS and Prettier measure it, every YAML extension indents with two spaces, and `*.txt` files keep LF line endings. Every other file, JSON and NEON included, indents with tabs, and Markdown keeps its trailing whitespace.
 
 ## Development
 
@@ -314,7 +307,7 @@ Run the unit suite:
 composer test
 ```
 
-Run the PHP lint and the unit suite together:
+Validate the manifest and run the PHP lint and the unit suite together:
 
 ```sh
 composer quality-check
