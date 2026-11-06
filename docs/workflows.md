@@ -222,7 +222,7 @@ The workflow runs five jobs:
 
 The `release` and `wp-org` jobs install no Composer or npm dependencies, run no tests and check nothing out; the deploy action installs Subversion when the runner lacks it. Pinning the workflow by commit SHA keeps a changed privileged job from reaching a consumer without a reviewed pin bump.
 
-`publish: false` skips `release` and `wp-org` and runs `build` and `test` on any branch or version tag, which exercises the release path without a tag. A dry run started with `workflow_dispatch`, such as one on trunk after CI passes, also runs `provenance`; a dry run on a pull request or a push skips it, because a pull request's merge commit has no push runs and a push would race the runs it looks up. Releases of one plugin run one at a time, while each ref's dry runs queue apart from them, because a concurrency group holds one pending run and cancels an older one, so a dry run in the releases' group would cancel a pending release.
+`publish: false` skips `release` and `wp-org` and runs `build` and `test` on any branch or version tag, which exercises the release path without a tag. A dry run started with `workflow_dispatch`, such as one on trunk after CI passes, also runs `provenance`; a dry run on a pull request or a push skips it, because a pull request's merge commit has no push runs and a push would race the runs it looks up. Releases of one plugin run one at a time, while each ref's dry runs queue apart from them, because a concurrency group holds one pending run and cancels an older one, so a dry run in the releases' group would cancel a pending release. A tag pushed while an older one's release is still pending cancels that release, which is then re-run from its tag's run.
 
 The `build` job fails when:
 
@@ -242,7 +242,7 @@ A strict `>` lower bound in a package's PHP constraint is read as inclusive. The
 
 A prerelease tag publishes a GitHub prerelease, which GitHub's latest release skips, so only sites on a prerelease update channel are offered it. It never deploys to wp.org, which offers sites only the `Stable tag:` of `readme.txt`, so that header keeps naming the last stable release.
 
-The artifact test needs the wp-env config to map `wp-content/plugins/<plugin-slug>` to the plugin source: it remaps exactly that `mappings` key at the built zip, so co-mounted plugins, the port and lifecycle scripts survive the per-key merge, and pins the environment to the latest stable WordPress core.
+The artifact test needs the wp-env config to map `wp-content/plugins/<plugin-slug>` to the plugin source: it remaps exactly that `mappings` key at the built zip and pins the latest stable WordPress core, at the root and in the development and tests environments, through the config's override file, merged into any override the project keeps, so co-mounted plugins, the port and lifecycle scripts survive. It requests the site on the development port the config and its override set.
 
 `plugin-check` runs the GitHub profile, which skips `plugin_updater` and `plugin_readme` as `reusable-plugin-check.yml` does, unless `wp-org` is on, and `exclude-checks` skips further checks as that workflow's input does; a malformed list fails the build before anything installs.
 

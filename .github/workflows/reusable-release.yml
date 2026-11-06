@@ -639,9 +639,11 @@ jobs:
             echo "::error::Release contract violation — $config must exist and map \"$key\" to the plugin source; found mappings: $(jq -c '.mappings // {}' "$config" 2> /dev/null || echo 'none')."
             exit 1
           fi
-          # wp-env layers env-scoped mappings over root, so cover root plus development and tests — otherwise a consumer's env.tests mapping shadows the built artifact and the E2E runs against source.
+          # wp-env layers env-scoped settings over root, so the redirect and the latest core cover root plus development and tests, or an env-scoped mapping or core pin would run the E2E against source.
           override="${config%.json}.override.json"
-          jq -n --arg key "$key" --arg built "$BUILT_PATH" '{core: null, mappings: {($key): $built}, env: {development: {mappings: {($key): $built}}, tests: {mappings: {($key): $built}}}}' > "$override"
+          [ -f "$override" ] || echo '{}' > "$override"
+          jq --arg key "$key" --arg built "$BUILT_PATH" '. * ({core: null, mappings: {($key): $built}} | . + {env: {development: ., tests: .}})' "$override" > "$override.tmp"
+          mv "$override.tmp" "$override"
           echo "Generated $override:"
           cat "$override"
 
@@ -685,9 +687,13 @@ jobs:
       - name: Assert the site serves
         working-directory: ${{ inputs.project-path }}
         run: |
-          # A boot-path fatal that survives activation surfaces on the next request. The consumer's
-          # config governs the development port — the override file never touches it.
-          port=$(jq -r '.env.development.port // .port // 8888' "${WP_ENV_CONFIG_FILE:-.wp-env.json}")
+          # A boot-path fatal that survives activation surfaces on the next request.
+          config="${WP_ENV_CONFIG_FILE:-.wp-env.json}"
+          files=("$config")
+          if [ -f "${config%.json}.override.json" ]; then
+            files+=("${config%.json}.override.json")
+          fi
+          port=$(jq -s 'reduce .[] as $file ({}; . * $file) | .env.development.port // .port // 8888' "${files[@]}")
           curl --fail --silent --show-error --output /dev/null "http://localhost:${port}/"
 
       - name: Run E2E tests against built artifact
