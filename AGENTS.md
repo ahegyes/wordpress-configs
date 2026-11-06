@@ -21,7 +21,7 @@ wordpress-configs/
 │   └── fixtures/               # projects and captured tool output the tests use
 ├── phpcs.dist.xml              # self-lint: the production profile minus WordPress-runtime sniffs
 ├── phpcs.tests.dist.xml        # self-lint for tests/
-├── phpstan.dist.neon           # self-lint: the shared profile over php/ and tests/
+├── phpstan.dist.neon           # self-lint: the shared profile over php/
 └── .github/workflows/          # 11 reusable workflows and 4 self-CI workflows (codeql, quality, tests, workflow-checks)
 ```
 

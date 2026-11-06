@@ -8,9 +8,9 @@
 		]
 	},
 	"logs": {
-		"text": "build/infection/infection.log",
-		"html": "build/infection/infection.html",
-		"summary": "build/infection/summary.log"
+		"text": "tests/.cache/infection/infection.log",
+		"html": "tests/.cache/infection/infection.html",
+		"summary": "tests/.cache/infection/summary.log"
 	},
 	"timeout": 60,
 	"testFrameworkOptions": "--exclude-group=slow",
