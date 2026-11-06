@@ -47,8 +47,12 @@
     "psr/log": "^3",
     "symfony/yaml": "^8.1"
   },
+  "conflict": {
+    "humbug/php-scoper": "<0.18 || >=0.19"
+  },
   "suggest": {
-    "humbug/php-scoper": "Required for the dependency-scoping pipeline (ScopePhpDependencies + the scoper-base config)."
+    "humbug/php-scoper": "Required for the dependency-scoping pipeline (ScopePhpDependencies + the scoper-base config).",
+    "jetbrains/phpstorm-stubs": "The dependency-scoping pipeline reads PHP's own symbols from it, and humbug/php-scoper installs it."
   },
 
   "minimum-stability": "dev",
@@ -110,7 +114,6 @@
 
   "config": {
     "allow-plugins": {
-      "composer/*": true,
       "dealerdirect/phpcodesniffer-composer-installer": true,
       "infection/extension-installer": true,
       "phpstan/extension-installer": true

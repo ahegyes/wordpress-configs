@@ -132,7 +132,7 @@ The package installs `phpstan-deprecation-rules`, `phpstan-strict-rules`, `szepe
 
 `php/php-scoper/scoper-base.inc.php` and `php/composer/ScopePhpDependencies.php` prefix the packages a WordPress plugin bundles with the plugin's own namespace, so plugins that bundle different versions of the same library run side by side.
 
-Require php-scoper in the plugin itself, because Composer does not install this package's development requirements:
+Require php-scoper in the plugin itself, because Composer does not install this package's development requirements. This package conflicts with any php-scoper outside 0.18, whose behavior the pipeline relies on:
 
 ```json
 {
