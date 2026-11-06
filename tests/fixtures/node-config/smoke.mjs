@@ -1,11 +1,11 @@
 /**
- * Load-smokes the five shared Node baselines against the installed toolchain —
+ * Load-smokes the four shared Node baselines against the installed toolchain —
  * the only behavioral check these exports get before a consumer's CI does.
  * Run from the repo root (`npm run lint:config`).
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -184,39 +184,6 @@ probes.push( [
 			if ( ! results[ 0 ]?.ignored ) {
 				throw new Error( `${ path } is linted` );
 			}
-		}
-	},
-] );
-
-probes.push( [
-	'postcss.config.base.js',
-	async () => {
-		const factory = require( resolve( 'node/postcss.config.base.js' ) );
-		const postcss = createRequire(
-			require.resolve( '@wordpress/scripts/package.json' )
-		)( 'postcss' );
-		const css = readFileSync(
-			'tests/fixtures/node-config/probe.css',
-			'utf8'
-		);
-		const transform = async ( env ) =>
-			(
-				await postcss( factory( { env } ).plugins ).process( css, {
-					from: undefined,
-				} )
-			).css;
-
-		const production = await transform( 'production' );
-		if ( production.includes( '/*' ) || production.includes( '\n' ) ) {
-			throw new Error(
-				`production CSS is not minified: ${ production }`
-			);
-		}
-		const development = await transform( 'development' );
-		if ( ! development.includes( '/*' ) ) {
-			throw new Error(
-				`development CSS lost its comment: ${ development }`
-			);
 		}
 	},
 ] );

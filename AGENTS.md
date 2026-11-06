@@ -12,7 +12,7 @@ wordpress-configs/
 │   ├── composer/               # ScopePhpDependencies, ScopedPackages, GlobalSymbols, Manifest and their AST visitors
 │   ├── phpstan/                # GlobalTagVisitor, which the PHPStan profile registers
 │   └── release/                # the manifest and lock of the WP-CLI commands reusable-release.yml installs, which Dependabot keeps current
-├── node/                       # tsconfig, ESLint, Stylelint, PostCSS and Playwright baselines
+├── node/                       # tsconfig, ESLint, Stylelint and Playwright baselines
 │   └── block-json/             # the manifest and lock of the ajv-cli reusable-block-json-check.yml installs, which the npm package leaves out
 ├── docs/                       # workflows.md (input reference) and scripts-contract.md (scripts, files, floors)
 ├── tests/
@@ -31,7 +31,7 @@ wordpress-configs/
 composer install
 composer quality-check          # PHPCS (both profiles), PHPStan, unit tests
 composer test:unit:mutation     # opt-in Infection run, no floor
-npm run lint:scripts            # ESLint over node/ and the smoke harness
+npm run lint:scripts            # ESLint over node/, the smoke harness and eslint.config.mjs
 npm run lint:config             # load-smokes every Node baseline
 actionlint
 zizmor --config .github/zizmor.yml .github/

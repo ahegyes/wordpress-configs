@@ -222,14 +222,13 @@ A recipe returns php-scoper settings for one package, with paths relative to it:
 
 ## Node baselines
 
-`node/` holds one baseline per tool, which a project extends and overrides. The package declares the tools behind them as `>=` peer dependencies, floored at the versions it is tested against: `@wordpress/scripts`, `@wordpress/eslint-plugin`, `@wordpress/stylelint-config`, `@wordpress/postcss-plugins-preset`, `@playwright/test` and `typescript`, whose defaults `node/tsconfig.base.json` builds on.
+`node/` holds one baseline per tool, which a project extends and overrides. The package declares the tools behind them as `>=` peer dependencies, floored at the versions it is tested against: `@wordpress/scripts`, `@wordpress/eslint-plugin`, `@wordpress/stylelint-config`, `@playwright/test` and `typescript`, whose defaults `node/tsconfig.base.json` builds on.
 
 | Baseline | Holds |
 | --- | --- |
 | `node/tsconfig.base.json` | The deltas from TypeScript's defaults: `react-jsx`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `isolatedModules`, `resolveJsonModule`, `skipLibCheck` and `noEmit` |
 | `node/eslint.config.base.mjs` | `@wordpress/eslint-plugin`'s recommended flat config, with its unit-test and Playwright presets scoped to test globs |
 | `node/stylelint.config.base.js` | `@wordpress/stylelint-config/scss-stylistic`, WordPress's SCSS and formatting rules, with generated trees ignored, `selector-class-pattern` off, and reports on needless, descriptionless and invalid-scope disable comments |
-| `node/postcss.config.base.js` | `@wordpress/postcss-plugins-preset` plus the production minifier `@wordpress/scripts` uses when a project has no PostCSS config |
 | `node/playwright.config.base.js` | A factory over the `@wordpress/scripts` Playwright config, taking the project's wp-env `port` |
 
 TypeScript extends the base by path:
@@ -255,12 +254,6 @@ Stylelint spreads the base and its rules, because Stylelint ignores the `ignoreF
 const baseConfig = require( '@ahegyes/wordpress-configs/node/stylelint.config.base.js' );
 
 module.exports = { ...baseConfig, rules: { ...baseConfig.rules } };
-```
-
-PostCSS re-exports the base; a project that needs another plugin appends it to the chain and keeps the minifier:
-
-```js
-module.exports = require( '@ahegyes/wordpress-configs/node/postcss.config.base.js' );
 ```
 
 Playwright calls the factory with the port the wp-env config serves on (8888 when it sets none) and spreads nested keys individually, or the top-level spread drops the WordPress defaults:
