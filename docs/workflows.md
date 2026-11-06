@@ -327,7 +327,11 @@ jobs:
 
 ## Workflow checks — `reusable-workflow-checks.yml`
 
-Runs actionlint over the workflow files and zizmor over the repository. With GitHub Advanced Security, zizmor uploads SARIF to the Security tab and a finding-count gate fails the job; without it, zizmor runs in native mode and fails the job itself. Both modes fail on any finding. The workflow takes no inputs.
+Runs a pinned actionlint over the workflow files in `.github/workflows/` and zizmor over the repository, whose every workflow, at any depth, it audits. With GitHub Advanced Security, zizmor uploads SARIF to the Security tab and a finding-count gate fails the job; without it, zizmor runs in native mode and fails the job itself. Both modes fail on any finding.
+
+| Input | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `extra-workflows` | `string` | No | `'[]'` | JSON array of glob patterns naming workflow files outside `.github/workflows/` that actionlint lints beside it, such as `'["plugins/*/.github/workflows/*.yml"]'`. A pattern holds no comma. |
 
 The caller grants `actions: read`, `contents: read` and `security-events: write`.
 
