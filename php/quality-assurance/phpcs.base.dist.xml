@@ -44,15 +44,15 @@
 	<config name="minimum_wp_version" value="7.1"/>
 
 	<!-- Sub-rule property customisations. -->
-	<!-- Allow additional word delimiters for hook names. -->
 	<rule ref="WordPress.NamingConventions.ValidHookName">
+		<!-- Allow additional word delimiters for hook names. -->
 		<properties>
 			<property name="additionalWordDelimiters" value="/"/>
 		</properties>
 	</rule>
 
-	<!-- Ignore missing tags if @inheritDoc is present. -->
 	<rule ref="Squiz.Commenting.FunctionComment">
+		<!-- Ignore missing tags if @inheritDoc is present. -->
 		<properties>
 			<property name="skipIfInheritdoc" value="true" />
 		</properties>
@@ -60,14 +60,14 @@
 		<exclude name="Squiz.Commenting.FunctionComment.IncorrectTypeHint"/>
 	</rule>
 
-	<!-- Silence-is-golden index.php stubs open with a // comment, which this sniff reads as a misstyled file comment. -->
 	<rule ref="Squiz.Commenting.FileComment.WrongStyle">
+		<!-- Silence-is-golden index.php stubs open with a // comment, which this sniff reads as a misstyled file comment. -->
 		<exclude-pattern>(?-i)*/index\.php</exclude-pattern>
 	</rule>
 
 	<!-- Disabled rules. -->
-	<!-- Squiz miscounts @throws against implicit throws (e.g. `JSON_THROW_ON_ERROR`); WordPress-Docs adds the sniff before WordPress, so an exclude there would not reach it. -->
 	<rule ref="Squiz.Commenting.FunctionCommentThrowTag.WrongNumber">
+		<!-- Squiz miscounts @throws against implicit throws (e.g. `JSON_THROW_ON_ERROR`); WordPress-Docs adds the sniff before WordPress, so an exclude there would not reach it. -->
 		<severity>0</severity>
 	</rule>
 </ruleset>
