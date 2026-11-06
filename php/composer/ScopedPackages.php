@@ -16,7 +16,7 @@ final class ScopedPackages {
 	 * @param   string       $vendor_dir The project's Composer vendor directory.
 	 * @param   list<string> $names      The packages to scope, as names or fnmatch() patterns, where a name that starts with ! drops the packages it matches.
 	 *
-	 * @throws  \RuntimeException Thrown when no name is given, installed.json is unreadable, a name matches no installed package, a dependency is not installed, or a scoped package is a symbolic link.
+	 * @throws  \RuntimeException Thrown when no name is given, installed.json or installed.php is unreadable, a name matches no installed package, a dependency is not installed, or a scoped package is a symbolic link.
 	 *
 	 * @return  array{scoped: array<string, string>, dropped: array<string, string>}
 	 */
@@ -27,14 +27,16 @@ final class ScopedPackages {
 
 		$installed = self::installed( $vendor_dir );
 		$replacers = array();
-		$provided  = array();
 		foreach ( $installed as $name => $package ) {
 			foreach ( \array_keys( (array) ( $package['replace'] ?? array() ) ) as $replaced ) {
 				$replacers[ (string) $replaced ][] = $name;
 			}
-			foreach ( \array_keys( (array) ( $package['provide'] ?? array() ) ) as $virtual ) {
-				$provided[ (string) $virtual ] = true;
-			}
+		}
+		// Composer records every name a package or the root replaces or provides, so a requirement no installed package fills is met when it is recorded there.
+		$versions_file = $vendor_dir . '/composer/installed.php';
+		$versions      = \is_file( $versions_file ) ? ( static fn (): mixed => require $versions_file )() : null;
+		if ( ! \is_array( $versions ) || ! \is_array( $versions['versions'] ?? null ) ) {
+			throw new \RuntimeException( "Could not read '$versions_file'. Install the project's dependencies first." );
 		}
 
 		$included = array();
@@ -68,8 +70,7 @@ final class ScopedPackages {
 					continue;
 				}
 				$candidates = isset( $installed[ $required ] ) ? array( $required ) : \array_diff( $replacers[ $required ] ?? array(), $dropped );
-				// A requirement another package only provides is a virtual package, such as an interface implementation the project picks itself.
-				if ( array() === $candidates && ! isset( $provided[ $required ] ) && ! isset( $replacers[ $required ] ) ) {
+				if ( array() === $candidates && ! isset( $versions['versions'][ $required ] ) ) {
 					throw new \RuntimeException( "'$name' requires '$required', which is not installed in '$vendor_dir'." );
 				}
 				\array_push( $queue, ...$candidates );
