@@ -11,11 +11,12 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const require = createRequire( import.meta.url );
-// Consumers lint through `wp-scripts lint-js`, which runs the ESLint @wordpress/scripts depends on; a
+// Consumers lint through `wp-scripts`, which runs the ESLint and Stylelint @wordpress/scripts depends on; a
 // bare `eslint` import resolves the older copy npm hoists for the ESLint plugins' peer ranges.
-const { ESLint } = createRequire(
+const scriptsRequire = createRequire(
 	require.resolve( '@wordpress/scripts/package.json' )
-)( 'eslint' );
+);
+const { ESLint } = scriptsRequire( 'eslint' );
 const probes = [];
 
 probes.push( [
@@ -41,8 +42,9 @@ probes.push( [
 			'tests/fixtures/node-config/probe.tsx',
 			'tests/fixtures/node-config/probe.mts',
 			'tests/fixtures/node-config/probe.cts',
+			'tests/fixtures/node-config/probe.jsx', // the .jsx files entry
 			'tests/fixtures/node-config/probe.test.js', // test-unit files glob
-			'tests/e2e/probe.js', // test-playwright files glob
+			'tests/EndToEnd/probe.js', // test-playwright files glob
 		];
 		for ( const probePath of scopedProbePaths ) {
 			await eslint.lintText( 'const probe = 42;\n', {
@@ -73,6 +75,25 @@ probes.push( [
 				);
 			}
 		}
+		for ( const path of [
+			'tests/fixtures/node-config/probe.jsx',
+			'tests/fixtures/node-config/probe.spec.ts',
+			'tests/fixtures/node-config/__tests__/probe.ts',
+			'tests/fixtures/node-config/test/probe.ts',
+		] ) {
+			const config = await eslint.calculateConfigForFile(
+				resolve( path )
+			);
+			if ( ! config ) {
+				throw new Error( `${ path } is not linted` );
+			}
+			if (
+				! path.endsWith( '.jsx' ) &&
+				! config.rules?.[ 'vitest/expect-expect' ]
+			) {
+				throw new Error( `${ path } does not get the test-unit rules` );
+			}
+		}
 		for ( const name of [ 'probe.test.js.snap', 'probe.test.json' ] ) {
 			const config = await eslint.calculateConfigForFile(
 				resolve( `tests/fixtures/node-config/${ name }` )
@@ -82,19 +103,29 @@ probes.push( [
 			}
 		}
 
-		const e2e = await eslint.calculateConfigForFile(
-			resolve( 'tests/e2e/probe.js' )
-		);
-		if (
-			! Object.keys( e2e?.rules ?? {} ).some( ( rule ) =>
-				rule.startsWith( 'playwright/' )
-			)
-		) {
-			throw new Error(
-				'tests/e2e/probe.js does not get the Playwright rules'
-			);
+		// A Playwright spec matches the test-unit suffixes too, so only its folder keeps the unit-test rules away.
+		for ( const path of [
+			'tests/EndToEnd/probe.js',
+			'tests/EndToEnd/probe.spec.ts',
+		] ) {
+			const e2e = await eslint.calculateConfigForFile( resolve( path ) );
+			const rules = Object.keys( e2e?.rules ?? {} );
+			if (
+				! rules.some( ( rule ) => rule.startsWith( 'playwright/' ) )
+			) {
+				throw new Error(
+					`${ path } does not get the Playwright rules`
+				);
+			}
+			if ( rules.some( ( rule ) => rule.startsWith( 'vitest/' ) ) ) {
+				throw new Error( `${ path } gets the test-unit rules` );
+			}
 		}
-		for ( const path of [ 'build/x.js', 'vendor/x.js' ] ) {
+		for ( const path of [
+			'build/x.js',
+			'vendor/x.js',
+			'vendor-prefixed/x.js',
+		] ) {
 			if ( ! ( await eslint.isPathIgnored( resolve( path ) ) ) ) {
 				throw new Error( `${ path } is linted` );
 			}
@@ -104,7 +135,7 @@ probes.push( [
 
 probes.push( [
 	'stylelint.config.base.js',
-	() => {
+	async () => {
 		const config = JSON.parse(
 			execFileSync(
 				'./node_modules/.bin/stylelint',
@@ -131,6 +162,28 @@ probes.push( [
 		}
 		if ( ! config.rules[ 'font-weight-notation' ] ) {
 			throw new Error( '@wordpress/stylelint-config is not extended' );
+		}
+		if ( ! config.rules[ '@stylistic/indentation' ] ) {
+			throw new Error( 'the stylistic SCSS preset is not extended' );
+		}
+
+		// A consumer spreads the base into its root config, which reads ignoreFiles from the project root.
+		const { default: stylelint } = await import(
+			pathToFileURL( scriptsRequire.resolve( 'stylelint' ) )
+		);
+		for ( const path of [
+			'build/x.css',
+			'vendor/x.css',
+			'vendor-prefixed/x.css',
+		] ) {
+			const { results } = await stylelint.lint( {
+				code: 'a {}\n',
+				codeFilename: resolve( path ),
+				config: require( resolve( 'node/stylelint.config.base.js' ) ),
+			} );
+			if ( ! results[ 0 ]?.ignored ) {
+				throw new Error( `${ path } is linted` );
+			}
 		}
 	},
 ] );
@@ -229,7 +282,7 @@ probes.push( [
 		if ( ! config.outputDir.startsWith( 'tests/.cache/artifacts' ) ) {
 			throw new Error( `outputDir is ${ config.outputDir }` );
 		}
-		if ( 'tests/e2e' !== config.testDir ) {
+		if ( 'tests/EndToEnd' !== config.testDir ) {
 			throw new Error( `testDir is ${ config.testDir }` );
 		}
 	},
