@@ -291,7 +291,7 @@ The Playwright factory sets `testDir` to `tests/EndToEnd/` and artifacts under `
 
 `.distignore` is the baseline of `wp dist-archive` exclusions: copy it to the project root and extend it with project-specific source paths. `reusable-release.yml` requires the file. It excludes tests, package-manager manifests, CI and IDE files, the agent, contributing and security documents, development configs such as every `phpcs*.xml*` ruleset, and secret material (`.env*`, root-anchored `*.pem`, `*.key`, `id_rsa*`, `.npmrc`, `auth.json`).
 
-`.editorconfig` follows WordPress core: tabs by default, two spaces for YAML and JSON, trailing whitespace kept in Markdown, and CRLF line endings for `*.txt`.
+`.editorconfig` is WordPress core's with three changes: a tab is four columns wide, as PHPCS and Prettier measure it, every YAML extension indents with two spaces, and `*.txt` files keep LF line endings. Every other file, JSON and NEON included, indents with tabs, and Markdown keeps its trailing whitespace.
 
 ## Development
 
