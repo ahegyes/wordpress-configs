@@ -296,7 +296,7 @@ The Playwright factory sets `testDir` to `tests/e2e/` and artifacts under `tests
 
 ## Distribution and editor files
 
-`.distignore` is the baseline of `wp dist-archive` exclusions: copy it to the project root and extend it with project-specific source paths. `reusable-release.yml` requires the file. It excludes tests, package-manager manifests, CI and IDE files, development configs such as every `phpcs*.xml*` ruleset, and secret material (`.env*`, root-anchored `*.pem` and `*.key`, `id_rsa*`, `.npmrc`, `auth.json`).
+`.distignore` is the baseline of `wp dist-archive` exclusions: copy it to the project root and extend it with project-specific source paths. `reusable-release.yml` requires the file. It excludes tests, package-manager manifests, CI and IDE files, development configs such as every `phpcs*.xml*` ruleset, and secret material (`.env*`, root-anchored `*.pem`, `*.key`, `id_rsa*`, `.npmrc`, `auth.json`).
 
 `.editorconfig` follows WordPress core: tabs by default, two spaces for YAML and JSON, trailing whitespace kept in Markdown, and CRLF line endings for `*.txt`.
 
