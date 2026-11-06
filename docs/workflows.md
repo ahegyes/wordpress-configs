@@ -217,7 +217,7 @@ The workflow runs five jobs:
 - `build` (`contents: read`, no secrets) finds the main plugin file as WordPress does, checks the release metadata, installs Composer and npm dependencies without restoring a dependency cache, installs WP-CLI and its `i18n` and `dist-archive` commands from `php/release/composer.lock` in the plugin's copy of this package, regenerates the POT, prunes to production dependencies, builds the zip, checks its contents, runs Plugin Check, and outputs the version and the zip's SHA-256.
 - `test` (`contents: read`, no secrets) mounts the extracted zip in the project's own wp-env, activates it with `wp plugin activate`, requests the home page, and runs `npm run test:e2e` when the project defines it, after installing Chromium when `@playwright/test` is installed.
 - `provenance` (`actions: read`) requires a successful push run of every file in `required-workflows` on the released commit, so a release reuses the suites proven there; tag a commit once they pass.
-- `release` (`contents: write`) verifies the zip's digest and creates the GitHub release with the zip attached. Its notes are the version's section of `CHANGELOG.md`, which `build` extracts and checks, so a dry run checks the notes the tagged run publishes; without the file, the notes are GitHub's generated notes.
+- `release` (`attestations: write`, `contents: write`, `id-token: write`) verifies the zip's digest, attests its build provenance in a public repository, and creates the GitHub release with the zip attached. Its notes are the version's section of `CHANGELOG.md`, which `build` extracts and checks, so a dry run checks the notes the tagged run publishes; without the file, the notes are GitHub's generated notes.
 - `wp-org` runs only with `wp-org: true`, after `release`, and never for a prerelease. It re-checks that the ref is a stable version tag, then deploys the same zip and the `.wordpress-org` assets to wp.org SVN from the `wp-org-release` environment, the only job that holds the SVN credentials.
 
 The `release` and `wp-org` jobs install no Composer or npm dependencies, run no tests and check nothing out; the deploy action installs Subversion when the runner lacks it. Pinning the workflow by commit SHA keeps a changed privileged job from reaching a consumer without a reviewed pin bump.
@@ -248,7 +248,9 @@ The artifact test needs the wp-env config to map `wp-content/plugins/<plugin-slu
 
 The `wp-org` job reads `SVN_USERNAME` and `SVN_PASSWORD` from the calling repository's `wp-org-release` environment directly, because environment secrets cannot pass through `workflow_call`. Create that environment, store the two secrets there and only there, and attach its deployment-protection rules, such as required reviewers; a preflight step fails the deploy with instructions when they are missing.
 
-The caller grants `actions: read` and `contents: write`. [The scripts contract](scripts-contract.md#release) lists the files and scripts the workflow expects.
+A private or internal repository's release carries no attestation, because GitHub offers attestations there only on Enterprise Cloud. `gh attestation verify <zip> --repo <owner>/<repository>` checks a public release's zip against its attestation.
+
+The caller grants `actions: read`, `attestations: write`, `contents: write` and `id-token: write`. [The scripts contract](scripts-contract.md#release) lists the files and scripts the workflow expects.
 
 ```yaml
 name: Release
@@ -265,7 +267,9 @@ jobs:
   release:
     permissions:
       actions: read
+      attestations: write
       contents: write
+      id-token: write
     uses: ahegyes/wordpress-configs/.github/workflows/reusable-release.yml@<sha>
     with:
       plugin-slug: your-plugin-slug

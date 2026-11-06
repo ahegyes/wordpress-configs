@@ -1,5 +1,5 @@
 name: Release
-# Callers grant `contents: write` and `actions: read`; a caller must grant every permission the called jobs declare, or the call fails at startup.
+# Callers grant `contents: write`, `actions: read`, `id-token: write` and `attestations: write`; a caller must grant every permission the called jobs declare, or the call fails at startup.
 
 on:
   workflow_call:
@@ -754,7 +754,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
+      attestations: write
       contents: write
+      id-token: write
     env:
       PLUGIN_SLUG: ${{ inputs.plugin-slug }}
     steps:
@@ -773,6 +775,13 @@ jobs:
             echo "::error::Zip digest mismatch — expected '$EXPECTED_DIGEST', got '$actual_digest'."
             exit 1
           fi
+
+      # Attestations need GitHub Enterprise Cloud in a private or internal repository, where the step would fail the release.
+      - name: Attest the archive's provenance
+        if: ${{ github.event.repository.visibility == 'public' }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ./dist/${{ inputs.plugin-slug }}.zip
 
       - name: Create the GitHub release
         env:
