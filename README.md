@@ -174,7 +174,7 @@ A name is a package name or an `fnmatch()` pattern, such as `'your-vendor/your-l
 
 A scope run:
 
-- scopes every file of each scoped package into `vendor-prefixed.tmp/` and, once php-scoper succeeds, moves it to `vendor-prefixed/<vendor>/<package>/` in place of the previous build, refusing a `vendor-prefixed/` that is a symbolic link, so a failed run keeps the previous build;
+- scopes every file of each scoped package into `vendor-prefixed.tmp/` and, once php-scoper succeeds, moves it to `vendor-prefixed/<vendor>/<package>/` in place of the previous build, refusing a `vendor-prefixed/` that is a symbolic link, so a run php-scoper fails keeps the previous build;
 - leaves global the WordPress symbols of `sniccowp/php-scoper-wordpress-excludes`, Action Scheduler (`as_*` and `ActionScheduler*`), every symbol of the stubs files the project or a scoped package declares under `extra.scoping-stubs`, and their namespaces;
 - prefixes the strings that start with a scoped package's own namespace, which libraries use to build class names, unless they name a namespace the run leaves global or a symbol in one;
 - applies the recipe of each scoped package that has one in `php/php-scoper/recipes/<vendor>/<package>.inc.php`;

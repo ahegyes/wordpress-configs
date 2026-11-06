@@ -266,6 +266,19 @@ final class ScopePhpDependenciesTest extends TestCase {
 		self::assertSame( array( 'acme/legacy' ), self::package_dirs( $project . '/vendor-prefixed' ) );
 	}
 
+	public function test_a_php_scoper_run_that_dies_leaves_no_partial_build(): void {
+		$project = self::make_project( array( 'acme/commerce' ) );
+		\file_put_contents( $project . '/scoper.inc.php', \str_replace( 'return ( require', '$config = ( require', self::read( $project . '/scoper.inc.php' ) ) . "\$config['patchers'][] = static function ( string \$file_path, string \$prefix, string \$contents ): string {\n\tif ( str_ends_with( \$file_path, 'SettingsSection.php' ) ) {\n\t\texit( 1 );\n\t}\n\n\treturn \$contents;\n};\n\nreturn \$config;\n" );
+
+		try {
+			ScopePhpDependencies::scope( $project );
+			self::fail( 'The scope run did not fail.' );
+		} catch ( \RuntimeException $exception ) {
+			self::assertStringStartsWith( "php-scoper failed:\n", $exception->getMessage() );
+		}
+		self::assertDirectoryDoesNotExist( $project . '/vendor-prefixed.tmp' );
+	}
+
 	public function test_a_failed_scope_run_keeps_the_previous_build(): void {
 		$project = self::make_project( array( 'acme/commerce' ) );
 		ScopePhpDependencies::scope( $project );

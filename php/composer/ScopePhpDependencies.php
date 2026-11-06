@@ -96,6 +96,7 @@ final class ScopePhpDependencies {
 		}
 		$output = \stream_get_contents( $pipes[1] );
 		if ( 0 !== \proc_close( $process ) ) {
+			$filesystem->remove( $scoping_dir ); // php-scoper removes its output when it throws, but not when a fatal error or a signal ends it.
 			throw new \RuntimeException( "php-scoper failed:\n" . $output );
 		}
 
