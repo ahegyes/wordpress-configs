@@ -186,6 +186,8 @@ A scope run:
 
 The run also fails when `extra.scoping-prefix` is missing or empty, when a name matches no installed package, when a scoped package requires one that is not installed, when a declared stubs file is missing, when a scoped file does not parse, when a scoped package declares a text domain and the project declares none, when a declared text domain survives outside a string literal of its own, and when a recipe's target is gone.
 
+A package that reaches a dependency only through a metapackage includes its `files` entries before that dependency's, because the autoloader orders them by each package's direct `require`.
+
 The project or a scoped package declares the stubs files of the host symbols the scoped code calls, each as `./path/to/file.php` relative to its `composer.json`, as `vendor/package` for that package's `<package>.php`, or as `vendor/package:path/to/file.php`:
 
 ```json
