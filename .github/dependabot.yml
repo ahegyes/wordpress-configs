@@ -40,6 +40,10 @@ updates:
     open-pull-requests-limit: 5
     cooldown:
       default-days: 7
+    # The ESLint base loads typescript-eslint, which refuses TypeScript 7.
+    ignore:
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
     groups:
       npm-deps:
         patterns:
@@ -55,6 +59,10 @@ updates:
     open-pull-requests-limit: 5
     cooldown:
       default-days: 7
+    # The ESLint base loads typescript-eslint, which refuses TypeScript 7.
+    ignore:
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
     groups:
       block-json-tools:
         patterns:
