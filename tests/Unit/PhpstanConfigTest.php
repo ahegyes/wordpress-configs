@@ -25,6 +25,7 @@ final class PhpstanConfigTest extends TestCase {
 		foreach ( array( 'src', 'includes', 'blocks', 'vendor-prefixed/acme/library', 'docs' ) as $dir ) {
 			\mkdir( "$project/$dir", 0777, true );
 		}
+
 		foreach ( array( 'functions.php', 'uninstall.php', 'footprint.php' ) as $file ) {
 			\file_put_contents( "$project/$file", "<?php\n" );
 		}

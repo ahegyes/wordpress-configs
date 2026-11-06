@@ -33,6 +33,7 @@ final class Manifest {
 		if ( false === $contents ) {
 			throw new \RuntimeException( "Could not read '$file'." );
 		}
+
 		$decoded = \json_decode( $contents, true, flags: \JSON_THROW_ON_ERROR );
 		return \is_array( $decoded ) ? $decoded : array();
 	}

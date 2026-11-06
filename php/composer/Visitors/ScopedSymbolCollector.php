@@ -87,11 +87,13 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 				} catch ( Error ) {
 					return null; // php-scoper leaves a nowdoc that does not parse as PHP unscoped.
 				}
+
 				// php-scoper parses the code as written, so behind leading whitespace it scopes only code without a namespace, which it puts in the prefix namespace.
 				$first = $statements[0] ?? null;
 				if ( $code !== $node->value && ! ( $first instanceof Node\Stmt\Namespace_ && $this->prefix === $first->name?->toString() ) ) {
 					return null;
 				}
+
 				new NodeTraverser( new NameResolver(), new ParentConnectingVisitor(), $this )->traverse( $statements );
 			} else {
 				$parts = \explode( '::', $node->value, 2 );

@@ -57,12 +57,15 @@ final class GlobalSymbols {
 					$install = InstalledVersions::isInstalled( $parts[0] ) ? InstalledVersions::getInstallPath( $parts[0] ) : null;
 					$path    = \is_null( $install ) ? '' : $install . '/' . ( $parts[1] ?? \basename( $parts[0] ) . '.php' );
 				}
+
 				if ( ! \is_file( $path ) ) {
 					throw new \RuntimeException( \sprintf( "'%s/composer.json' declares the scoping stubs %s, which do not exist.", $dir, \var_export( $entry, true ) ) );
 				}
+
 				$files[] = $path;
 			}
 		}
+
 		foreach ( $dropped_dirs as $dir ) {
 			foreach ( Finder::create()->files()->in( $dir )->exclude( array( 'tests', 'Tests' ) )->name( '*.php' ) as $file ) {
 				$files[] = $file->getPathname();
@@ -87,6 +90,7 @@ final class GlobalSymbols {
 				$namespaces[ \preg_quote( \ltrim( \substr( $symbol, 0, $separator ), '\\' ), '/' ) ] = true;
 			}
 		}
+
 		$symbols['namespaces'] = array() === $namespaces ? array() : array( '/^(?:' . \implode( '|', \array_keys( $namespaces ) ) . ')$/i' );
 		return $symbols;
 	}

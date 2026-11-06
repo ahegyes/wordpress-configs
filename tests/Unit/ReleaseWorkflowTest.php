@@ -79,6 +79,7 @@ final class ReleaseWorkflowTest extends TestCase {
 		if ( ! \is_null( $stable_tag ) ) {
 			$files['readme.txt'] = "=== Acme Plugin ===\nStable tag: $stable_tag\n";
 		}
+
 		$this->write_project( $files );
 
 		$result = $this->run_build_step(
@@ -253,6 +254,7 @@ final class ReleaseWorkflowTest extends TestCase {
 		foreach ( $scoped as $name => $manifest ) {
 			$files[ "vendor-prefixed/$name/composer.json" ] = (string) \json_encode( array( 'name' => $name ) + $manifest );
 		}
+
 		$this->write_project( $files );
 
 		$result = $this->run_build_step( 'Verify the headers cover the shipped packages', array() );
@@ -398,6 +400,7 @@ final class ReleaseWorkflowTest extends TestCase {
 		if ( '' !== $named ) {
 			self::assertMatchesRegularExpression( '/^::error::.*' . \preg_quote( $named, '/' ) . '/m', $result['output'] );
 		}
+
 		if ( \is_file( $this->work_dir . '/gh-arguments' ) ) {
 			$arguments = \file( $this->work_dir . '/gh-arguments', \FILE_IGNORE_NEW_LINES ) ?: array();
 			self::assertContains( 'repos/acme/acme-plugin/actions/runs', $arguments );
@@ -461,6 +464,7 @@ final class ReleaseWorkflowTest extends TestCase {
 		if ( ! \is_null( $changelog ) ) {
 			$this->write_project( array( 'CHANGELOG.md' => $changelog ) );
 		}
+
 		\mkdir( $this->work_dir . '/runner-temp' );
 
 		$result = $this->run_step(
@@ -501,6 +505,7 @@ final class ReleaseWorkflowTest extends TestCase {
 		for ( $i = 0; $i < 2500; $i++ ) {
 			$files[] = \sprintf( 'assets/%s-%04d.txt', \str_repeat( 'a', 40 ), $i );
 		}
+
 		$this->write_archive( $files );
 
 		$result = $this->run_build_step( 'Assert required files present', array( 'WP_ORG' => 'false' ) );
@@ -679,8 +684,10 @@ final class ReleaseWorkflowTest extends TestCase {
 			if ( ! \is_dir( \dirname( "$stage/$file" ) ) ) {
 				\mkdir( \dirname( "$stage/$file" ), 0777, true );
 			}
+
 			\file_put_contents( "$stage/$file", "<?php\n" );
 		}
+
 		// zip -@ reads the entries in the order given, which keeps the first entry first in a large archive.
 		\file_put_contents( $this->work_dir . '/stage/entries', \implode( "\n", \array_map( static fn ( string $file ): string => "acme-plugin/$file", $files ) ) . "\n" );
 		\exec( \sprintf( 'cd %s && zip -q %s -@ < entries', \escapeshellarg( $this->work_dir . '/stage' ), \escapeshellarg( $this->work_dir . '/project/acme-plugin.zip' ) ), $output, $zip_status );

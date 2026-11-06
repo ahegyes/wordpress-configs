@@ -71,6 +71,7 @@ final class GlobalTagVisitor extends NodeVisitorAbstract {
 					}
 				}
 			}
+
 			$this->scopes[] = $types;
 		} elseif ( $node instanceof Node\Stmt\Global_ && \is_null( $node->getDocComment() ) ) {
 			$types = \end( $this->scopes ) ?: array();
@@ -80,6 +81,7 @@ final class GlobalTagVisitor extends NodeVisitorAbstract {
 					$lines[] = " * @var {$types[ $var->name ]} \${$var->name}";
 				}
 			}
+
 			if ( array() !== $lines ) {
 				$node->setDocComment( new Doc( "/**\n" . \implode( "\n", $lines ) . "\n */" ) );
 			}

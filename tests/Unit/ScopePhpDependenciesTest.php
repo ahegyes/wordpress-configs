@@ -244,6 +244,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 			self::assertStringStartsWith( "php-scoper failed:\n", $exception->getMessage() );
 			self::assertStringContainsString( 'extra.text-domain', $exception->getMessage() );
 		}
+
 		self::assertFileExists( $project . '/vendor-prefixed/scoper-autoload.php' );
 	}
 
@@ -276,6 +277,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		} catch ( \RuntimeException $exception ) {
 			self::assertStringStartsWith( "php-scoper failed:\n", $exception->getMessage() );
 		}
+
 		self::assertDirectoryDoesNotExist( $project . '/vendor-prefixed.tmp' );
 	}
 
@@ -291,6 +293,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		} catch ( \RuntimeException $exception ) {
 			self::assertStringContainsString( 'extra.text-domain', $exception->getMessage() );
 		}
+
 		self::assertSame( $autoload, self::read( $project . '/vendor-prefixed/scoper-autoload.php' ) );
 		self::assertContains( 'acme/commerce', self::package_dirs( $project . '/vendor-prefixed' ) );
 	}
@@ -330,6 +333,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 			self::assertStringStartsWith( 'No scoped package declares these prefixed names', $exception->getMessage() );
 			self::assertMatchesRegularExpression( '/\n' . \preg_quote( $name . ' in ', '/' ) . '.+SettingsSection\.php:\d+$/m', $exception->getMessage() );
 		}
+
 		self::assertStringContainsString( "'Acme\\\\Scoped\\\\Acme\\\\Commerce\\\\SettingsSection'", self::read( $project . '/vendor-prefixed/scoper-autoload.php' ) );
 	}
 
@@ -372,6 +376,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		} catch ( \RuntimeException $exception ) {
 			self::assertStringContainsString( "still contains the text domain 'acme-commerce'", $exception->getMessage() );
 		}
+
 		self::assertSame( $autoload, self::read( $project . '/vendor-prefixed/scoper-autoload.php' ) );
 		self::assertSame( $packages, self::package_dirs( $project . '/vendor-prefixed' ) );
 	}
@@ -532,6 +537,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		} catch ( \RuntimeException $exception ) {
 			self::assertStringContainsString( 'extra.scoping-prefix', $exception->getMessage() );
 		}
+
 		self::assertDirectoryDoesNotExist( $project . '/vendor-prefixed' );
 	}
 
@@ -590,6 +596,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		} catch ( \RuntimeException $exception ) {
 			self::assertStringContainsString( 'vendor-prefixed', $exception->getMessage() );
 		}
+
 		self::assertFileExists( $project . '/src/Plugin.php' );
 	}
 
@@ -668,6 +675,7 @@ final class ScopePhpDependenciesTest extends TestCase {
 		if ( 'vendor' !== $vendor ) {
 			$manifest['config'] = array( 'vendor-dir' => $vendor );
 		}
+
 		\file_put_contents( $project . '/composer.json', \json_encode( $manifest, \JSON_THROW_ON_ERROR | \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES ) );
 
 		$locked   = array();
@@ -691,9 +699,11 @@ final class ScopePhpDependenciesTest extends TestCase {
 				$source  = self::VENDOR_DIR . '/' . $name;
 				$package = $locked[ $name ];
 			}
+
 			new Filesystem()->mirror( $source, $project . '/' . $vendor . '/' . $name );
 			$packages[] = array( 'install-path' => '../' . $name ) + $package;
 		}
+
 		self::record_installed_packages( $project . '/' . $vendor, $manifest, $packages );
 		return $project;
 	}

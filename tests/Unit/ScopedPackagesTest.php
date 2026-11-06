@@ -110,6 +110,7 @@ final class ScopedPackagesTest extends TestCase {
 			self::assertIsString( $package['name'] );
 			\mkdir( $this->vendor_dir . '/' . $package['name'], 0777, true );
 		}
+
 		self::record_installed_packages( $this->vendor_dir, array( 'name' => 'acme/project' ) + $root_links, $packages );
 	}
 

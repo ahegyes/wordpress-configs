@@ -40,10 +40,12 @@ final class ScopedPackages {
 		if ( ! \is_file( $installed_file ) ) {
 			throw new \RuntimeException( "Could not read '$installed_file'. Install the project's dependencies first." );
 		}
+
 		$recorded = Manifest::read( $installed_file );
 		if ( ! \is_array( $recorded['packages'] ?? null ) ) {
 			throw new \RuntimeException( "'$installed_file' lists no packages." );
 		}
+
 		$installed = array();
 		$replacers = array();
 		foreach ( $recorded['packages'] as $package ) {
@@ -54,6 +56,7 @@ final class ScopedPackages {
 				}
 			}
 		}
+
 		// Composer records every name a package or the root replaces or provides, so a requirement no installed package fills is met when it is recorded there.
 		$versions_file = $vendor_dir . '/composer/installed.php';
 		$versions      = \is_file( $versions_file ) ? ( static fn (): mixed => require $versions_file )() : null;
@@ -69,6 +72,7 @@ final class ScopedPackages {
 			if ( array() === $matches ) {
 				throw new \RuntimeException( "'$pattern' matches no package installed in '$vendor_dir'." );
 			}
+
 			if ( \str_starts_with( $name, '!' ) ) {
 				\array_push( $dropped, ...$matches );
 			} else {
@@ -84,6 +88,7 @@ final class ScopedPackages {
 			if ( isset( $scoped[ $name ] ) || 'composer-plugin' === ( $package['type'] ?? '' ) ) { // Composer plugins run at build time and never ship.
 				continue;
 			}
+
 			$scoped[ $name ] = $package;
 
 			foreach ( \array_keys( (array) ( $package['require'] ?? array() ) ) as $required ) {
@@ -91,13 +96,16 @@ final class ScopedPackages {
 				if ( ! \str_contains( $required, '/' ) || \in_array( $required, $dropped, true ) ) { // Platform requirements such as php and ext-json carry no vendor.
 					continue;
 				}
+
 				$candidates = isset( $installed[ $required ] ) ? array( $required ) : \array_diff( $replacers[ $required ] ?? array(), $dropped );
 				if ( array() === $candidates && ! isset( $versions['versions'][ $required ] ) ) {
 					throw new \RuntimeException( "'$name' requires '$required', which is not installed in '$vendor_dir'." );
 				}
+
 				\array_push( $queue, ...$candidates );
 			}
 		}
+
 		\ksort( $scoped );
 
 		$directories = array(
@@ -109,6 +117,7 @@ final class ScopedPackages {
 				$directories['scoped'][ $name ] = self::directory( $vendor_dir, $name, $package, true );
 			}
 		}
+
 		foreach ( \array_unique( $dropped ) as $name ) {
 			if ( 'metapackage' !== ( $installed[ $name ]['type'] ?? '' ) ) {
 				$directories['dropped'][ $name ] = self::directory( $vendor_dir, $name, $installed[ $name ], false );

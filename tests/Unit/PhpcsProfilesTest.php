@@ -49,6 +49,7 @@ final class PhpcsProfilesTest extends TestCase {
 			if ( ! \is_dir( \dirname( $this->scan_dir . '/' . $file ) ) ) {
 				\mkdir( \dirname( $this->scan_dir . '/' . $file ), 0777, true );
 			}
+
 			\file_put_contents( $this->scan_dir . '/' . $file, "<?php declare( strict_types=1 );\n\n\$a = [];\n" );
 		}
 

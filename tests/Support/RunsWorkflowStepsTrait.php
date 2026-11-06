@@ -31,6 +31,7 @@ trait RunsWorkflowStepsTrait {
 			if ( ! \is_dir( \dirname( $file ) ) ) {
 				\mkdir( \dirname( $file ), 0777, true );
 			}
+
 			\file_put_contents( $file, $contents );
 		}
 	}
@@ -39,6 +40,7 @@ trait RunsWorkflowStepsTrait {
 		if ( ! \is_dir( \dirname( $this->work_dir . '/' . $path ) ) ) {
 			\mkdir( \dirname( $this->work_dir . '/' . $path ), 0777, true );
 		}
+
 		\file_put_contents( $this->work_dir . '/' . $path, $script );
 		\chmod( $this->work_dir . '/' . $path, 0755 );
 	}
@@ -62,6 +64,7 @@ trait RunsWorkflowStepsTrait {
 				$script = $step['run'] ?? null;
 			}
 		}
+
 		self::assertIsString( $script, "No run step named '$name' in job '$job' of $workflow." );
 
 		$log = $this->work_dir . '/step.log';
@@ -69,6 +72,7 @@ trait RunsWorkflowStepsTrait {
 		foreach ( array( 'github-output', 'github-env', 'github-path' ) as $file ) {
 			\file_put_contents( $this->work_dir . '/' . $file, '' );
 		}
+
 		\file_put_contents( $log, '' );
 		$process = \proc_open(
 			array( 'bash', '-e', $this->work_dir . '/step.sh' ), // GitHub Actions runs a step that names no shell this way, so a script fails here exactly as it fails in CI.

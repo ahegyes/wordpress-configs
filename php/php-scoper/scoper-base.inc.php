@@ -30,6 +30,7 @@ return static function ( string $project_dir, string ...$names ): array {
 	if ( array() === $packages['scoped'] ) {
 		throw new RuntimeException( "No package to scope is installed in '$vendor_dir'." ); // Without finders, php-scoper scopes the whole working directory.
 	}
+
 	$symbols = GlobalSymbols::collect( $project_dir, array_values( $packages['scoped'] ), array_values( $packages['dropped'] ) );
 
 	$exclude_files      = array();
@@ -38,12 +39,13 @@ return static function ( string $project_dir, string ...$names ): array {
 	$roots              = array();
 	$domains            = array();
 	foreach ( $packages['scoped'] as $name => $dir ) {
-		$package  = Manifest::read( "$dir/composer.json" );
-		$domain   = Manifest::extra( $package )['scoping-text-domain'] ?? null;
-		$autoload = isset( $package['autoload'] ) && is_array( $package['autoload'] ) ? $package['autoload'] : array();
+		$package = Manifest::read( "$dir/composer.json" );
+		$domain  = Manifest::extra( $package )['scoping-text-domain'] ?? null;
 		if ( ! is_null( $domain ) ) {
 			$domains[ $dir ] = is_string( $domain ) && '' !== $domain ? $domain : throw new RuntimeException( "'$dir/composer.json' declares an empty extra.scoping-text-domain." );
 		}
+
+		$autoload = isset( $package['autoload'] ) && is_array( $package['autoload'] ) ? $package['autoload'] : array();
 		foreach ( array( 'psr-4', 'psr-0' ) as $standard ) {
 			foreach ( array_keys( (array) ( $autoload[ $standard ] ?? array() ) ) as $namespace ) {
 				if ( str_contains( (string) $namespace, '\\' ) ) {
@@ -56,6 +58,7 @@ return static function ( string $project_dir, string ...$names ): array {
 		if ( ! is_file( $recipe_file ) ) {
 			continue;
 		}
+
 		/**
 		 * A recipe returns php-scoper settings for one package, with paths relative to it.
 		 *
@@ -68,20 +71,25 @@ return static function ( string $project_dir, string ...$names ): array {
 				throw new RuntimeException( "The '$name' recipe targets '$path', which the installed package no longer ships." );
 			}
 		}
+
 		foreach ( $recipe['exclude-files'] ?? array() as $excluded_file ) {
 			$exclude_files[] = "$dir/$excluded_file";
 		}
+
 		array_push( $exclude_namespaces, ...( $recipe['exclude-namespaces'] ?? array() ) );
+
 		foreach ( $recipe['replacements'] ?? array() as $target => $replacements ) {
 			$patchers[] = static function ( string $file_path, string $prefix, string $contents ) use ( $name, $dir, $target, $replacements ): string {
 				if ( "$dir/$target" !== $file_path ) {
 					return $contents;
 				}
+
 				foreach ( $replacements as $search => $replace ) {
 					$search = str_replace( '{prefix}', $prefix, (string) $search );
 					if ( ! str_contains( $contents, $search ) ) {
 						throw new RuntimeException( "The '$name' recipe expects '$search' in '$target', which the installed package no longer contains." );
 					}
+
 					$contents = str_replace( $search, str_replace( '{prefix}', $prefix, $replace ), $contents );
 				}
 
@@ -94,6 +102,7 @@ return static function ( string $project_dir, string ...$names ): array {
 	if ( array() !== $domains && ( ! is_string( $text_domain ) || '' === $text_domain ) ) {
 		throw new RuntimeException( "'$project_dir/composer.json' declares no extra.text-domain, which the strings of the scoped packages take." );
 	}
+
 	$domains            = array_filter( $domains, static fn ( string $domain ): bool => $text_domain !== $domain );
 	$exclude_namespaces = array( ...$exclude_namespaces, ...$symbols['namespaces'] );
 
@@ -105,6 +114,7 @@ return static function ( string $project_dir, string ...$names ): array {
 			if ( ! str_ends_with( $file_path, '.php' ) ) {
 				return $contents;
 			}
+
 			$scoped = '/^\\\\{0,2}' . $separated( $prefix ) . '\\\\{1,2}/';
 			$tokens = PhpToken::tokenize( $contents );
 			foreach ( $tokens as $index => $token ) {
@@ -112,17 +122,20 @@ return static function ( string $project_dir, string ...$names ): array {
 				if ( ! $starts_string ) {
 					continue;
 				}
+
 				$opening = $token->is( T_CONSTANT_ENCAPSED_STRING ) ? strcspn( $token->text, '\'"' ) + 1 : 0;
 				$body    = substr( $token->text, $opening );
 				if ( 1 === preg_match( $scoped, $body ) || 1 !== preg_match( $own, $body, $match ) ) {
 					continue;
 				}
+
 				// A string that names a namespace php-scoper keeps global, or a symbol in one, names the host's symbol, and a name the string follows with a separator is a namespace.
 				$named     = 1 === preg_match( '/^\\\\{0,2}((?:[\w\x80-\xff]+\\\\{1,2})*[\w\x80-\xff]+)(\\\\?)/', $body, $name_match ) ? (string) preg_replace( '/\\\\{2}/', '\\', $name_match[1] ) : '';
 				$namespace = '' === ( $name_match[2] ?? '' ) ? substr( $named, 0, (int) strrpos( $named, '\\' ) ) : $named;
 				if ( array_any( $exclude_namespaces, static fn ( string $pattern ): bool => 1 === preg_match( $pattern, $named ) || 1 === preg_match( $pattern, $namespace ) ) ) {
 					continue;
 				}
+
 				// Double-quoted strings and heredocs read escape sequences, so a prefix segment such as Vendor\name takes doubled backslashes there.
 				$escapes     = $token->is( T_CONSTANT_ENCAPSED_STRING ) ? str_contains( substr( $token->text, 0, $opening ), '"' ) : ! str_contains( $tokens[ $index - 1 ]->text, "'" );
 				$separator   = $escapes ? '\\\\' : $match[3];

@@ -22,6 +22,7 @@ final class ReleaseToolsTest extends TestCase {
 		foreach ( array( 'wp-cli/wp-cli', 'wp-cli/i18n-command', 'wp-cli/dist-archive-command' ) as $package ) {
 			self::assertContains( $package, $names );
 		}
+
 		self::assertSame( array(), $lock['packages-dev'] ?? null );
 	}
 }

@@ -31,6 +31,7 @@ trait RecordsInstalledPackagesTrait {
 				}
 			}
 		}
+
 		$installed_php = array(
 			'root'     => array(
 				'name' => $root['name'],
