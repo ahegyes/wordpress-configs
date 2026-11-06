@@ -62,7 +62,7 @@ final class GlobalTagVisitor extends NodeVisitorAbstract {
 		if ( $node instanceof Node\FunctionLike ) {
 			$types = array();
 			$doc   = $node->getDocComment()?->getText();
-			if ( null !== $doc ) {
+			if ( ! \is_null( $doc ) ) {
 				// The parser reads @global as an unknown tag, so each one is parsed with @var's grammar of a type and a variable.
 				$tokens = new TokenIterator( $this->lexer->tokenize( (string) \preg_replace( '/@global(?=\s)/', '@var', $doc ) ) );
 				foreach ( $this->parser->parse( $tokens )->getVarTagValues() as $tag ) {
@@ -72,7 +72,7 @@ final class GlobalTagVisitor extends NodeVisitorAbstract {
 				}
 			}
 			$this->scopes[] = $types;
-		} elseif ( $node instanceof Node\Stmt\Global_ && null === $node->getDocComment() ) {
+		} elseif ( $node instanceof Node\Stmt\Global_ && \is_null( $node->getDocComment() ) ) {
 			$types = \end( $this->scopes ) ?: array();
 			$lines = array();
 			foreach ( $node->vars as $var ) {

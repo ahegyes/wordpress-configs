@@ -41,7 +41,7 @@ final class ScopePhpDependencies {
 	 *
 	 * @return  void
 	 */
-	public static function postAutoloadDump( Event $event ): void {
+	public static function postAutoloadDump( Event $event ): void { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.MethodNameInvalid -- Consumer-facing Composer callback name.
 		if ( $event->isDevMode() ) {
 			self::scope( \dirname( Factory::getComposerFile() ) );
 		}
@@ -77,7 +77,18 @@ final class ScopePhpDependencies {
 		}
 
 		// Loading the config parses the declared stubs files, and large ones exceed PHP's default memory limit.
-		$command = array( \PHP_BINARY, '-d', 'memory_limit=1G', ( InstalledVersions::getInstallPath( 'humbug/php-scoper' ) ?? '' ) . '/bin/php-scoper', 'add-prefix', '--working-dir=' . $project_dir, '--config=' . $project_dir . '/scoper.inc.php', '--output-dir=' . $scoping_dir, '--force', '--no-interaction' );
+		$command = array(
+			\PHP_BINARY,
+			'-d',
+			'memory_limit=1G',
+			( InstalledVersions::getInstallPath( 'humbug/php-scoper' ) ?? '' ) . '/bin/php-scoper',
+			'add-prefix',
+			'--working-dir=' . $project_dir,
+			'--config=' . $project_dir . '/scoper.inc.php',
+			'--output-dir=' . $scoping_dir,
+			'--force',
+			'--no-interaction',
+		);
 		// php-scoper's console wraps what it prints at the terminal width, which would split the paths and symbols in a failure message.
 		$process = \proc_open( \implode( ' ', \array_map( 'escapeshellarg', $command ) ) . ' 2>&1', array( 1 => array( 'pipe', 'w' ) ), $pipes, null, array( 'COLUMNS' => '4096' ) + \getenv() ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_proc_open -- Runs in Composer, never on a WordPress server.
 		if ( false === $process ) {

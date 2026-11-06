@@ -58,18 +58,18 @@ final class StubSymbolCollector extends NodeVisitorAbstract {
 			case Node\Stmt\Interface_::class:
 			case Node\Stmt\Trait_::class:
 			case Node\Stmt\Enum_::class:
-				if ( null !== $node->namespacedName ) {
+				if ( ! \is_null( $node->namespacedName ) ) {
 					$this->collect( $this->classes, $node->namespacedName->toString() );
 				}
 				return NodeVisitor::DONT_TRAVERSE_CHILDREN;
 			case Node\Stmt\Function_::class:
-				if ( null !== $node->namespacedName ) {
+				if ( ! \is_null( $node->namespacedName ) ) {
 					$this->collect( $this->functions, $node->namespacedName->toString() );
 				}
 				break;
 			case Node\Stmt\Const_::class:
 				foreach ( $node->consts as $const ) {
-					if ( null !== $const->namespacedName ) {
+					if ( ! \is_null( $const->namespacedName ) ) {
 						$this->collect( $this->constants, $const->namespacedName->toString() );
 					}
 				}

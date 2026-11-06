@@ -1,18 +1,13 @@
 <?xml version="1.0"?>
 <!-- Repo self-lint: lints this repo only, extending the shared php/quality-assurance/phpcs.dist.xml profile; tests/ is linted by phpcs.tests.dist.xml. -->
 <ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="vendor/squizlabs/php_codesniffer/phpcs.xsd">
-	<description>Lints this repo's own PHP. Excludes WP-runtime sniffs from the shared ruleset since this code is Composer-time tooling, not WP code.</description>
-
 	<rule ref="./php/quality-assurance/phpcs.dist.xml">
-		<!-- No WP runtime — native PHP functions (file_get_contents, json_encode) are correct here. -->
+		<!-- Composer runs this code, never WordPress, so it calls PHP's own file_get_contents() and var_export(). -->
 		<exclude name="WordPress.WP"/>
 		<exclude name="WordPress.PHP.DevelopmentFunctions"/>
-		<!-- The codebase norm is snake_case; the exclusion covers externally-mandated camelCase
-		     overrides (Composer plugin API's pre/postAutoloadDump, PhpParser's enterNode) that
-		     cannot be renamed. -->
+		<!-- php-parser and phpdoc-parser expose camelCase properties. -->
 		<exclude name="WordPress.NamingConventions.ValidVariableName"/>
-		<exclude name="WordPress.NamingConventions.ValidFunctionName"/>
-		<!-- Output goes to CLI / exception messages, not HTML — no escape needed. -->
+		<!-- Output goes to the console and to exception messages, never to HTML. -->
 		<exclude name="WordPress.Security"/>
 	</rule>
 </ruleset>

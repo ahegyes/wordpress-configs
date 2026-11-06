@@ -88,7 +88,6 @@ final class GlobalSymbols {
 			}
 		}
 		$symbols['namespaces'] = array() === $namespaces ? array() : array( '/^(?:' . \implode( '|', \array_keys( $namespaces ) ) . ')$/i' );
-
 		return $symbols;
 	}
 
