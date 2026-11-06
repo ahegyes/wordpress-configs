@@ -4,6 +4,7 @@ namespace DeepWebSolutions\Config\Composer;
 
 use Composer\InstalledVersions;
 use DeepWebSolutions\Config\Composer\Visitors\StubSymbolCollector;
+use PhpParser\Error;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\ParserFactory;
@@ -33,7 +34,7 @@ final class GlobalSymbols {
 	 * @param   list<string> $package_dirs The directories of the packages to scope.
 	 * @param   list<string> $dropped_dirs The directories of the packages that stay unscoped.
 	 *
-	 * @throws  \RuntimeException Thrown when a declared stubs file is missing or a file cannot be read.
+	 * @throws  \RuntimeException Thrown when a declared stubs file is missing, or a file cannot be read or does not parse.
 	 *
 	 * @return  array{classes: list<string>, functions: list<string>, constants: list<string>, namespaces: list<string>}
 	 */
@@ -74,8 +75,14 @@ final class GlobalSymbols {
 
 		$parser = new ParserFactory()->createForNewestSupportedVersion();
 		foreach ( \array_unique( $files ) as $file ) {
+			try {
+				$statements = $parser->parse( self::read( $file ) ) ?? array();
+			} catch ( Error $error ) {
+				throw new \RuntimeException( "Could not parse '$file', whose symbols the run keeps global: " . $error->getMessage(), 0, $error );
+			}
+
 			$collector = new StubSymbolCollector();
-			new NodeTraverser( new NameResolver(), $collector )->traverse( $parser->parse( self::read( $file ) ) ?? array() );
+			new NodeTraverser( new NameResolver(), $collector )->traverse( $statements );
 
 			$symbols['classes']   = array( ...$symbols['classes'], ...$collector->classes );
 			$symbols['functions'] = array( ...$symbols['functions'], ...$collector->functions );

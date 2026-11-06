@@ -518,6 +518,16 @@ final class ScopePhpDependenciesTest extends TestCase {
 		ScopePhpDependencies::scope( $project );
 	}
 
+	public function test_scope_run_names_a_stubs_file_it_cannot_parse(): void {
+		$project = self::make_project( array( 'acme/commerce' ), array( 'scoping-stubs' => array( './stubs/host-plugin.php', './stubs/broken.php' ) ) );
+		\file_put_contents( $project . '/stubs/broken.php', "<?php\n\nfunction {\n" );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessageMatches( "#Could not parse '[^']*/stubs/broken\.php'#" );
+
+		ScopePhpDependencies::scope( $project );
+	}
+
 	public function test_scope_run_fails_when_a_recipe_target_is_missing(): void {
 		$project = self::make_project( array( 'php-di/php-di' ) );
 		\unlink( $project . '/vendor/php-di/php-di/src/Compiler/Template.php' );
