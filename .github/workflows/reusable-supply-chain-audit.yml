@@ -14,7 +14,7 @@ on:
         required: false
         default: true
       npm-audit:
-        description: 'Run `npm audit` against package-lock.json, so the lockfile is required. Set false for repos without package.json. Audits the full dependency graph (dev/build deps included) by default. At least one of composer-audit / npm-audit must stay enabled.'
+        description: 'Run `npm audit` against package-lock.json, so the lockfile is required. Set false for repos without package.json. At least one of composer-audit / npm-audit must stay enabled.'
         type: boolean
         required: false
         default: true
@@ -24,10 +24,10 @@ on:
         required: false
         default: '--abandoned=report'
       npm-audit-flags:
-        description: 'Extra flags passed to `npm audit`. Defaults to --audit-level=high — audits the full graph (dev/build deps included) and fails only on high/critical advisories; low/moderate are surfaced without failing. Pass --omit=dev to audit production deps only.'
+        description: 'Extra flags passed to `npm audit`. The default audits production dependencies only and fails on high and critical advisories, surfacing low and moderate ones without failing; drop --omit=dev to audit development dependencies too.'
         type: string
         required: false
-        default: '--audit-level=high'
+        default: '--omit=dev --audit-level=high'
       fail-on-findings:
         description: 'Fail the job when an audit reports findings. Set false to run the audit advisory-only — findings are surfaced in the logs without blocking, except a Composer filter-list match such as the malware list, which always fails.'
         type: boolean
@@ -98,7 +98,7 @@ jobs:
           }
           if ($filtered !== []) {
               echo "filter:", implode(", ", $filtered);
-          } elseif (count((array) $data["advisories"]) + count((array) ($data["abandoned"] ?? [])) > 0) {
+          } elseif (count((array) $data["advisories"]) + count((array) ($data["abandoned"] ?? [])) + count((array) ($data["cooldown"] ?? [])) > 0) {
               echo "findings";
           }
           ') || findings="invalid"

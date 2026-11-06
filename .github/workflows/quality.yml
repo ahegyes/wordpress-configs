@@ -90,12 +90,9 @@ jobs:
 
   supply-chain:
     name: Supply-chain audit
-    # npm gate audits production deps only — the dev-tooling graph (wp-scripts/playwright trees) is advisory via dependabot alerts.
     permissions:
       contents: read
     uses: ./.github/workflows/reusable-supply-chain-audit.yml
-    with:
-      npm-audit-flags: '--omit=dev --audit-level=high'
 
   block-json:
     name: block.json schema check

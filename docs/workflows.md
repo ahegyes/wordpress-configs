@@ -310,10 +310,10 @@ Audits the committed `composer.lock` and `package-lock.json` in two parallel job
 | `composer-audit` | `boolean` | No | `true` | Whether to run `composer audit --locked`. |
 | `npm-audit` | `boolean` | No | `true` | Whether to run `npm audit --package-lock-only`. |
 | `composer-audit-flags` | `string` | No | `'--abandoned=report'` | Extra `composer audit` flags; the default fails on advisories and reports abandoned packages. |
-| `npm-audit-flags` | `string` | No | `'--audit-level=high'` | Extra `npm audit` flags; the default fails on high and critical advisories. |
+| `npm-audit-flags` | `string` | No | `'--omit=dev --audit-level=high'` | Extra `npm audit` flags; the default audits production dependencies and fails on high and critical advisories. |
 | `fail-on-findings` | `boolean` | No | `true` | Whether findings fail the job. |
 
-At least one of `composer-audit` and `npm-audit` stays on. Both audit the full graph, development dependencies included, unless the flags say `--no-dev` or `--omit=dev`. `fail-on-findings: false` turns advisories and abandoned packages into warnings, but a package on a Composer filter list whose policy fails the audit, such as the malware list, still fails it, and the error names the package and its lists.
+At least one of `composer-audit` and `npm-audit` stays on. The Composer audit covers the full graph, development dependencies included, unless its flags say `--no-dev`; the npm audit covers production dependencies unless its flags drop `--omit=dev`. A package still in the cooldown period of Composer's `policy.cooldown`, when that policy fails the audit, counts as a finding. `fail-on-findings: false` turns advisories, abandoned packages and cooldown findings into warnings, but any package on a Composer filter list, such as the malware list, still fails the audit, and the error names the package and its lists.
 
 The caller grants `contents: read`.
 
@@ -323,8 +323,6 @@ jobs:
     permissions:
       contents: read
     uses: ahegyes/wordpress-configs/.github/workflows/reusable-supply-chain-audit.yml@<sha>
-    with:
-      npm-audit-flags: '--omit=dev --audit-level=high'
 ```
 
 ## Workflow checks — `reusable-workflow-checks.yml`
