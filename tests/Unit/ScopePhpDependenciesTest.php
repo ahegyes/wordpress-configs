@@ -4,13 +4,14 @@ namespace DeepWebSolutions\Config\Tests\Unit;
 
 use DeepWebSolutions\Config\Composer\ScopePhpDependencies;
 use DeepWebSolutions\Config\Tests\Support\RecordsInstalledPackagesTrait;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 
+#[CoversClass( ScopePhpDependencies::class )]
 final class ScopePhpDependenciesTest extends TestCase {
-
 	use RecordsInstalledPackagesTrait;
 
 	protected const string FIXTURE_DIR = __DIR__ . '/../fixtures/scoping-project';
@@ -88,20 +89,34 @@ final class ScopePhpDependenciesTest extends TestCase {
 	}
 
 	public function test_scoped_autoload_loads_prefixed_classes_and_files_without_global_aliases(): void {
-		$script = \sprintf(
-			'namespace Automattic\WooCommerce\Admin\Settings { abstract class SettingsSection {} } namespace { require %s; require %s; echo json_encode( array( interface_exists( %s ), class_exists( %s ), class_exists( %s ), class_exists( %s ), class_exists( %s ), function_exists( %s ), function_exists( %s ), get_class( %s::format( "Csv" ) ), class_exists( "LegacyRenderer", false ), class_exists( "AcmeLegacy_Config", false ) ) ); }',
-			\var_export( self::VENDOR_DIR . '/composer/ClassLoader.php', true ),
-			\var_export( self::scoped_project() . '/vendor-prefixed/scoper-autoload.php', true ),
-			\var_export( 'Acme\Scoped\Psr\Log\LoggerInterface', true ),
-			\var_export( 'Acme\Scoped\LegacyRenderer', true ),
-			\var_export( 'Acme\Scoped\LegacyCanvas', true ),
-			\var_export( 'Acme\Scoped\AcmeLegacy_Config', true ),
-			\var_export( 'Acme\Scoped\DI\ContainerBuilder', true ),
-			\var_export( 'Acme\Scoped\DI\create', true ),
-			\var_export( 'Acme\Scoped\Acme\Commerce\get_label_prefix', true ),
-			'\Acme\Scoped\Acme\Commerce\SettingsSection'
-		);
-		\exec( \escapeshellarg( \PHP_BINARY ) . ' -r ' . \escapeshellarg( $script ) . ' 2>&1', $output, $exit_code );
+		$project = self::scoped_project();
+		$probe   = <<<'PHP'
+			<?php
+			namespace Automattic\WooCommerce\Admin\Settings {
+				abstract class SettingsSection {}
+			}
+			namespace {
+				require %s;
+				require %s;
+				echo json_encode(
+					array(
+						interface_exists( 'Acme\Scoped\Psr\Log\LoggerInterface' ),
+						class_exists( 'Acme\Scoped\LegacyRenderer' ),
+						class_exists( 'Acme\Scoped\LegacyCanvas' ),
+						class_exists( 'Acme\Scoped\AcmeLegacy_Config' ),
+						class_exists( 'Acme\Scoped\DI\ContainerBuilder' ),
+						function_exists( 'Acme\Scoped\DI\create' ),
+						function_exists( 'Acme\Scoped\Acme\Commerce\get_label_prefix' ),
+						get_class( \Acme\Scoped\Acme\Commerce\SettingsSection::format( 'Csv' ) ),
+						class_exists( 'LegacyRenderer', false ),
+						class_exists( 'AcmeLegacy_Config', false ),
+					)
+				);
+			}
+			PHP;
+		\file_put_contents( $project . '/autoload-probe.php', \sprintf( $probe, \var_export( self::VENDOR_DIR . '/composer/ClassLoader.php', true ), \var_export( $project . '/vendor-prefixed/scoper-autoload.php', true ) ) );
+
+		\exec( \escapeshellarg( \PHP_BINARY ) . ' ' . \escapeshellarg( $project . '/autoload-probe.php' ) . ' 2>&1', $output, $exit_code );
 
 		self::assertSame( 0, $exit_code, \implode( "\n", $output ) );
 		self::assertSame( '[true,true,true,true,true,true,true,"Acme\\\\Scoped\\\\Acme\\\\Commerce\\\\Formats\\\\Csv",false,false]', \implode( "\n", $output ) );

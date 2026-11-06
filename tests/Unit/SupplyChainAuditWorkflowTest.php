@@ -2,13 +2,12 @@
 
 namespace DeepWebSolutions\Config\Tests\Unit;
 
-use DeepWebSolutions\Config\Tests\Support\RunsWorkflowSteps;
+use DeepWebSolutions\Config\Tests\Support\RunsWorkflowStepsTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class SupplyChainAuditWorkflowTest extends TestCase {
-
-	use RunsWorkflowSteps;
+	use RunsWorkflowStepsTrait;
 
 	/**
 	 * @return array<string, array{string}>

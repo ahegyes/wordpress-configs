@@ -16,7 +16,7 @@ wordpress-configs/
 ├── docs/                       # workflows.md (input reference) and scripts-contract.md (scripts, files, floors)
 ├── tests/
 │   ├── Unit/                   # PHPUnit tests that run the real tools
-│   ├── Support/                # RunsWorkflowSteps, which runs a workflow step's script
+│   ├── Support/                # RunsWorkflowStepsTrait, which runs a workflow step's script, and RecordsInstalledPackagesTrait
 │   └── fixtures/               # projects and captured tool output the tests use
 ├── phpcs.dist.xml              # self-lint: the production profile minus WordPress-runtime sniffs
 ├── phpcs.tests.dist.xml        # self-lint for tests/

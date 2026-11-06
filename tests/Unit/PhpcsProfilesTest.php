@@ -4,9 +4,9 @@ namespace DeepWebSolutions\Config\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 
 final class PhpcsProfilesTest extends TestCase {
-
 	protected const string RULESET_DIR = __DIR__ . '/../../php/quality-assurance';
 
 	protected string $scan_dir;
@@ -19,15 +19,7 @@ final class PhpcsProfilesTest extends TestCase {
 
 	#[\Override]
 	protected function tearDown(): void {
-		$entries = new \RecursiveIteratorIterator(
-			new \RecursiveDirectoryIterator( $this->scan_dir, \FilesystemIterator::SKIP_DOTS ),
-			\RecursiveIteratorIterator::CHILD_FIRST
-		);
-		foreach ( $entries as $entry ) {
-			self::assertInstanceOf( \SplFileInfo::class, $entry );
-			$entry->isDir() ? \rmdir( $entry->getPathname() ) : \unlink( $entry->getPathname() );
-		}
-		\rmdir( $this->scan_dir );
+		new Filesystem()->remove( $this->scan_dir );
 	}
 
 	/**

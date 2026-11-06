@@ -5,7 +5,6 @@ namespace DeepWebSolutions\Config\Tests\Unit;
 use PHPUnit\Framework\TestCase;
 
 final class ReleaseToolsTest extends TestCase {
-
 	protected const string DIR = __DIR__ . '/../../php/release';
 
 	public function test_the_lock_is_current_with_its_manifest(): void {

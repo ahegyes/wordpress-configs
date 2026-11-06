@@ -4,10 +4,10 @@ namespace DeepWebSolutions\Config\Tests\Support;
 
 use PHPUnit\Framework\Attributes\After;
 use PHPUnit\Framework\Attributes\Before;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Yaml\Yaml;
 
-trait RunsWorkflowSteps {
-
+trait RunsWorkflowStepsTrait {
 	protected string $work_dir;
 
 	#[Before]
@@ -19,15 +19,7 @@ trait RunsWorkflowSteps {
 
 	#[After]
 	protected function remove_work_dir(): void {
-		$entries = new \RecursiveIteratorIterator(
-			new \RecursiveDirectoryIterator( $this->work_dir, \FilesystemIterator::SKIP_DOTS ),
-			\RecursiveIteratorIterator::CHILD_FIRST
-		);
-		foreach ( $entries as $entry ) {
-			self::assertInstanceOf( \SplFileInfo::class, $entry );
-			$entry->isDir() ? \rmdir( $entry->getPathname() ) : \unlink( $entry->getPathname() );
-		}
-		\rmdir( $this->work_dir );
+		new Filesystem()->remove( $this->work_dir );
 	}
 
 	/**
