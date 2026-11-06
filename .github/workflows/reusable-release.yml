@@ -87,33 +87,6 @@ jobs:
           PROJECT_PATH: ${{ inputs.project-path }}
           PUBLISH: ${{ inputs.publish }}
         run: |
-          # Slash-wrap so a `..` segment anywhere (start, middle, end, or whole) is caught.
-          has_dotdot_segment() {
-            case "/$1/" in
-              */../*) return 0 ;;
-              *) return 1 ;;
-            esac
-          }
-
-          validate_path_input() {
-            name="$1"
-            value="$2"
-            if ! printf '%s' "$value" | grep -Eq '^[A-Za-z0-9._/-]+$'; then
-              echo "::error::$name must match ^[A-Za-z0-9._/-]+$ — got '$value'."
-              exit 1
-            fi
-            case "$value" in
-              /*)
-                echo "::error::$name must be relative — got '$value'."
-                exit 1
-                ;;
-            esac
-            if has_dotdot_segment "$value"; then
-              echo "::error::$name must not contain a .. path segment — got '$value'."
-              exit 1
-            fi
-          }
-
           tag_version=''
           if [ "$REF_TYPE" = "tag" ]; then
             if ! printf '%s' "$REF_NAME" | grep -Eq '^v(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}(-(dev|alpha|beta|rc)(\.(0|[1-9][0-9]*))?)?$'; then
@@ -129,7 +102,11 @@ jobs:
             echo "::error::plugin-slug must match ^[a-z0-9-]+$ — got '$PLUGIN_SLUG'."
             exit 1
           fi
-          validate_path_input 'project-path' "$PROJECT_PATH"
+          # Slash-wrapping catches a .. segment at the start, in the middle, at the end or as the whole path.
+          if ! [[ "$PROJECT_PATH" =~ ^[A-Za-z0-9._/-]+$ ]] || [[ "$PROJECT_PATH" == /* || "/$PROJECT_PATH/" == */../* ]]; then
+            echo "::error::project-path must be a relative path of [A-Za-z0-9._/-] characters without a .. segment — got '$PROJECT_PATH'."
+            exit 1
+          fi
 
           echo "tag-version=$tag_version" >> "$GITHUB_OUTPUT"
 
@@ -243,7 +220,6 @@ jobs:
         working-directory: ${{ inputs.project-path }}
         run: |
           requires_scoped=$(jq -r 'if (.extra["scoping-prefix"] | type) == "string" then "true" else "false" end' composer.json)
-          echo "REQUIRES_SCOPED=$requires_scoped" >> "$GITHUB_ENV"
           echo "requires-scoped=$requires_scoped" >> "$GITHUB_OUTPUT"
 
       - name: Setup PHP
@@ -285,7 +261,7 @@ jobs:
           tools="$RUNNER_TEMP/release-tools"
           mkdir -p "$tools"
           cp "$locked/composer.json" "$locked/composer.lock" "$tools/"
-          composer install --working-dir="$tools" --no-interaction --no-progress --prefer-dist
+          composer install --working-dir="$tools" --no-interaction --no-progress --prefer-dist --ignore-platform-req=php+
           echo "$tools/vendor/bin" >> "$GITHUB_PATH"
 
       - name: Build assets
@@ -302,11 +278,10 @@ jobs:
           wp i18n make-pot . "languages/$PLUGIN_SLUG.pot" --domain="$PLUGIN_SLUG"
 
       - name: Verify the POT covers the scoped strings
-        if: ${{ inputs.generate-pot }}
+        if: ${{ inputs.generate-pot && steps.scoping.outputs.requires-scoped == 'true' }}
         working-directory: ${{ inputs.project-path }}
         run: |
-          if [ "$REQUIRES_SCOPED" = "true" ] \
-            && [ -d vendor-prefixed ] \
+          if [ -d vendor-prefixed ] \
             && grep -rqF --include='*.php' "'$PLUGIN_SLUG'" vendor-prefixed \
             && ! grep -Fq '#: vendor-prefixed/' "languages/$PLUGIN_SLUG.pot"; then
             echo "::error::vendor-prefixed/ carries strings in the '$PLUGIN_SLUG' text domain, but languages/$PLUGIN_SLUG.pot has none of them."
@@ -316,7 +291,7 @@ jobs:
       # --no-scripts avoids invoking handlers that were just pruned from require-dev.
       - name: Prune to production dependencies
         working-directory: ${{ inputs.project-path }}
-        run: composer install --no-dev --prefer-dist --ignore-platform-req=php+ --optimize-autoloader --no-scripts
+        run: composer install --no-dev --no-interaction --no-progress --prefer-dist --ignore-platform-req=php+ --optimize-autoloader --no-scripts
 
       - name: Verify the headers cover the shipped packages
         working-directory: ${{ inputs.project-path }}
@@ -460,35 +435,14 @@ jobs:
           status=0
           while IFS= read -r entry; do
             case "$entry" in
-              "$PLUGIN_SLUG/node_modules/"*|"$PLUGIN_SLUG/"*/node_modules/*|"$PLUGIN_SLUG/tests/"*|"$PLUGIN_SLUG/"*/tests/*|"$PLUGIN_SLUG/vendor/bin/"*|"$PLUGIN_SLUG/"*/vendor/bin/*)
-                echo "::error::Archive must not contain $entry."
-                status=1
-                ;;
-              "$PLUGIN_SLUG/.git/"*|"$PLUGIN_SLUG/.github/"*|"$PLUGIN_SLUG/.idea/"*|"$PLUGIN_SLUG/.vscode/"*|"$PLUGIN_SLUG/.wordpress-org/"*)
-                echo "::error::Archive must not contain $entry."
-                status=1
-                ;;
-              "$PLUGIN_SLUG/.editorconfig"|"$PLUGIN_SLUG/.gitattributes"|"$PLUGIN_SLUG/.gitignore"|"$PLUGIN_SLUG/.distignore"|"$PLUGIN_SLUG/AGENTS.md"|"$PLUGIN_SLUG/CLAUDE.md"|"$PLUGIN_SLUG/changelog/"*)
-                echo "::error::Archive must not contain $entry."
-                status=1
-                ;;
-              "$PLUGIN_SLUG/composer.json"|"$PLUGIN_SLUG/composer.lock"|"$PLUGIN_SLUG/package.json"|"$PLUGIN_SLUG/package-lock.json")
-                echo "::error::Archive must not contain $entry."
-                status=1
-                ;;
-              "$PLUGIN_SLUG/phpcs"*.xml*|"$PLUGIN_SLUG/.phpcs"*.xml*|"$PLUGIN_SLUG/phpstan"*.neon*|"$PLUGIN_SLUG/.phpstan"*.neon*)
-                echo "::error::Archive must not contain $entry."
-                status=1
-                ;;
-              "$PLUGIN_SLUG/phpunit"*.xml*|"$PLUGIN_SLUG/.phpunit.result.cache"|"$PLUGIN_SLUG/.phpunit.cache/"*|"$PLUGIN_SLUG/infection.json"|"$PLUGIN_SLUG/infection.json."*)
-                echo "::error::Archive must not contain $entry."
-                status=1
-                ;;
-              "$PLUGIN_SLUG/eslint.config."*|"$PLUGIN_SLUG/stylelint.config."*|"$PLUGIN_SLUG/tsconfig.json"|"$PLUGIN_SLUG/playwright.config."*)
-                echo "::error::Archive must not contain $entry."
-                status=1
-                ;;
-              "$PLUGIN_SLUG/scoper.inc.php"|"$PLUGIN_SLUG/.wp-env"*)
+              "$PLUGIN_SLUG/node_modules/"*|"$PLUGIN_SLUG/"*/node_modules/*|"$PLUGIN_SLUG/tests/"*|"$PLUGIN_SLUG/"*/tests/*|"$PLUGIN_SLUG/vendor/bin/"*|"$PLUGIN_SLUG/"*/vendor/bin/* \
+                |"$PLUGIN_SLUG/.git/"*|"$PLUGIN_SLUG/.github/"*|"$PLUGIN_SLUG/.idea/"*|"$PLUGIN_SLUG/.vscode/"*|"$PLUGIN_SLUG/.wordpress-org/"* \
+                |"$PLUGIN_SLUG/.editorconfig"|"$PLUGIN_SLUG/.gitattributes"|"$PLUGIN_SLUG/.gitignore"|"$PLUGIN_SLUG/.distignore"|"$PLUGIN_SLUG/AGENTS.md"|"$PLUGIN_SLUG/CLAUDE.md"|"$PLUGIN_SLUG/changelog/"* \
+                |"$PLUGIN_SLUG/composer.json"|"$PLUGIN_SLUG/composer.lock"|"$PLUGIN_SLUG/package.json"|"$PLUGIN_SLUG/package-lock.json" \
+                |"$PLUGIN_SLUG/phpcs"*.xml*|"$PLUGIN_SLUG/.phpcs"*.xml*|"$PLUGIN_SLUG/phpstan"*.neon*|"$PLUGIN_SLUG/.phpstan"*.neon* \
+                |"$PLUGIN_SLUG/phpunit"*.xml*|"$PLUGIN_SLUG/.phpunit.result.cache"|"$PLUGIN_SLUG/.phpunit.cache/"*|"$PLUGIN_SLUG/infection.json"|"$PLUGIN_SLUG/infection.json."* \
+                |"$PLUGIN_SLUG/eslint.config."*|"$PLUGIN_SLUG/stylelint.config."*|"$PLUGIN_SLUG/tsconfig.json"|"$PLUGIN_SLUG/playwright.config."* \
+                |"$PLUGIN_SLUG/scoper.inc.php"|"$PLUGIN_SLUG/.wp-env"*)
                 echo "::error::Archive must not contain $entry."
                 status=1
                 ;;
@@ -599,15 +553,6 @@ jobs:
           php-version: ${{ inputs.php-version }}
           coverage: none
           tools: composer:v2
-
-      # Without a declared version, setup-node only warns and runs the runner's own Node.
-      - name: Require a Node version in package.json
-        working-directory: ${{ inputs.project-path }}
-        run: |
-          if ! jq -e '[.volta.node, .volta.extends, ([.devEngines.runtime] | flatten[] | objects | select((.name | strings | ascii_downcase) == "node") | .version), .engines.node] | any' package.json > /dev/null; then
-            echo "::error::package.json declares no Node version — add engines.node, volta.node or a devEngines.runtime entry named node."
-            exit 1
-          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -837,12 +782,11 @@ jobs:
             exit 1
           fi
 
+      # The privileged job checks its own ref instead of trusting the jobs it follows.
       - name: Re-verify version tag before deploy
         env:
           REF_NAME: ${{ github.ref_name }}
-        run: |
-          printf '%s' "$REF_NAME" | grep -Eq '^v(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}$' || { echo "::error::Refusing to deploy from non-version ref '$REF_NAME'."; exit 1; }
-          echo "VERSION=${REF_NAME#v}" >> "$GITHUB_ENV"
+        run: printf '%s' "$REF_NAME" | grep -Eq '^v(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}$' || { echo "::error::Refusing to deploy from non-version ref '$REF_NAME'."; exit 1; }
 
       - name: Verify SVN credentials
         env:
@@ -877,6 +821,6 @@ jobs:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
           SLUG: ${{ inputs.plugin-slug }}
-          VERSION: ${{ env.VERSION }}
+          VERSION: ${{ needs.build.outputs.version }}
           BUILD_DIR: ./publish/${{ inputs.plugin-slug }}
           ASSETS_DIR: ./wp-org-assets

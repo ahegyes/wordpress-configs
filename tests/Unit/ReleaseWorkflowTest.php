@@ -175,7 +175,7 @@ final class ReleaseWorkflowTest extends TestCase {
 			)
 		);
 
-		$result = $this->run_build_step( 'Verify the POT covers the scoped strings', array( 'REQUIRES_SCOPED' => 'true' ) );
+		$result = $this->run_build_step( 'Verify the POT covers the scoped strings', array() );
 
 		self::assertSame( $expected_status, $result['status'], $result['output'] );
 	}
@@ -550,8 +550,9 @@ final class ReleaseWorkflowTest extends TestCase {
 			'prerelease-number-with-a-leading-zero' => array( 'tag', 'v1.3.0-beta.01', '.', 'true', 'acme-plugin', 1, 'no leading zeros' ),
 			'branch-with-publish'                   => array( 'branch', 'trunk', '.', 'true', 'acme-plugin', 1, 'is not a tag' ),
 			'branch-without-publish'                => array( 'branch', 'trunk', 'plugins/acme-plugin', 'false', 'acme-plugin', 0, '' ),
-			'dot-dot-path-segment'                  => array( 'tag', 'v1.2.3', 'plugins/../acme-plugin', 'true', 'acme-plugin', 1, 'must not contain a .. path segment' ),
-			'absolute-path'                         => array( 'tag', 'v1.2.3', '/tmp/acme-plugin', 'true', 'acme-plugin', 1, 'must be relative' ),
+			'dot-dot-path-segment'                  => array( 'tag', 'v1.2.3', 'plugins/../acme-plugin', 'true', 'acme-plugin', 1, 'project-path must be a relative path' ),
+			'absolute-path'                         => array( 'tag', 'v1.2.3', '/tmp/acme-plugin', 'true', 'acme-plugin', 1, 'project-path must be a relative path' ),
+			'path-out-of-pattern'                   => array( 'tag', 'v1.2.3', 'plugins/acme plugin', 'true', 'acme-plugin', 1, 'project-path must be a relative path' ),
 			'slug-out-of-pattern'                   => array( 'tag', 'v1.2.3', '.', 'true', 'Acme_Plugin', 1, 'plugin-slug must match' ),
 		);
 	}
@@ -714,7 +715,7 @@ final class ReleaseWorkflowTest extends TestCase {
 
 		self::assertSame( 0, $result['status'], $result['output'] );
 		$tools = $this->work_dir . '/runner-temp/release-tools';
-		self::assertSame( array( "composer install --working-dir=$tools --no-interaction --no-progress --prefer-dist" ), \file( $this->work_dir . '/calls', \FILE_IGNORE_NEW_LINES ) );
+		self::assertSame( array( "composer install --working-dir=$tools --no-interaction --no-progress --prefer-dist --ignore-platform-req=php+" ), \file( $this->work_dir . '/calls', \FILE_IGNORE_NEW_LINES ) );
 		self::assertFileEquals( $this->work_dir . '/project/vendor/ahegyes/wordpress-configs/php/release/composer.lock', "$tools/composer.lock" );
 		self::assertSame( "$tools/vendor/bin\n", \file_get_contents( $this->work_dir . '/github-path' ) );
 	}
