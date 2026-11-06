@@ -19,7 +19,7 @@ export default [
 	} ) ),
 	...wordpress.configs[ 'test-playwright' ].map( ( config ) => ( {
 		...config,
-		files: [ 'tests/e2e/**' ],
+		files: [ 'tests/EndToEnd/**' ],
 	} ) ),
 	{
 		rules: {

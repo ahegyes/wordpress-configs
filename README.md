@@ -272,7 +272,7 @@ const baseConfig = require( '@ahegyes/wordpress-configs/node/playwright.config.b
 module.exports = defineConfig( { ...baseConfig, use: { ...baseConfig.use } } );
 ```
 
-The Playwright factory sets `testDir` to `tests/e2e/` and artifacts under `tests/.cache/artifacts/`, and returns the `@wordpress/scripts` `webServer` on the given port, which runs `npm run wp-env start`. It sets `WP_BASE_URL` and `WP_ARTIFACTS_PATH` only when they are unset, before loading the `@wordpress/scripts` config, which reads them once, so an exported value wins over `port` and a second call in the same process reuses the first configuration; a project that starts wp-env through its own script spreads `webServer` and sets `command`. For WordPress fixtures, import from `@wordpress/e2e-test-utils-playwright`; for accessibility scans, add `@axe-core/playwright` to the project's own devDependencies.
+The Playwright factory sets `testDir` to `tests/EndToEnd/` and artifacts under `tests/.cache/artifacts/`, and returns the `@wordpress/scripts` `webServer` on the given port, which runs `npm run wp-env start`. It sets `WP_BASE_URL` and `WP_ARTIFACTS_PATH` only when they are unset, before loading the `@wordpress/scripts` config, which reads them once, so an exported value wins over `port` and a second call in the same process reuses the first configuration; a project that starts wp-env through its own script spreads `webServer` and sets `command`. For WordPress fixtures, import from `@wordpress/e2e-test-utils-playwright`; for accessibility scans, add `@axe-core/playwright` to the project's own devDependencies.
 
 ## Reusable workflows
 
