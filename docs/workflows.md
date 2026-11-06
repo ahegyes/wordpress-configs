@@ -39,7 +39,7 @@ jobs:
 
 ## CodeQL — `reusable-codeql.yml`
 
-Runs CodeQL initialization and analysis as one matrix job per language. CodeQL has no PHP analyzer; PHPStan covers PHP.
+Runs CodeQL initialization and analysis as one matrix job per language. CodeQL has no PHP analyzer; PHPStan covers PHP. A probe of the code-scanning API first skips the analysis where GitHub Advanced Security is off, as on a private repository without it, and runs it when the answer stays unclear after three tries, so a repository that lacks it fails visibly rather than passing a skipped check.
 
 | Input | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
