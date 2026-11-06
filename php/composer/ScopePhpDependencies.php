@@ -54,7 +54,8 @@ final class ScopePhpDependencies {
 			throw new \RuntimeException( "'$project_dir/composer.json' declares no extra.scoping-prefix." );
 		}
 
-		$output_dir = $project_dir . '/vendor-prefixed';
+		$output_dir  = $project_dir . '/vendor-prefixed';
+		$scoping_dir = $output_dir . '.tmp';
 		if ( \is_link( $output_dir ) ) {
 			throw new \RuntimeException( "Refusing to replace '$output_dir', which is a symbolic link." );
 		}
@@ -68,7 +69,7 @@ final class ScopePhpDependencies {
 		}
 
 		// Loading the config parses the declared stubs files, and large ones exceed PHP's default memory limit.
-		$command = array( \PHP_BINARY, '-d', 'memory_limit=1G', ( InstalledVersions::getInstallPath( 'humbug/php-scoper' ) ?? '' ) . '/bin/php-scoper', 'add-prefix', '--working-dir=' . $project_dir, '--config=' . $project_dir . '/scoper.inc.php', '--output-dir=' . $output_dir, '--force', '--no-interaction' );
+		$command = array( \PHP_BINARY, '-d', 'memory_limit=1G', ( InstalledVersions::getInstallPath( 'humbug/php-scoper' ) ?? '' ) . '/bin/php-scoper', 'add-prefix', '--working-dir=' . $project_dir, '--config=' . $project_dir . '/scoper.inc.php', '--output-dir=' . $scoping_dir, '--force', '--no-interaction' );
 		// php-scoper's console wraps what it prints at the terminal width, which would split the paths and symbols in a failure message.
 		$process = \proc_open( \implode( ' ', \array_map( 'escapeshellarg', $command ) ) . ' 2>&1', array( 1 => array( 'pipe', 'w' ) ), $pipes, null, array( 'COLUMNS' => '4096' ) + \getenv() ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_proc_open -- Runs in Composer, never on a WordPress server.
 		if ( false === $process ) {
@@ -80,20 +81,20 @@ final class ScopePhpDependencies {
 		}
 
 		// php-scoper writes every file below the deepest directory its inputs share, which drops the vendor directory of a single-vendor closure.
-		$manifests = \glob( $output_dir . '/*/composer.json' );
+		$manifests = \glob( $scoping_dir . '/*/composer.json' );
 		if ( false === $manifests ) {
-			throw new \RuntimeException( "Could not list '$output_dir'." );
+			throw new \RuntimeException( "Could not list '$scoping_dir'." );
 		}
 		$dropped = match ( true ) {
-			\is_file( $output_dir . '/composer.json' ) => self::package_name( $output_dir . '/composer.json' ),
-			array() !== $manifests                     => \dirname( self::package_name( \current( $manifests ) ) ),
-			default                                    => '',
+			\is_file( $scoping_dir . '/composer.json' ) => self::package_name( $scoping_dir . '/composer.json' ),
+			array() !== $manifests                      => \dirname( self::package_name( \current( $manifests ) ) ),
+			default                                     => '',
 		};
-		if ( '' !== $dropped ) {
-			$filesystem->rename( $output_dir, $output_dir . '.nesting' );
-			$filesystem->mkdir( \dirname( $output_dir . '/' . $dropped ) );
-			$filesystem->rename( $output_dir . '.nesting', $output_dir . '/' . $dropped );
-		}
+
+		// The build replaces the previous one only once php-scoper succeeds, so a failed run keeps the project loading.
+		$filesystem->remove( $output_dir );
+		$filesystem->mkdir( \dirname( $output_dir . '/' . $dropped ) );
+		$filesystem->rename( $scoping_dir, \rtrim( $output_dir . '/' . $dropped, '/' ) );
 
 		// The autoloader goes first, so a project whose scoped code fails the check still loads.
 		$filesystem->dumpFile( $output_dir . '/scoper-autoload.php', self::autoload( $output_dir ) );
