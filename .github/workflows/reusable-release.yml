@@ -440,27 +440,18 @@ jobs:
         if: ${{ steps.scoping.outputs.requires-scoped == 'true' }}
         working-directory: ${{ inputs.project-path }}
         run: |
-          entries=$(unzip -Z1 "$PLUGIN_SLUG.zip")
-          status=0
-
-          if ! grep -qxF -- "$PLUGIN_SLUG/vendor-prefixed/scoper-autoload.php" <<< "$entries"; then
-            echo "::error::Archive is missing $PLUGIN_SLUG/vendor-prefixed/scoper-autoload.php."
-            status=1
-          fi
-
-          scoped_package_roots=$(find vendor-prefixed -mindepth 3 -maxdepth 3 -type f -name composer.json -exec dirname {} \; 2>/dev/null | LC_ALL=C sort -u)
-          if [ -z "$scoped_package_roots" ]; then
+          if [ -z "$(find vendor-prefixed -mindepth 3 -maxdepth 3 -type f -name composer.json 2>/dev/null)" ]; then
             echo "::error::No scoped package under vendor-prefixed/<vendor>/<package>/ — the scoping pipeline did not run."
-            status=1
+            exit 1
           fi
-          while IFS= read -r pkg; do
-            [ -n "$pkg" ] || continue
-            if ! grep -F -- "$PLUGIN_SLUG/$pkg/" <<< "$entries" | grep -q '[^/]$'; then
-              echo "::error::Archive is missing scoped package $pkg/."
-              status=1
-            fi
-          done <<< "$scoped_package_roots"
-          exit "$status"
+          # Every scoped PHP file ships, scoper-autoload.php included, while a distribution may leave a package's metadata out.
+          missing=$(LC_ALL=C comm -23 <(find vendor-prefixed -type f -name '*.php' | sed "s|^|$PLUGIN_SLUG/|" | LC_ALL=C sort) <(unzip -Z1 "$PLUGIN_SLUG.zip" | LC_ALL=C sort))
+          if [ -n "$missing" ]; then
+            while IFS= read -r file; do
+              echo "::error::Archive is missing $file."
+            done <<< "$missing"
+            exit 1
+          fi
 
       - name: Assert forbidden entries absent
         working-directory: ${{ inputs.project-path }}
@@ -477,7 +468,7 @@ jobs:
                 echo "::error::Archive must not contain $entry."
                 status=1
                 ;;
-              "$PLUGIN_SLUG/.editorconfig"|"$PLUGIN_SLUG/.gitattributes"|"$PLUGIN_SLUG/.gitignore"|"$PLUGIN_SLUG/.distignore")
+              "$PLUGIN_SLUG/.editorconfig"|"$PLUGIN_SLUG/.gitattributes"|"$PLUGIN_SLUG/.gitignore"|"$PLUGIN_SLUG/.distignore"|"$PLUGIN_SLUG/AGENTS.md"|"$PLUGIN_SLUG/CLAUDE.md"|"$PLUGIN_SLUG/changelog/"*)
                 echo "::error::Archive must not contain $entry."
                 status=1
                 ;;
@@ -485,11 +476,11 @@ jobs:
                 echo "::error::Archive must not contain $entry."
                 status=1
                 ;;
-              "$PLUGIN_SLUG/phpcs"*.xml*|"$PLUGIN_SLUG/.phpcs"*.xml*|"$PLUGIN_SLUG/.phpstan.neon"|"$PLUGIN_SLUG/phpstan.dist.neon")
+              "$PLUGIN_SLUG/phpcs"*.xml*|"$PLUGIN_SLUG/.phpcs"*.xml*|"$PLUGIN_SLUG/phpstan"*.neon*|"$PLUGIN_SLUG/.phpstan"*.neon*)
                 echo "::error::Archive must not contain $entry."
                 status=1
                 ;;
-              "$PLUGIN_SLUG/phpunit"*.xml*|"$PLUGIN_SLUG/infection.json"|"$PLUGIN_SLUG/infection.json."*)
+              "$PLUGIN_SLUG/phpunit"*.xml*|"$PLUGIN_SLUG/.phpunit.result.cache"|"$PLUGIN_SLUG/.phpunit.cache/"*|"$PLUGIN_SLUG/infection.json"|"$PLUGIN_SLUG/infection.json."*)
                 echo "::error::Archive must not contain $entry."
                 status=1
                 ;;
@@ -502,8 +493,7 @@ jobs:
                 status=1
                 ;;
               # Bundled certificates are runtime resources, and this arm stays ahead of the secret arm below because case stops at the first match.
-              "$PLUGIN_SLUG/vendor/"*.pem|"$PLUGIN_SLUG/"*"/vendor/"*.pem|"$PLUGIN_SLUG/vendor/"*.key|"$PLUGIN_SLUG/"*"/vendor/"*.key \
-                |"$PLUGIN_SLUG/vendor-prefixed/"*.pem|"$PLUGIN_SLUG/vendor-prefixed/"*.key)
+              "$PLUGIN_SLUG/vendor/"*.pem|"$PLUGIN_SLUG/"*"/vendor/"*.pem|"$PLUGIN_SLUG/vendor-prefixed/"*.pem)
                 ;;
               "$PLUGIN_SLUG/.env"*|"$PLUGIN_SLUG/"*"/.env"* \
                 |"$PLUGIN_SLUG/.npmrc"|"$PLUGIN_SLUG/"*"/.npmrc" \

@@ -235,8 +235,8 @@ The `build` job fails when:
 - `vendor-prefixed/` carries strings in the plugin's text domain but the regenerated POT has none of them;
 - `Requires PHP` is below the PHP floor of a shipped package, the highest lower bound of the `require.php` constraints of the project's own `composer.json`, the production packages in Composer's vendor directory and the scoped packages in `vendor-prefixed/`;
 - `Requires at least` is below the `extra.requires-wp` version a shipped package declares, `WC requires at least` is below its `extra.requires-wc` version, or `Requires Plugins` lacks a slug listed in its `extra.requires-plugins`;
-- the archive misses the main plugin file, `readme.txt` for a wp.org release, or, when `composer.json` declares `extra.scoping-prefix`, `vendor-prefixed/scoper-autoload.php` and the files of every scoped package;
-- the archive holds a development or secret file, such as a `phpcs*.xml*` ruleset, `composer.json` or `.env`.
+- the archive misses the main plugin file, `readme.txt` for a wp.org release, or, when `composer.json` declares `extra.scoping-prefix`, any PHP file under `vendor-prefixed/`, `scoper-autoload.php` included, while a scoped package's metadata, such as its `composer.json`, may stay out;
+- the archive holds a development or secret file, such as a `phpcs*.xml*` ruleset, a `phpstan*.neon*` profile, `AGENTS.md`, a `changelog/` fragment, `composer.json`, `.env` or a `.key` file, with only a `.pem` certificate allowed under a `vendor/` or `vendor-prefixed/` directory.
 
 A strict `>` lower bound in a package's PHP constraint is read as inclusive. The version is taken from the tag and verified against the files, never stamped in.
 
