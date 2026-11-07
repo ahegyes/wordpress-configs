@@ -76,7 +76,7 @@ jobs:
         run: |
           audit_json="$(mktemp)"
           status=0
-          # Composer has no distinct findings exit code, so the JSON report decides; advisory mode softens advisories and abandoned packages, never a filter-list match.
+          # Composer has no distinct findings exit code, so the JSON report decides, and advisory mode softens advisories and abandoned packages but never a filter-list match.
           # shellcheck disable=SC2086
           composer audit --locked $AUDIT_FLAGS --format=json > "$audit_json" || status=$?
           cat "$audit_json"

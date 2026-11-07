@@ -33,7 +33,7 @@ jobs:
     timeout-minutes: 30
     permissions: {}
     steps:
-      # An empty JSON array expands to zero matrix jobs and reports success — a silent skip of the syntax check.
+      # An empty JSON array expands to zero matrix jobs that report success, silently skipping the syntax check.
       - name: Reject an empty php-versions array
         env:
           PHP_VERSIONS: ${{ inputs.php-versions }}

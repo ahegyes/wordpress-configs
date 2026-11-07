@@ -1,5 +1,5 @@
 name: Release
-# Callers grant `contents: write`, `actions: read`, `id-token: write` and `attestations: write`; a caller must grant every permission the called jobs declare, or the call fails at startup.
+# A caller grants contents: write, actions: read, id-token: write and attestations: write, every permission the called jobs declare, or the call fails at startup.
 
 on:
   workflow_call:
@@ -110,7 +110,7 @@ jobs:
 
           echo "tag-version=$tag_version" >> "$GITHUB_OUTPUT"
 
-      # A GitHub-distributed build carries an Update URI and no readme.txt by design; wp.org builds run the full set.
+      # A GitHub-distributed build carries an Update URI and no readme.txt by design, while a wp.org build runs the full set.
       - name: Resolve the excluded checks
         id: excluded
         if: ${{ inputs.plugin-check }}
@@ -189,7 +189,7 @@ jobs:
             exit 0
           fi
           notes=$(mktemp)
-          # index() matches the heading as text; a regex would read the version's dots as wildcards.
+          # The heading is matched as literal text with index(), so a dot in the version matches only a dot.
           awk -v v="$VERSION" '
             $0 == "## " v || index($0, "## " v " ") == 1 || index($0, "## [" v "]") == 1 { capture = 1; next }
             capture && /^## / { exit }
@@ -288,7 +288,7 @@ jobs:
             exit 1
           fi
 
-      # --no-scripts avoids invoking handlers that were just pruned from require-dev.
+      # The prune runs no scripts, because their handlers leave with the development dependencies.
       - name: Prune to the production dependencies
         working-directory: ${{ inputs.project-path }}
         run: composer install --no-dev --no-interaction --no-progress --prefer-dist --ignore-platform-req=php+ --optimize-autoloader --no-scripts
@@ -523,6 +523,7 @@ jobs:
           if [ -d .wordpress-org ]; then
             cp -R .wordpress-org/. wp-org-assets-artifact/
           fi
+          # A placeholder keeps the artifact non-empty, so the deploy job's download succeeds for a plugin without .wordpress-org/.
           touch wp-org-assets-artifact/__artifact_keep__
 
       - name: Upload the wp.org assets artifact
@@ -543,7 +544,7 @@ jobs:
     env:
       PLUGIN_SLUG: ${{ inputs.plugin-slug }}
       WP_ENV_CONFIG_FILE: ${{ inputs.wp-env-config-file }}
-      # wp-env lets this variable win over the config's phpVersion, so the artifact runs on the PHP the build was checked on.
+      # Since wp-env lets this variable win over the config's phpVersion, the artifact runs on the PHP the build was checked on.
       WP_ENV_PHP_VERSION: ${{ inputs.php-version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -606,7 +607,7 @@ jobs:
             echo "::error::Release contract violation — $config must exist and map \"$key\" to the plugin source; found mappings: $(jq -c '.mappings // {}' "$config" 2> /dev/null || echo 'none')."
             exit 1
           fi
-          # wp-env layers env-scoped settings over root, so the redirect and the latest core cover root plus development and tests, or an env-scoped mapping or core pin would run the E2E against source.
+          # Since wp-env layers env-scoped settings over the root ones, the redirect and the latest core cover the root, development and tests, or an env-scoped mapping or core pin would run the E2E tests against the source.
           override="${config%.json}.override.json"
           [ -f "$override" ] || echo '{}' > "$override"
           jq --arg key "$key" --arg built "$BUILT_PATH" '. * ({core: null, mappings: {($key): $built}} | . + {env: {development: ., tests: .}})' "$override" > "$override.tmp"
@@ -647,7 +648,7 @@ jobs:
             exit 1
           fi
           run_cli wp plugin activate "$PLUGIN_SLUG"
-          # wp-env's run consumes a `--`, so the argument after the script is a placeholder for bash's $0.
+          # Since wp-env's run consumes a --, the argument after the script is a placeholder for bash's $0.
           # shellcheck disable=SC2016
           run_cli bash -c 'got=$(wp plugin get "$1" --field=version); echo "Active plugin version: $got (expected $2)"; test "$got" = "$2"' bash "$PLUGIN_SLUG" "$VERSION"
 
@@ -673,7 +674,7 @@ jobs:
 
   provenance:
     name: Verify the release provenance
-    # A dispatched dry run rehearses this check; a pull request's merge commit has no push runs, and a push-triggered dry run would race the runs it looks up.
+    # Only a dispatched dry run rehearses this check, because a pull request's merge commit has no push runs and a push-triggered dry run would race the runs it looks up.
     if: ${{ inputs.publish || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -773,7 +774,7 @@ jobs:
   wp-org:
     name: Deploy to wp.org
     needs: [build, test, provenance, release]
-    # wp.org offers sites only its Stable tag, so a prerelease ships through GitHub alone.
+    # Sites receive only a wp.org plugin's Stable tag, so a prerelease ships through GitHub alone.
     if: ${{ inputs.publish && inputs.wp-org && !contains(needs.build.outputs.version, '-') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30

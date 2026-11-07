@@ -42,8 +42,7 @@ jobs:
 
   phpcs-smoke:
     name: Smoke-test the PHPCS production profile
-    # Self-lint runs the shared profiles only through the root rulesets, which strip the WP-runtime
-    # sniffs consumers get — this job scans a plugin-shaped fixture with the raw production profile.
+    # Self-lint reaches the shared profiles only through the root rulesets, which drop the WordPress runtime sniffs consumers get, so this job scans a plugin-shaped fixture with the production profile itself.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -65,8 +64,7 @@ jobs:
         with:
           composer-options: '--prefer-dist --ignore-platform-req=php+'
 
-      # phpcs -e loads the ruleset and lists its sniffs without scanning any file — the cheapest
-      # possible proof that the XML parses and every <rule ref> still resolves.
+      # Explaining the profile loads it and lists its sniffs without scanning a file, the cheapest proof that the XML parses and every rule reference still resolves.
       - name: Explain php/quality-assurance/phpcs.dist.xml
         run: vendor/bin/phpcs -e --standard=php/quality-assurance/phpcs.dist.xml
 
@@ -113,7 +111,7 @@ jobs:
 
   block-json:
     name: Check block.json files
-    # Dogfoods reusable-block-json-check against a throwaway fixture; this tooling repo ships no real blocks.
+    # This repository ships no blocks, so the check runs against a fixture.
     permissions:
       contents: read
     uses: ./.github/workflows/reusable-block-json-check.yml

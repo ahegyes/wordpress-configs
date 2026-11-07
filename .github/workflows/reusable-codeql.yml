@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       languages:
-        # CodeQL ships no PHP analyzer; PHP is statically analysed by PHPStan in the Quality workflow.
+        # CodeQL has no PHP analyzer, so PHPStan covers PHP.
         description: 'Non-empty JSON array of CodeQL languages.'
         type: string
         required: false
@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 30
     permissions: {}
     steps:
-      # An empty JSON array expands to zero matrix jobs and reports success — a silent skip of the security scan.
+      # An empty JSON array expands to zero matrix jobs that report success, silently skipping the security scan.
       - name: Reject an empty languages array
         env:
           LANGUAGES: ${{ inputs.languages }}

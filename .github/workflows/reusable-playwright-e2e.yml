@@ -127,7 +127,7 @@ jobs:
         working-directory: ${{ inputs.project-path }}
         run: npx --no-install playwright install --with-deps chromium
 
-      # wp-env applies WP_ENV_PHP_VERSION over a config's phpVersion, so a pinned site keeps its PHP while Composer and the suite run on php-version.
+      # Since wp-env applies WP_ENV_PHP_VERSION over a config's phpVersion, a pinned site keeps its PHP while Composer and the suite run on php-version.
       - name: Resolve the site's PHP
         working-directory: ${{ inputs.project-path }}
         env:

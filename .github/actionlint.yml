@@ -1,4 +1,4 @@
-# actionlint does not know the job context's workflow_repository and workflow_sha yet, which GitHub documents for a reusable workflow's own commit.
+# The job context's workflow_repository and workflow_sha, which GitHub documents for a reusable workflow's own commit, are not yet known to actionlint.
 paths:
   .github/workflows/reusable-block-json-check.yml:
     ignore:

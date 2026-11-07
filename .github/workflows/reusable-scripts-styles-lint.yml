@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 30
     permissions: {}
     steps:
-      # An empty JSON array expands to zero matrix jobs and reports success — a silent skip of the lint.
+      # An empty JSON array expands to zero matrix jobs that report success, silently skipping the lint.
       - name: Reject an empty scripts array
         env:
           SCRIPTS: ${{ inputs.scripts }}
