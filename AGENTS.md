@@ -28,7 +28,7 @@ wordpress-configs/
 ## Commands
 
 ```sh
-composer install
+composer packages-install
 composer quality-check          # composer validate --strict, PHPCS (both profiles), PHPStan, unit tests
 composer test:unit:mutation     # opt-in Infection run, no floor
 npm run lint:scripts            # ESLint over node/, the smoke harness and eslint.config.mjs
@@ -39,15 +39,18 @@ zizmor --config .github/zizmor.yml .github/
 
 ## Conventions
 
-- Shared config files are named `<tool>.dist.<ext>`, so IDEs recognize the trailing extension.
-- Self-lint uses the root rulesets and PHPStan config, which extend the shared profiles with this repository's exclusions; the files under `php/quality-assurance/` are for consumers.
-- Composer installs pass `--ignore-platform-req=php+` in scripts, CI and the reusable workflows: only the PHP upper bound is ignored, so extension requirements and floors stay checked.
-- Tests run PHPCS, PHPStan, php-scoper and workflow step scripts on fixtures copied to a temporary directory, never mocks.
-- Workflow-step tests find a step by its job and `name` and run it with `bash -e`, as GitHub Actions does for a step that names no shell; renaming a tested step breaks its test.
-- Every reusable-workflow input has a `description:`; shipped input names, types and defaults change only as a coordinated migration (CONTRIBUTING.md).
-- Self-CI calls the reusable workflows through `./`, and `.github/zizmor.yml` turns off zizmor's `self-repository` audit until actionlint accepts `$/`.
-- The README is an index; workflow inputs live in `docs/workflows.md`, script and file contracts in `docs/scripts-contract.md`, the scoping contract in `docs/scoping.md`, test tiers in `tests/README.md`. A behavior change updates them in the same change.
-- The README names each floor by the file and key that hold it (`composer.json`'s `require.php`, `package.json`'s `engines`, `phpcs.base.dist.xml`'s `testVersion` and `minimum_wp_version`, `phpstan.dist.neon`'s `requiresAtLeast`), never by its number, so a floor change edits only those files.
+1. **Naming.** Shared PHP tool configs, the PHPCS and PHPStan profiles, are named `<tool>.dist.<ext>`, so IDEs recognize the trailing extension, and the Node baselines `<tool>.config.base.<ext>`, or `tsconfig.base.json` for TypeScript.
+2. **Self-lint.** This repository lints itself with the root rulesets and PHPStan config, which extend the shared profiles with its exclusions; the files under `php/quality-assurance/` are for consumers.
+3. **Composer installs.** Scripts, CI and the reusable workflows install with `--ignore-platform-req=php+`: only the PHP upper bound is ignored, so extension requirements and floors stay checked.
+4. **Tests.** PHPCS, PHPStan, php-scoper and workflow step scripts run on fixtures copied to a temporary directory, never against mocks.
+5. **Workflow-step tests.** A test finds a step by its job and `name` and runs it with `bash -e`, as GitHub Actions does for a step that names no shell; renaming a tested step breaks its test.
+6. **Inputs.** Every reusable-workflow input has a `description:`; shipped input names, types and defaults change only as a coordinated migration (CONTRIBUTING.md).
+7. **Self-CI.** This repository's CI calls the reusable workflows through `./`, and `.github/zizmor.yml` turns off zizmor's `self-repository` audit until actionlint accepts `$/`.
+8. **Docs.** The README is an index; workflow inputs live in `docs/workflows.md`, script and file contracts in `docs/scripts-contract.md`, the scoping contract in `docs/scoping.md`, test tiers in `tests/README.md`. A behavior change updates them in the same change.
+9. **Floors.** The README names each floor by the file and key that hold it (`composer.json`'s `require.php`, `package.json`'s `engines`, `phpcs.base.dist.xml`'s `testVersion` and `minimum_wp_version`, `php/quality-assurance/phpstan.dist.neon`'s `WPCompat.requiresAtLeast`), never by its number, so a floor change edits only those files.
+
+## Style
+
 - Class and method docblocks open with one third-person sentence naming the role, such as "Returns …", and add a second paragraph only for a non-obvious why; property and constant docblocks open with "The …". A function or method docblock ends with `@return`, `@return  void` included, unless it documents a constructor or opens with `{@inheritDoc}`. Each `@param` stays on one line, `@throws` reads "Thrown when …", members are `protected` rather than `private`, and class bodies outside `tests/` group members in `// region NAME` blocks.
 - Inline comments state a non-obvious why in one capitalized sentence, and every file describes the present, never the change.
 - Markdown keeps one line per paragraph, sentence-case headings and an impersonal, present-tense voice.
