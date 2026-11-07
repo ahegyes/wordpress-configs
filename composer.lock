@@ -1070,12 +1070,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "7252ec7fc650313ca2c1ecc1e556da38d93acd56"
+                "reference": "a09945ae024a4cb2be97d080558455b979e3f743"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/7252ec7fc650313ca2c1ecc1e556da38d93acd56",
-                "reference": "7252ec7fc650313ca2c1ecc1e556da38d93acd56",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/a09945ae024a4cb2be97d080558455b979e3f743",
+                "reference": "a09945ae024a4cb2be97d080558455b979e3f743",
                 "shasum": ""
             },
             "conflict": {
@@ -1720,6 +1720,7 @@
                 "pagarme/pagarme-php": "<3",
                 "pagekit/pagekit": "<=1.0.18",
                 "paragonie/ecc": "<2.0.1",
+                "paragonie/halite": ">=5,<5.1.5",
                 "paragonie/random_compat": "<2",
                 "paragonie/sodium_compat": "<1.24.1|>=2,<2.5.1",
                 "passbolt/passbolt_api": "<4.6.2",
@@ -2236,8 +2237,8 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-11-05T19:32:52+00:00",
-            "published-time": "2026-11-05T19:32:58+00:00"
+            "time": "2026-11-07T01:38:18+00:00",
+            "published-time": "2026-11-07T01:38:22+00:00"
         },
         {
             "name": "sniccowp/php-scoper-wordpress-excludes",

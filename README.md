@@ -1,13 +1,13 @@
 # wordpress-configs
 
-Shared PHPCS, PHPStan and php-scoper configurations, Node tool baselines and reusable GitHub Actions workflows for WordPress plugins, themes and sites.
+Shared tooling that lets WordPress projects be checked, scoped and released the same way.
 
 ## Requirements
 
 - PHP at the floor `composer.json`'s `require.php` names, and Composer 2.
 - For the Node baselines only, the Node and npm versions `package.json`'s `engines` names, and the tools its `peerDependencies` list.
 
-The shared PHPCS profiles check code against the PHP and WordPress floors that `php/quality-assurance/phpcs.base.dist.xml` sets in `testVersion` and `minimum_wp_version`, and the PHPStan profile against the WordPress floor that `php/quality-assurance/phpstan.dist.neon` sets in `requiresAtLeast`; a project with lower floors lowers them as [the scripts contract](docs/scripts-contract.md#lowering-the-floors) shows for PHPCS and [its PHPStan section](docs/scripts-contract.md#phpstan) for PHPStan.
+The shared PHPCS profiles check code against the PHP and WordPress floors that `php/quality-assurance/phpcs.base.dist.xml` sets in `testVersion` and `minimum_wp_version`, and the PHPStan profile against the WordPress floor that `php/quality-assurance/phpstan.dist.neon` sets in `WPCompat.requiresAtLeast`; a project with lower floors lowers them as [the scripts contract](docs/scripts-contract.md#lowering-the-floors) shows for PHPCS and [its PHPStan section](docs/scripts-contract.md#phpstan) for PHPStan.
 
 ## Installation
 
@@ -15,12 +15,12 @@ Add the VCS repository and require the package as a development dependency:
 
 ```json
 {
-  "repositories": [
-    { "type": "vcs", "url": "https://github.com/ahegyes/wordpress-configs.git" }
-  ],
-  "require-dev": {
-    "ahegyes/wordpress-configs": "dev-trunk"
-  }
+	"repositories": [
+		{ "type": "vcs", "url": "https://github.com/ahegyes/wordpress-configs.git" }
+	],
+	"require-dev": {
+		"ahegyes/wordpress-configs": "dev-trunk"
+	}
 }
 ```
 
@@ -28,14 +28,14 @@ The root `composer.json` also declares `minimum-stability: dev` with `prefer-sta
 
 ```json
 {
-  "minimum-stability": "dev",
-  "prefer-stable": true,
-  "config": {
-    "allow-plugins": {
-      "dealerdirect/phpcodesniffer-composer-installer": true,
-      "phpstan/extension-installer": true
-    }
-  }
+	"minimum-stability": "dev",
+	"prefer-stable": true,
+	"config": {
+		"allow-plugins": {
+			"dealerdirect/phpcodesniffer-composer-installer": true,
+			"phpstan/extension-installer": true
+		}
+	}
 }
 ```
 
@@ -43,9 +43,9 @@ The Node baselines resolve through `node_modules`, so a project that uses them a
 
 ```json
 {
-  "devDependencies": {
-    "@ahegyes/wordpress-configs": "git+https://github.com/ahegyes/wordpress-configs.git#<commit-sha>"
-  }
+	"devDependencies": {
+		"@ahegyes/wordpress-configs": "git+https://github.com/ahegyes/wordpress-configs.git#<commit-sha>"
+	}
 }
 ```
 
@@ -67,24 +67,24 @@ Create a `phpcs.dist.xml` that extends the production profile and names the proj
 ```xml
 <?xml version="1.0"?>
 <ruleset name="Project">
-    <rule ref="./vendor/ahegyes/wordpress-configs/php/quality-assurance/phpcs.dist.xml"/>
+	<rule ref="./vendor/ahegyes/wordpress-configs/php/quality-assurance/phpcs.dist.xml"/>
 
-    <rule ref="WordPress.WP.I18n">
-        <properties>
-            <property name="text_domain" type="array">
-                <element value="your-text-domain"/>
-            </property>
-        </properties>
-    </rule>
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="your-text-domain"/>
+			</property>
+		</properties>
+	</rule>
 
-    <rule ref="WordPress.NamingConventions.PrefixAllGlobals">
-        <properties>
-            <property name="prefixes" type="array">
-                <element value="yourprefix_"/>
-                <element value="YourVendor\YourPlugin"/>
-            </property>
-        </properties>
-    </rule>
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="yourprefix_"/>
+				<element value="YourVendor\YourPlugin"/>
+			</property>
+		</properties>
+	</rule>
 </ruleset>
 ```
 
@@ -106,12 +106,12 @@ Create a `phpstan.dist.neon`:
 
 ```neon
 includes:
-    - vendor/ahegyes/wordpress-configs/php/quality-assurance/phpstan.dist.neon
+	- vendor/ahegyes/wordpress-configs/php/quality-assurance/phpstan.dist.neon
 
 parameters:
-    paths:
-        - your-plugin.php
-        - src
+	paths:
+		- your-plugin.php
+		- src
 ```
 
 To add a plugin's conventional paths without listing them, include `phpstan.dist.neon.php` as well. It adds `functions-bootstrap.php`, `functions.php`, `uninstall.php`, `src/`, `includes/`, `models/`, `blocks/` and `templates/` when they exist in the directory PHPStan runs from, and scans `vendor-prefixed/` there; the entry file still goes under `paths`.
@@ -120,10 +120,10 @@ To analyze code with no WordPress loaded, include `phpstan.base.dist.neon` alone
 
 ```neon
 includes:
-    - vendor/szepeviktor/phpstan-wordpress/extension.neon
-    - vendor/johnbillion/wp-compat/extension.neon
-    - vendor/swissspidy/phpstan-no-private/rules.neon
-    - vendor/ahegyes/wordpress-configs/php/quality-assurance/phpstan.dist.neon
+	- vendor/szepeviktor/phpstan-wordpress/extension.neon
+	- vendor/johnbillion/wp-compat/extension.neon
+	- vendor/swissspidy/phpstan-no-private/rules.neon
+	- vendor/ahegyes/wordpress-configs/php/quality-assurance/phpstan.dist.neon
 ```
 
 The package installs `phpstan-deprecation-rules`, `phpstan-strict-rules`, `szepeviktor/phpstan-wordpress` (WordPress signatures and types), `johnbillion/wp-compat` (WordPress version compatibility) and `swissspidy/phpstan-no-private` (private WordPress APIs).
@@ -136,9 +136,9 @@ Require php-scoper in the plugin itself, because Composer does not install this 
 
 ```json
 {
-  "require-dev": {
-    "humbug/php-scoper": "^0.18"
-  }
+	"require-dev": {
+		"humbug/php-scoper": "^0.18"
+	}
 }
 ```
 
@@ -146,19 +146,19 @@ Declare the scoping prefix, load the generated autoloader, and scope after every
 
 ```json
 {
-  "autoload": {
-    "files": [
-      "vendor-prefixed/scoper-autoload.php"
-    ]
-  },
-  "scripts": {
-    "post-autoload-dump": [
-      "DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::postAutoloadDump"
-    ]
-  },
-  "extra": {
-    "scoping-prefix": "YourVendor\\YourPlugin\\Scoped"
-  }
+	"autoload": {
+		"files": [
+			"vendor-prefixed/scoper-autoload.php"
+		]
+	},
+	"scripts": {
+		"post-autoload-dump": [
+			"DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::postAutoloadDump"
+		]
+	},
+	"extra": {
+		"scoping-prefix": "YourVendor\\YourPlugin\\Scoped"
+	}
 }
 ```
 
@@ -170,64 +170,20 @@ Create `scoper.inc.php` at the project root and name the packages to scope:
 return ( require __DIR__ . '/vendor/ahegyes/wordpress-configs/php/php-scoper/scoper-base.inc.php' )( __DIR__, 'dompdf/dompdf', 'php-di/php-di' );
 ```
 
-A name is a package name or an `fnmatch()` pattern, such as `'your-vendor/your-library-*'`. The runtime dependencies of each named package follow from Composer's `installed.json`, through `require` and never `require-dev`, so naming a library scopes what it needs; a requirement that another package or the project itself replaces or provides, as Composer records in `installed.php`, counts as met. A pattern matches every installed package, development tools included, so keep it as narrow as the packages it means. A name that starts with `!` keeps the packages it matches unscoped, such as a polyfill whose global functions must stay reachable (`'!symfony/polyfill-php80'`), and the symbols they declare stay global too. Keep the scoped packages in `require-dev`, so a production install never loads their unprefixed copies, and require an unscoped package in `require`, so a production install still ships it.
-
-A scope run:
-
-- scopes every file of each scoped package into `vendor-prefixed.tmp/` and, once php-scoper succeeds, moves it to `vendor-prefixed/<vendor>/<package>/` in place of the previous build, refusing a `vendor-prefixed/` that is a symbolic link, so a run php-scoper fails keeps the previous build;
-- leaves global the WordPress symbols of `sniccowp/php-scoper-wordpress-excludes`, Action Scheduler (`as_*` and `ActionScheduler*`), every symbol of the stubs files the project or a scoped package declares under `extra.scoping-stubs`, and their namespaces;
-- prefixes the strings that start with a scoped package's own namespace, which libraries use to build class names, unless they name a namespace the run leaves global or a symbol in one;
-- applies the recipe of each scoped package that has one in `php/php-scoper/recipes/<vendor>/<package>.inc.php`;
-- rewrites each string literal of the text domain a scoped package declares under `extra.scoping-text-domain` to the project's `extra.text-domain`, unless the two are the same;
-- fails, naming each one, when the scoped code references a prefixed name it does not declare as the kind of symbol the reference needs: a host symbol no stubs file declares, a dependency outside the scoped packages, a string php-scoper took for a class name, or the class of a `Class::MEMBER` string;
-- fails, naming its namespace, when the scoped code declares a class, interface, trait or enum outside the prefix, which a copy the host or another plugin loads can replace, other than the polyfill of a PHP class;
-- passes a `function_exists()` check of the prefixed name of a function it leaves global, PHP's own included, which php-scoper adds to every guard of that function and which is false while nothing declares the name;
-- writes `vendor-prefixed/scoper-autoload.php`, a class map over each scoped package's `psr-4`, `psr-0` and `classmap` paths that honors `exclude-from-classmap`, followed by its `files` entries.
-
-The run also fails when `extra.scoping-prefix` is missing or empty, when a name matches no installed package, when a scoped package requires one that is not installed, when a declared stubs file is missing, when a scoped file, a declared stubs file or a dropped package's file does not parse, when a scoped package declares a text domain and the project declares none, when a declared text domain survives outside a string literal of its own, and when a recipe's target is gone.
-
-A package that reaches a dependency only through a metapackage includes its `files` entries before that dependency's, because the autoloader orders them by each package's direct `require`.
-
-The run supports none of php-scoper's `expose-*` options, since each plugin keeps its own prefixed copy of what it scopes: the namespace-string patcher prefixes the global name in the alias php-scoper writes for an exposed class, so the class stays unexposed.
-
-The project or a scoped package declares the stubs files of the host symbols the scoped code calls, each as `./path/to/file.php` relative to its `composer.json`, as `vendor/package` for that package's `<package>.php`, or as `vendor/package:path/to/file.php`:
-
-```json
-{
-  "extra": {
-    "scoping-stubs": [
-      "php-stubs/woocommerce-stubs",
-      "php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php",
-      "./stubs/host-plugin.php"
-    ]
-  }
-}
-```
-
-A package whose strings take the host plugin's text domain declares the domain it uses, and the project declares its own:
-
-```json
-{
-  "extra": {
-    "scoping-text-domain": "your-library"
-  }
-}
-```
-
-`scoper.inc.php` returns an ordinary php-scoper config, so a project can add exclusions or patchers before returning it. Write namespace exclusions as anchored regular expressions, such as `'/^YourVendor\\\\Name(?:\\\\|$)/i'`, because php-scoper matches a plain namespace string anywhere in a name.
-
-A recipe returns php-scoper settings for one package, with paths relative to it: `exclude-files`, anchored `exclude-namespaces`, and `replacements`, a map of search to replace strings per file of the scoped code, in which `{prefix}` stands for the scoping prefix. A replacement whose search string is missing fails the run, so a library update that invalidates a recipe surfaces when scoping.
-
 `postAutoloadDump` scopes only in development mode, so a production install keeps the scoped output it ships; `composer dump-autoload` scopes again by hand.
+
+[The scoping contract](docs/scoping.md) gives the packages a run scopes, what it prefixes, leaves global and rejects, and how a project declares host stubs, text domains, its own php-scoper settings and per-package recipes.
 
 ## Node baselines
 
 `node/` holds one baseline per tool, which a project extends and overrides. The package declares the tools behind them as `>=` peer dependencies, floored at the versions it is tested against: `@wordpress/scripts`, `@wordpress/eslint-plugin`, `@wordpress/stylelint-config`, `@playwright/test` and `typescript`, whose defaults `node/tsconfig.base.json` builds on. `typescript` stays below 7, because typescript-eslint, which the ESLint base loads, refuses TypeScript 7.
 
+The package depends on `prettier` as an alias of `wp-prettier`, so a consumer's `wp-scripts format` runs WordPress's fork of Prettier.
+
 | Baseline | Holds |
 | --- | --- |
-| `node/tsconfig.base.json` | The deltas from TypeScript's defaults: `react-jsx`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `isolatedModules`, `resolveJsonModule`, `skipLibCheck` and `noEmit` |
-| `node/eslint.config.base.mjs` | `@wordpress/eslint-plugin`'s recommended flat config, with its unit-test and Playwright presets scoped to test globs |
+| `node/tsconfig.base.json` | TypeScript's strict defaults, tightened for returns and switch cases and set up for code that wp-scripts bundles and `tsc` only type-checks |
+| `node/eslint.config.base.mjs` | `@wordpress/eslint-plugin`'s recommended flat config, with its unit-test and Playwright presets scoped to test globs, and `console.warn` and `console.error` allowed while other console calls warn |
 | `node/stylelint.config.base.js` | `@wordpress/stylelint-config/scss-stylistic`, WordPress's SCSS and formatting rules, with generated trees ignored, `selector-class-pattern` off, and reports on needless, descriptionless and invalid-scope disable comments |
 | `node/playwright.config.base.js` | A factory over the `@wordpress/scripts` Playwright config, taking the project's wp-env `port` |
 
@@ -235,10 +191,12 @@ TypeScript extends the base by path:
 
 ```json
 {
-  "extends": "@ahegyes/wordpress-configs/node/tsconfig.base.json",
-  "include": ["client/**/*"]
+	"extends": "@ahegyes/wordpress-configs/node/tsconfig.base.json",
+	"include": ["client/**/*"]
 }
 ```
+
+The tsconfig takes effect only through the project's `tsc` script, conventionally `lint:types`, because wp-scripts builds TypeScript without type-checking it.
 
 ESLint spreads the base:
 
@@ -248,12 +206,12 @@ import baseConfig from '@ahegyes/wordpress-configs/node/eslint.config.base.mjs';
 export default [ ...baseConfig ];
 ```
 
-Stylelint spreads the base and its rules, because Stylelint ignores the `ignoreFiles` of a config loaded through `extends`:
+Stylelint spreads the base, because Stylelint ignores the `ignoreFiles` of a config loaded through `extends`:
 
 ```js
 const baseConfig = require( '@ahegyes/wordpress-configs/node/stylelint.config.base.js' );
 
-module.exports = { ...baseConfig, rules: { ...baseConfig.rules } };
+module.exports = { ...baseConfig };
 ```
 
 Playwright calls the factory with the port the wp-env config serves on (8888 when it sets none) and spreads nested keys individually, or the top-level spread drops the WordPress defaults:
@@ -265,7 +223,7 @@ const baseConfig = require( '@ahegyes/wordpress-configs/node/playwright.config.b
 module.exports = defineConfig( { ...baseConfig, use: { ...baseConfig.use } } );
 ```
 
-The Playwright factory sets `testDir` to `tests/EndToEnd/` and artifacts under `tests/.cache/artifacts/`, and returns the `@wordpress/scripts` `webServer` on the given port, which runs `npm run wp-env start`. It sets `WP_BASE_URL` and `WP_ARTIFACTS_PATH` only when they are unset, before loading the `@wordpress/scripts` config, which reads them once, so an exported value wins over `port` and a second call in the same process reuses the first configuration; a project that starts wp-env through its own script spreads `webServer` and sets `command`. For WordPress fixtures, import from `@wordpress/e2e-test-utils-playwright`; for accessibility scans, add `@axe-core/playwright` to the project's own devDependencies.
+The factory reads the specs from `tests/EndToEnd/` and writes artifacts under `tests/.cache/artifacts/`. Its `webServer` runs `npm run wp-env start` on the given port, so a project that starts wp-env through another script spreads `webServer` and sets `command`.
 
 ## Reusable workflows
 
@@ -295,22 +253,4 @@ The Playwright factory sets `testDir` to `tests/EndToEnd/` and artifacts under `
 
 ## Development
 
-Install the dependencies:
-
-```sh
-composer install
-```
-
-Run the unit suite:
-
-```sh
-composer test
-```
-
-Validate the manifest and run the PHP lint and the unit suite together:
-
-```sh
-composer quality-check
-```
-
-[The tests guide](tests/README.md) describes the test tiers, the opt-in mutation run and the fixtures, and [CONTRIBUTING.md](CONTRIBUTING.md) covers the checks to run before a pull request.
+[CONTRIBUTING.md](CONTRIBUTING.md) gives the setup and the checks to run before a pull request, and [the tests guide](tests/README.md) describes the test tiers, the opt-in mutation run and the fixtures.

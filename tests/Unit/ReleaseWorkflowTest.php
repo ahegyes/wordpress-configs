@@ -436,7 +436,7 @@ final class ReleaseWorkflowTest extends TestCase {
 	public function test_archive_must_not_ship_development_files( string $entry, int $expected_status ): void {
 		$this->write_archive( array( 'acme-plugin.php', $entry ) );
 
-		$result = $this->run_build_step( 'Assert forbidden entries absent', array() );
+		$result = $this->run_build_step( 'Assert the archive holds no forbidden entries', array() );
 
 		self::assertSame( $expected_status, $result['status'], $result['output'] );
 	}
@@ -477,7 +477,7 @@ final class ReleaseWorkflowTest extends TestCase {
 			);
 		}
 
-		$result = $this->run_build_step( 'Assert scoped packages bundled', array() );
+		$result = $this->run_build_step( 'Assert the archive bundles the scoped packages', array() );
 
 		self::assertSame( $expected_status, $result['status'], $result['output'] );
 		if ( '' !== $named ) {
@@ -517,7 +517,7 @@ final class ReleaseWorkflowTest extends TestCase {
 		$result = $this->run_step(
 			'reusable-release.yml',
 			'provenance',
-			'Verify required workflows passed',
+			'Verify the required workflows passed',
 			array(
 				'GH_TOKEN'           => 'token',
 				'REPOSITORY'         => 'acme/acme-plugin',
@@ -563,7 +563,7 @@ final class ReleaseWorkflowTest extends TestCase {
 	#[DataProvider( 'provide_release_inputs' )]
 	public function test_a_release_runs_from_a_version_tag_with_a_safe_slug_and_path( string $ref_type, string $ref_name, string $project_path, string $publish, string $slug, int $expected_status, string $expected ): void {
 		$result = $this->run_build_step(
-			'Enforce release inputs',
+			'Enforce the release inputs',
 			array(
 				'REF_TYPE'     => $ref_type,
 				'REF_NAME'     => $ref_name,
@@ -666,7 +666,7 @@ final class ReleaseWorkflowTest extends TestCase {
 	}
 
 	public function test_the_wp_org_deploy_refuses_a_prerelease_tag(): void {
-		$result = $this->run_step( 'reusable-release.yml', 'wp-org', 'Re-verify version tag before deploy', array( 'REF_NAME' => 'v1.3.0-beta.1' ) );
+		$result = $this->run_step( 'reusable-release.yml', 'wp-org', 'Verify the version tag before the deploy', array( 'REF_NAME' => 'v1.3.0-beta.1' ) );
 
 		self::assertSame( 1, $result['status'], $result['output'] );
 		self::assertMatchesRegularExpression( '/^::error::Refusing to deploy/m', $result['output'] );
@@ -680,7 +680,7 @@ final class ReleaseWorkflowTest extends TestCase {
 
 		$this->write_archive( $files );
 
-		$result = $this->run_build_step( 'Assert required files present', array( 'WP_ORG' => 'false' ) );
+		$result = $this->run_build_step( 'Assert the archive holds the required files', array( 'WP_ORG' => 'false' ) );
 
 		self::assertSame( 0, $result['status'], $result['output'] );
 	}
@@ -699,7 +699,7 @@ final class ReleaseWorkflowTest extends TestCase {
 	public function test_the_archive_must_ship_the_main_plugin_file( string $archived, int $expected_status ): void {
 		$this->write_archive( array( $archived ) );
 
-		$result = $this->run_build_step( 'Assert required files present', array( 'WP_ORG' => 'false' ) );
+		$result = $this->run_build_step( 'Assert the archive holds the required files', array( 'WP_ORG' => 'false' ) );
 
 		self::assertSame( $expected_status, $result['status'], $result['output'] );
 	}
@@ -736,7 +736,7 @@ final class ReleaseWorkflowTest extends TestCase {
 	public function test_the_archive_command_runs_from_the_release_tools(): void {
 		$this->write_executable( 'bin/wp', "#!/usr/bin/env bash\necho \"wp \$*\" >> \"\$HOME/calls\"\n" );
 
-		$result = $this->run_build_step( 'Create plugin archive', array() );
+		$result = $this->run_build_step( 'Create the plugin archive', array() );
 
 		self::assertSame( 0, $result['status'], $result['output'] );
 		self::assertSame( array( 'wp dist-archive . ./acme-plugin.zip --plugin-dirname=acme-plugin' ), \file( $this->work_dir . '/calls', \FILE_IGNORE_NEW_LINES ) );
@@ -820,7 +820,7 @@ final class ReleaseWorkflowTest extends TestCase {
 		$result = $this->run_step(
 			'reusable-release.yml',
 			'test',
-			'Redirect wp-env at built artifact',
+			'Point wp-env at the built artifact',
 			array(
 				'PLUGIN_SLUG'        => 'acme-plugin',
 				'WP_ENV_CONFIG_FILE' => $config_file,

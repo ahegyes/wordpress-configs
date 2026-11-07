@@ -25,6 +25,7 @@ final class Manifest {
 	 * @param   string $file The path of the file.
 	 *
 	 * @throws  \RuntimeException Thrown when the file cannot be read.
+	 * @throws  \JsonException Thrown when the file is not valid JSON.
 	 *
 	 * @return  array<array-key, mixed>
 	 */
@@ -55,6 +56,7 @@ final class Manifest {
 	 * @param   string $project_dir The root directory of the project.
 	 *
 	 * @throws  \RuntimeException Thrown when the manifest cannot be read or declares no scoping prefix.
+	 * @throws  \JsonException Thrown when the manifest is not valid JSON.
 	 *
 	 * @return  string
 	 */

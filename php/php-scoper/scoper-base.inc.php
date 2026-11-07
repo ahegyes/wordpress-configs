@@ -17,6 +17,7 @@ use Symfony\Component\Finder\Finder;
  * @param   string ...$names    The packages to scope, as names or fnmatch() patterns, where a name that starts with ! drops the packages it matches.
  *
  * @throws  RuntimeException Thrown when composer.json declares no scoping prefix, or no text domain while a scoped package declares one, when a package to scope is missing, or when a recipe's target is missing.
+ * @throws  JsonException Thrown when a manifest, installed.json or a symbol list is not valid JSON.
  *
  * @return  array<string, mixed>
  */

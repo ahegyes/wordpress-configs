@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Report a vulnerability privately through [GitHub's security advisory form](https://github.com/ahegyes/wordpress-configs/security/advisories/new), never in a public issue. Expect a first response within 7 days. Once a fix lands on `trunk`, the advisory credits the reporter, unless they ask to stay anonymous.
+Report a vulnerability privately through [GitHub's security advisory form](https://github.com/ahegyes/wordpress-configs/security/advisories/new), never in a public issue. The first response comes within 7 days. Once a fix lands on `trunk`, the advisory credits the reporter, unless they ask to stay anonymous.
 
 ## Supported version
 
@@ -14,6 +14,6 @@ Pin `reusable-release.yml` by commit SHA like every reusable workflow, and revie
 
 ## Scope
 
-In scope is everything this repository ships: the scoping pipeline, its php-scoper configuration and recipes, the shared PHPCS and PHPStan configurations, the reusable workflows, such as script injection through caller inputs or an unpinned third-party action, and the Node baselines.
+In scope is everything this repository ships: the scoping pipeline, its php-scoper configuration and recipes, the shared PHPCS and PHPStan configurations, the reusable workflows (including script injection through caller inputs and unpinned third-party actions) and the Node baselines.
 
 Out of scope are vulnerabilities in WordPress core, third-party Composer or npm packages, and third-party GitHub Actions; report those to their maintainers.

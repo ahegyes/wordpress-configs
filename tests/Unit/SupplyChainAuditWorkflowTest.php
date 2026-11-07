@@ -85,7 +85,7 @@ final class SupplyChainAuditWorkflowTest extends TestCase {
 		$result = $this->run_step(
 			'reusable-supply-chain-audit.yml',
 			'npm-audit',
-			'npm audit',
+			'Run npm audit',
 			array(
 				'AUDIT_FLAGS'      => '--omit=dev --audit-level=high',
 				'FAIL_ON_FINDINGS' => $fail_on_findings,
@@ -108,7 +108,7 @@ final class SupplyChainAuditWorkflowTest extends TestCase {
 		return $this->run_step(
 			'reusable-supply-chain-audit.yml',
 			'composer-audit',
-			'composer audit',
+			'Run composer audit',
 			array(
 				'AUDIT_FLAGS'      => '--abandoned=report',
 				'FAIL_ON_FINDINGS' => $fail_on_findings,

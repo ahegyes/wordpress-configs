@@ -150,8 +150,8 @@ Installs Composer and npm dependencies, builds assets, installs Chromium, starts
 | `project-path` | `string` | No | `'.'` | Path to the project, relative to the repository root. |
 | `artifact-slug` | `string` | Yes | — | Label for the uploaded failure-report artifact. |
 | `php-version` | `string` | No | `'8.5'` | PHP for Composer, for any suite outside wp-env, and for the site when the wp-env config pins no `phpVersion`. |
-| `wp-version` | `string` | No | `''` | WordPress release tag. Empty defers to the wp-env config's `core`. |
-| `wp-env-core` | `string` | No | `''` | Full `WP_ENV_CORE` value. Overrides `wp-version`. |
+| `wp-version` | `string` | No | `''` | WordPress release tag, such as `'6.9.4'`. Empty defers to the wp-env config's `core`, or wp-env's latest stable release. |
+| `wp-env-core` | `string` | No | `''` | Full `WP_ENV_CORE` value, such as a repository ref or a zip URL. Overrides `wp-version`. |
 | `composer-options` | `string` | No | `'--prefer-dist --ignore-platform-req=php+'` | Options for the dependency install, which includes development packages so a scoping pipeline runs. |
 | `build-script` | `string` | No | `'build'` | npm script that builds assets before wp-env starts. Empty skips the build. |
 | `wp-env-config-file` | `string` | No | `''` | wp-env config file relative to `project-path`. Empty uses `.wp-env.json`. |
@@ -183,7 +183,7 @@ Runs WordPress Plugin Check against a built plugin directory in a fresh wp-env, 
 | `wp-org` | `boolean` | No | `false` | Runs the full check set, for a build published to wp.org. |
 | `exclude-checks` | `string` | No | `''` | Comma-separated check slugs to skip beside the profile's own. |
 
-The default GitHub profile skips `plugin_updater` and `plugin_readme`, which report two by-design traits of a GitHub-distributed build: its `Update URI` header and its missing `readme.txt`. Plugin Check skips `vendor-prefixed/`, so scoped dependencies are checked at their source. `exclude-checks` skips checks that cannot run on the plugin's code, such as `prefixing` and `direct_file_access`, which parse every PHP file with a parser that stops at PHP 8.4 syntax such as `protected(set)`. The job fails on any error, while warnings only annotate. The action installs the newest Plugin Check release from wp.org, not a pinned one.
+The default GitHub profile skips `plugin_updater` and `plugin_readme`, which report two by-design traits of a GitHub-distributed build: its `Update URI` header and its missing `readme.txt`. Plugin Check skips `vendor-prefixed/`, so scoped dependencies are checked at their source. `exclude-checks` skips checks that cannot run on the plugin's code, such as `prefixing` and `direct_file_access`, which parse every PHP file with a parser that fails on PHP 8.4 syntax such as `protected(set)`. The job fails on any error, while warnings only annotate. The action installs the newest Plugin Check release from wp.org, not a pinned one.
 
 The called job needs no permissions.
 

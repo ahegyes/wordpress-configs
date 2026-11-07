@@ -4,12 +4,12 @@ on:
   workflow_call:
     inputs:
       project-path:
-        description: 'Path to the project (relative to repo root)'
+        description: 'Path to the project, relative to the repository root.'
         type: string
         required: false
         default: '.'
       php-versions:
-        description: 'Non-empty JSON array of PHP versions to check (e.g. [\"8.5\",\"8.6\"])'
+        description: 'Non-empty JSON array of PHP versions to check, such as ["8.5", "8.6"].'
         type: string
         required: false
         default: '["8.5", "8.6"]'
@@ -33,7 +33,7 @@ jobs:
     timeout-minutes: 30
     permissions: {}
     steps:
-      # An empty JSON array expands to zero matrix jobs and reports success — a silent skip of the syntax check.
+      # An empty JSON array expands to zero matrix jobs that report success, silently skipping the syntax check.
       - name: Reject an empty php-versions array
         env:
           PHP_VERSIONS: ${{ inputs.php-versions }}
@@ -53,7 +53,7 @@ jobs:
           fi
 
   syntax:
-    name: Syntax (PHP ${{ matrix.php-version }})
+    name: Check syntax (PHP ${{ matrix.php-version }})
     needs: validate-inputs
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -76,7 +76,7 @@ jobs:
         with:
           name: ${{ inputs.artifact }}
 
-      - name: Setup PHP
+      - name: Set up PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ matrix.php-version }}

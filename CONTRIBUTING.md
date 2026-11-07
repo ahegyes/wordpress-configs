@@ -1,13 +1,13 @@
 # Contributing
 
-Consumers install `trunk` directly: Composer projects require `dev-trunk`, and workflow and npm consumers pin a `trunk` commit. Merge nothing to `trunk` that you would not release. A change to a Composer callback, a shared ruleset or a Node baseline reaches every Composer consumer at its next update, so state its consumer impact as for a workflow input.
+Consumers install `trunk` directly: Composer projects require `dev-trunk`, and workflow and npm consumers pin a `trunk` commit. Merge nothing to `trunk` that you would not release. A change to a Composer callback or a shared ruleset reaches every Composer consumer at its next update, and a change to a Node baseline or to the package's `prettier` alias of `wp-prettier` reaches npm consumers when they move their pin; state its consumer impact as for a workflow input.
 
 ## Before opening a pull request
 
 Install the dependencies on the PHP, Composer, Node and npm versions the README lists, then run the local equivalents of the CI checks:
 
 ```sh
-composer install
+composer packages-install
 npm install
 composer quality-check
 composer audit --abandoned=report
@@ -24,7 +24,7 @@ zizmor --config .github/zizmor.yml .github/
 
 Shipped `workflow_call` input names, types and semantics are frozen. An input may be added only when it is optional and its default keeps the current behavior. Renaming, removing or re-typing an input, or changing a default in a way callers can see, is a coordinated migration: land the change and move every consumer's pin in the same window, never by automerge, because a caller passing an input the workflow no longer declares fails at startup without a failed check on the pull request that moved the pin.
 
-Give every input a `description:` in the workflow and a row in [docs/workflows.md](docs/workflows.md). Consumers review, never automerge, a pin bump that changes the release workflow's `release` or `wp-org` jobs.
+Give every input a `description:` in the workflow and a row in [docs/workflows.md](docs/workflows.md). [SECURITY.md](SECURITY.md#release-workflow) sets how consumers review a pin bump that changes the release workflow.
 
 Dependabot cannot see the actionlint `version` and the `ZIZMOR_VERSION` that `reusable-workflow-checks.yml` pins, so bump them by hand to the newest release each pinned action supports.
 

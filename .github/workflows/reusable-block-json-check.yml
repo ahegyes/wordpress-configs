@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       project-path:
-        description: 'Path to the project (relative to repo root)'
+        description: 'Path to the project, relative to the repository root.'
         type: string
         required: false
         default: '.'
@@ -33,7 +33,7 @@ jobs:
           sparse-checkout: node/block-json
           persist-credentials: false
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '26'
@@ -47,14 +47,13 @@ jobs:
         env:
           AJV: ${{ github.workspace }}/.block-json-tools/node/block-json/node_modules/.bin/ajv
         run: |
-          # Validate one file per -d invocation; a single joined string breaks multi-block plugins.
+          # Each file takes its own -d argument, so a plugin with several blocks validates every one.
           mapfile -d '' files < <(find . -path ./node_modules -prune -o -path ./vendor -prune -o -path ./.block-json-tools -prune -o -name 'block.json' -print0)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No block.json files found — nothing to validate."
             exit 0
           fi
-          # schemas.wp.org publishes no versioned block.json path; trunk is the only (mutable) schema source.
-          # ajv-cli reads -s from disk and picks its parser from the extension, so fetch to a .json path; curl -f fails this check on a schemas.wp.org outage.
+          # The trunk schema, the only block.json schema schemas.wp.org publishes, is fetched to a .json path, because ajv-cli reads -s from disk and picks its parser from the extension, and curl -f fails the check during an outage.
           schema="$(mktemp -d)/schema.json"
           curl -fsSL https://schemas.wp.org/trunk/block.json -o "$schema"
           for file in "${files[@]}"; do

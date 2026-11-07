@@ -4,32 +4,32 @@ on:
   workflow_call:
     inputs:
       project-path:
-        description: 'Path to the project (relative to repo root). Its composer.lock and package-lock.json are audited as committed; nothing is installed.'
+        description: 'Path to the project, relative to the repository root. Its composer.lock and package-lock.json are audited as committed; nothing is installed.'
         type: string
         required: false
         default: '.'
       composer-audit:
-        description: 'Run `composer audit` against composer.lock, so the lockfile is required. Set false for repos without composer.json. At least one of composer-audit / npm-audit must stay enabled.'
+        description: 'Whether to run composer audit against composer.lock, so the lockfile is required. Set false for a project without composer.json. At least one of composer-audit and npm-audit stays enabled.'
         type: boolean
         required: false
         default: true
       npm-audit:
-        description: 'Run `npm audit` against package-lock.json, so the lockfile is required. Set false for repos without package.json. At least one of composer-audit / npm-audit must stay enabled.'
+        description: 'Whether to run npm audit against package-lock.json, so the lockfile is required. Set false for a project without package.json. At least one of composer-audit and npm-audit stays enabled.'
         type: boolean
         required: false
         default: true
       composer-audit-flags:
-        description: 'Extra flags passed to `composer audit`. Defaults to --abandoned=report — audits the full graph (dev/build deps included) and fails on security advisories, but reports abandoned packages instead of failing on them. Pass --no-dev to audit production deps only.'
+        description: 'Extra composer audit flags. The default, --abandoned=report, audits the full graph, development and build dependencies included, and fails on security advisories but only reports abandoned packages. Pass --no-dev to audit the production dependencies only.'
         type: string
         required: false
         default: '--abandoned=report'
       npm-audit-flags:
-        description: 'Extra flags passed to `npm audit`. The default audits production dependencies only and fails on high and critical advisories, surfacing low and moderate ones without failing; drop --omit=dev to audit development dependencies too.'
+        description: 'Extra npm audit flags. The default audits production dependencies only and fails on high and critical advisories, surfacing low and moderate ones without failing; drop --omit=dev to audit development dependencies too.'
         type: string
         required: false
         default: '--omit=dev --audit-level=high'
       fail-on-findings:
-        description: 'Fail the job when an audit reports findings. Set false to run the audit advisory-only — findings are surfaced in the logs without blocking, except a Composer filter-list match such as the malware list, which always fails.'
+        description: 'Whether findings fail the job. Set false to run the audit advisory-only, surfacing findings in the logs without blocking, except a Composer filter-list match such as the malware list, which always fails.'
         type: boolean
         required: false
         default: true
@@ -44,7 +44,7 @@ jobs:
     permissions: {}
     steps:
       # Both audits off leaves no job to run, so the workflow succeeds having audited nothing.
-      - name: Require at least one audit enabled
+      - name: Require at least one enabled audit
         if: ${{ !inputs.composer-audit && !inputs.npm-audit }}
         run: |
           echo "::error::Enable composer-audit and/or npm-audit — with both false this audit reports success without auditing anything."
@@ -53,7 +53,7 @@ jobs:
   # Both audits read the committed lockfiles, because installing first runs third-party code (Composer plugins, npm lifecycle scripts) before the audit.
   composer-audit:
     if: ${{ inputs.composer-audit }}
-    name: composer audit
+    name: Audit Composer dependencies
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -62,12 +62,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: '8.5'
           coverage: none
           tools: composer:v2
-      - name: composer audit
+      - name: Run composer audit
         working-directory: ${{ inputs.project-path }}
         env:
           AUDIT_FLAGS: ${{ inputs.composer-audit-flags }}
@@ -75,7 +76,7 @@ jobs:
         run: |
           audit_json="$(mktemp)"
           status=0
-          # Composer has no distinct findings exit code, so the JSON report decides; advisory mode softens advisories and abandoned packages, never a filter-list match.
+          # Composer has no distinct findings exit code, so the JSON report decides, and advisory mode softens advisories and abandoned packages but never a filter-list match.
           # shellcheck disable=SC2086
           composer audit --locked $AUDIT_FLAGS --format=json > "$audit_json" || status=$?
           cat "$audit_json"
@@ -123,7 +124,7 @@ jobs:
 
   npm-audit:
     if: ${{ inputs.npm-audit }}
-    name: npm audit
+    name: Audit npm dependencies
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -132,10 +133,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '26'
-      - name: npm audit
+      - name: Run npm audit
         working-directory: ${{ inputs.project-path }}
         env:
           AUDIT_FLAGS: ${{ inputs.npm-audit-flags }}

@@ -1,6 +1,5 @@
 /**
  * Spread this base into the consumer root config; `extends` drops `ignoreFiles`.
- * ignoreFiles covers dependencies and build output.
  */
 
 module.exports = {

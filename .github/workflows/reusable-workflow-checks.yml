@@ -13,18 +13,17 @@ permissions: {}
 
 jobs:
   actionlint:
-    name: Actionlint
+    name: Run actionlint
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      # actionlint reads only the root's .github/workflows unless it is given files, and then reads only those.
+      # Given files, actionlint reads only those, and otherwise only the root's .github/workflows.
       - name: Resolve the actionlint files
         id: files
         env:
@@ -92,7 +91,7 @@ jobs:
           done
 
   zizmor:
-    name: Zizmor
+    name: Run zizmor
     needs: detect-ghas
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -101,12 +100,10 @@ jobs:
       contents: read
       actions: read
     env:
-      # Both branches below resolve this release through the action's own version table, so a
-      # repo's findings never differ by which branch it takes.
+      # Both branches below resolve this release through the action's own version table, so a repository's findings never differ by the branch it takes.
       ZIZMOR_VERSION: '1.31.1'
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -141,8 +138,6 @@ jobs:
             echo "::error::zizmor SARIF at '$SARIF' is missing or malformed — cannot confirm a clean scan."
             exit 1
           fi
-          # Whole-string integer check (grep is line-oriented, so a multi-document count would slip
-          # through it); anything but a single non-negative integer is an unknown result.
           case "$count" in
             '' | *[!0-9]*)
               echo "::error::unexpected zizmor finding count '$count' — cannot confirm a clean scan."

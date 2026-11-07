@@ -11,7 +11,7 @@ return array(
 	'replacements'       => array(
 		// getFontType() reads the font type from the second segment of its class name, which the prefix shifts.
 		'src/FontLib/TrueType/File.php'    => array( 'return $class_parts[1];' => 'return $class_parts[\count($class_parts) - 2];' ),
-		// The test names FontLib\glyf, a class no package declares, so it is always false; the global name keeps that meaning.
+		// The test names FontLib\glyf, a class no package declares, so it is always false, and the global name keeps that meaning.
 		'src/FontLib/AdobeFontMetrics.php' => array( '$glyf instanceof glyf' => '$glyf instanceof \FontLib\glyf' ),
 	),
 );

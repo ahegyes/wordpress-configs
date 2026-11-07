@@ -17,7 +17,7 @@ permissions: {}
 
 jobs:
   lint-php:
-    name: PHP Lint
+    name: Lint PHP
     permissions:
       contents: read
     uses: ./.github/workflows/reusable-php-lint.yml
@@ -25,13 +25,13 @@ jobs:
       scripts: '["lint:php:phpcs", "lint:php:phpcs:tests", "lint:php:phpstan"]'
 
   php-syntax:
-    name: PHP Syntax
+    name: Check PHP syntax
     permissions:
       contents: read
     uses: ./.github/workflows/reusable-php-syntax-check.yml
 
   php-syntax-legacy:
-    name: PHP 7.4 syntax
+    name: Check PHP 7.4 syntax
     # The fixture stands in for a consumer's by-path files, which must still parse on PHP 7.4.
     permissions:
       contents: read
@@ -41,9 +41,8 @@ jobs:
       paths: '["tests/Fixtures/build-fixture"]'
 
   phpcs-smoke:
-    name: PHPCS dist-file smoke
-    # Self-lint runs the shared profiles only through the root rulesets, which strip the WP-runtime
-    # sniffs consumers get — this job scans a plugin-shaped fixture with the raw production profile.
+    name: Smoke-test the PHPCS production profile
+    # Self-lint reaches the shared profiles only through the root rulesets, which drop the WordPress runtime sniffs consumers get, so this job scans a plugin-shaped fixture with the production profile itself.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -53,7 +52,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup PHP
+      - name: Set up PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: '8.5'
@@ -65,12 +64,11 @@ jobs:
         with:
           composer-options: '--prefer-dist --ignore-platform-req=php+'
 
-      # phpcs -e loads the ruleset and lists its sniffs without scanning any file — the cheapest
-      # possible proof that the XML parses and every <rule ref> still resolves.
+      # Explaining the profile loads it and lists its sniffs without scanning a file, the cheapest proof that the XML parses and every rule reference still resolves.
       - name: Explain php/quality-assurance/phpcs.dist.xml
         run: vendor/bin/phpcs -e --standard=php/quality-assurance/phpcs.dist.xml
 
-      - name: Scan fixture with php/quality-assurance/phpcs.dist.xml
+      - name: Scan the fixture with php/quality-assurance/phpcs.dist.xml
         shell: bash
         run: |
           # The production profile skips */tests/*, so a temp copy is scanned outside that path.
@@ -88,13 +86,13 @@ jobs:
       scripts: '["lint:scripts", "lint:config"]'
 
   supply-chain:
-    name: Supply-chain audit
+    name: Audit the supply chain
     permissions:
       contents: read
     uses: ./.github/workflows/reusable-supply-chain-audit.yml
 
   supply-chain-release-tools:
-    name: Supply-chain audit (release tools)
+    name: Audit the release tools
     permissions:
       contents: read
     uses: ./.github/workflows/reusable-supply-chain-audit.yml
@@ -103,7 +101,7 @@ jobs:
       npm-audit: false
 
   supply-chain-block-json-tools:
-    name: Supply-chain audit (block.json tools)
+    name: Audit the block.json tools
     permissions:
       contents: read
     uses: ./.github/workflows/reusable-supply-chain-audit.yml
@@ -112,8 +110,8 @@ jobs:
       composer-audit: false
 
   block-json:
-    name: block.json schema check
-    # Dogfoods reusable-block-json-check against a throwaway fixture; this tooling repo ships no real blocks.
+    name: Check block.json files
+    # This repository ships no blocks, so the check runs against a fixture.
     permissions:
       contents: read
     uses: ./.github/workflows/reusable-block-json-check.yml
@@ -121,7 +119,7 @@ jobs:
       project-path: tests/Fixtures/block-json
 
   plugin-check-build:
-    name: Plugin Check fixture build
+    name: Build the Plugin Check fixture
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -140,7 +138,7 @@ jobs:
           retention-days: 1
 
   plugin-check:
-    name: Plugin Check
+    name: Run Plugin Check
     needs: plugin-check-build
     # The fixture fails Plugin Check unless the GitHub profile skips its Update URI and its missing readme.txt and the scan skips vendor-prefixed/.
     permissions:

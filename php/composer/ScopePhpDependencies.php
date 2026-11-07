@@ -38,6 +38,7 @@ final class ScopePhpDependencies {
 	 * @param   Event $event The Composer script event.
 	 *
 	 * @throws  \RuntimeException Thrown when the scope run fails.
+	 * @throws  \JsonException Thrown when a manifest is not valid JSON.
 	 *
 	 * @return  void
 	 */
@@ -55,6 +56,7 @@ final class ScopePhpDependencies {
 	 * @param   string $project_dir The root directory of the project.
 	 *
 	 * @throws  \RuntimeException Thrown when the project, its scoping prefix or php-scoper is missing, vendor-prefixed is a symbolic link, php-scoper fails, a scoped file does not parse, a scoped package declares a class outside the prefix, a prefixed name is declared by no scoped package, or a scoped package manifest cannot be read.
+	 * @throws  \JsonException Thrown when a manifest is not valid JSON.
 	 *
 	 * @return  void
 	 */
@@ -278,6 +280,7 @@ final class ScopePhpDependencies {
 	 * @param   string $file The path of the manifest.
 	 *
 	 * @throws  \RuntimeException Thrown when the manifest cannot be read or declares no name.
+	 * @throws  \JsonException Thrown when the manifest is not valid JSON.
 	 *
 	 * @return  string
 	 */

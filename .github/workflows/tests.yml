@@ -13,7 +13,7 @@ permissions: {}
 
 jobs:
   phpunit:
-    name: PHPUnit (PHP ${{ matrix.php-version }})
+    name: Run PHPUnit (PHP ${{ matrix.php-version }})
     strategy:
       fail-fast: false
       matrix:

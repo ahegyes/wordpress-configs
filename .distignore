@@ -1,5 +1,4 @@
 # Baseline wp dist-archive exclusions for WordPress projects.
-# Copy this file to each consumer project root and extend it there.
 
 .git
 .github
@@ -38,8 +37,7 @@ scoper.inc.php
 .wp-env*
 .wordpress-org
 
-# Secret material — never ship, even when a consumer forgets to list it.
-# .pem is root-anchored (leading /) so certs bundled under vendor/ (e.g. CA bundles) still ship.
+# Secret material, with .pem anchored to the root so certificates bundled under vendor/ still ship.
 .env*
 /*.pem
 *.key

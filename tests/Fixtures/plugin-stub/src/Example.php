@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 /**
- * Example fixture class for smoke-testing the shared PHPCS baseline.
+ * Example fixture class for smoke-testing shared configs.
  *
  * @package Acme
  */
@@ -8,8 +8,7 @@
 namespace Acme\PluginStub;
 
 /**
- * A minimal, standards-compliant class used only to prove the shipped
- * ruleset can parse and scan real WP-shaped PHP without crashing.
+ * A standards-compliant class for the PHPCS smoke.
  */
 class Example {
 	/**

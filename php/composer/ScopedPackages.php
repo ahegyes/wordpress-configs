@@ -28,6 +28,7 @@ final class ScopedPackages {
 	 * @param   list<string> $names      The packages to scope, as names or fnmatch() patterns, where a name that starts with ! drops the packages it matches.
 	 *
 	 * @throws  \RuntimeException Thrown when no name is given, installed.json or installed.php is unreadable, a name matches no installed package, a dependency is not installed, or a scoped package is a symbolic link.
+	 * @throws  \JsonException Thrown when installed.json is not valid JSON.
 	 *
 	 * @return  array{scoped: array<string, string>, dropped: array<string, string>}
 	 */
