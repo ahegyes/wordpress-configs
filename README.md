@@ -194,6 +194,8 @@ TypeScript extends the base by path:
 }
 ```
 
+The tsconfig takes effect only through the project's `tsc` script, conventionally `lint:types`, because wp-scripts builds TypeScript without type-checking it.
+
 ESLint spreads the base:
 
 ```js
