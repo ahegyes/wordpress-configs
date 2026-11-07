@@ -36,12 +36,12 @@ The two shared profiles run as two scripts, one over the project and one over `t
 
 ```json
 {
-  "scripts": {
-    "format:php": "phpcbf --standard=./phpcs.dist.xml --basepath=. ./ -v",
-    "format:php:tests": "phpcbf --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v",
-    "lint:php:phpcs": "phpcs --standard=./phpcs.dist.xml --basepath=. ./ -v",
-    "lint:php:phpcs:tests": "phpcs --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v"
-  }
+	"scripts": {
+		"format:php": "phpcbf --standard=./phpcs.dist.xml --basepath=. ./ -v",
+		"format:php:tests": "phpcbf --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v",
+		"lint:php:phpcs": "phpcs --standard=./phpcs.dist.xml --basepath=. ./ -v",
+		"lint:php:phpcs:tests": "phpcs --standard=./phpcs.tests.dist.xml --basepath=. ./tests -v"
+	}
 }
 ```
 
@@ -58,8 +58,8 @@ Include a floors ruleset after the shared profile. A `phpcs.floors.xml` holds th
 ```xml
 <?xml version="1.0"?>
 <ruleset name="Floors">
-    <config name="testVersion" value="8.3-"/>
-    <config name="minimum_wp_version" value="6.8"/>
+	<config name="testVersion" value="8.3-"/>
+	<config name="minimum_wp_version" value="6.8"/>
 </ruleset>
 ```
 
@@ -68,8 +68,8 @@ The project ruleset includes it after the profile:
 ```xml
 <?xml version="1.0"?>
 <ruleset name="Project">
-    <rule ref="./vendor/ahegyes/wordpress-configs/php/quality-assurance/phpcs.dist.xml"/>
-    <rule ref="./phpcs.floors.xml"/>
+	<rule ref="./vendor/ahegyes/wordpress-configs/php/quality-assurance/phpcs.dist.xml"/>
+	<rule ref="./phpcs.floors.xml"/>
 </ruleset>
 ```
 
@@ -87,9 +87,9 @@ PHPStan finds the project's `phpstan.dist.neon` on its own, so the script needs 
 
 ```json
 {
-  "scripts": {
-    "lint:php:phpstan": "phpstan analyse -v --memory-limit=1G"
-  }
+	"scripts": {
+		"lint:php:phpstan": "phpstan analyse -v --memory-limit=1G"
+	}
 }
 ```
 
@@ -115,10 +115,10 @@ A package the plugin ships states the WordPress version, the WooCommerce version
 
 ```json
 {
-  "extra": {
-    "requires-wp": "7.1",
-    "requires-wc": "11.2",
-    "requires-plugins": ["woocommerce"]
-  }
+	"extra": {
+		"requires-wp": "7.1",
+		"requires-wc": "11.2",
+		"requires-plugins": ["woocommerce"]
+	}
 }
 ```

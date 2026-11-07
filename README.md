@@ -15,12 +15,12 @@ Add the VCS repository and require the package as a development dependency:
 
 ```json
 {
-  "repositories": [
-    { "type": "vcs", "url": "https://github.com/ahegyes/wordpress-configs.git" }
-  ],
-  "require-dev": {
-    "ahegyes/wordpress-configs": "dev-trunk"
-  }
+	"repositories": [
+		{ "type": "vcs", "url": "https://github.com/ahegyes/wordpress-configs.git" }
+	],
+	"require-dev": {
+		"ahegyes/wordpress-configs": "dev-trunk"
+	}
 }
 ```
 
@@ -28,14 +28,14 @@ The root `composer.json` also declares `minimum-stability: dev` with `prefer-sta
 
 ```json
 {
-  "minimum-stability": "dev",
-  "prefer-stable": true,
-  "config": {
-    "allow-plugins": {
-      "dealerdirect/phpcodesniffer-composer-installer": true,
-      "phpstan/extension-installer": true
-    }
-  }
+	"minimum-stability": "dev",
+	"prefer-stable": true,
+	"config": {
+		"allow-plugins": {
+			"dealerdirect/phpcodesniffer-composer-installer": true,
+			"phpstan/extension-installer": true
+		}
+	}
 }
 ```
 
@@ -43,9 +43,9 @@ The Node baselines resolve through `node_modules`, so a project that uses them a
 
 ```json
 {
-  "devDependencies": {
-    "@ahegyes/wordpress-configs": "git+https://github.com/ahegyes/wordpress-configs.git#<commit-sha>"
-  }
+	"devDependencies": {
+		"@ahegyes/wordpress-configs": "git+https://github.com/ahegyes/wordpress-configs.git#<commit-sha>"
+	}
 }
 ```
 
@@ -67,24 +67,24 @@ Create a `phpcs.dist.xml` that extends the production profile and names the proj
 ```xml
 <?xml version="1.0"?>
 <ruleset name="Project">
-    <rule ref="./vendor/ahegyes/wordpress-configs/php/quality-assurance/phpcs.dist.xml"/>
+	<rule ref="./vendor/ahegyes/wordpress-configs/php/quality-assurance/phpcs.dist.xml"/>
 
-    <rule ref="WordPress.WP.I18n">
-        <properties>
-            <property name="text_domain" type="array">
-                <element value="your-text-domain"/>
-            </property>
-        </properties>
-    </rule>
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="your-text-domain"/>
+			</property>
+		</properties>
+	</rule>
 
-    <rule ref="WordPress.NamingConventions.PrefixAllGlobals">
-        <properties>
-            <property name="prefixes" type="array">
-                <element value="yourprefix_"/>
-                <element value="YourVendor\YourPlugin"/>
-            </property>
-        </properties>
-    </rule>
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="yourprefix_"/>
+				<element value="YourVendor\YourPlugin"/>
+			</property>
+		</properties>
+	</rule>
 </ruleset>
 ```
 
@@ -106,12 +106,12 @@ Create a `phpstan.dist.neon`:
 
 ```neon
 includes:
-    - vendor/ahegyes/wordpress-configs/php/quality-assurance/phpstan.dist.neon
+	- vendor/ahegyes/wordpress-configs/php/quality-assurance/phpstan.dist.neon
 
 parameters:
-    paths:
-        - your-plugin.php
-        - src
+	paths:
+		- your-plugin.php
+		- src
 ```
 
 To add a plugin's conventional paths without listing them, include `phpstan.dist.neon.php` as well. It adds `functions-bootstrap.php`, `functions.php`, `uninstall.php`, `src/`, `includes/`, `models/`, `blocks/` and `templates/` when they exist in the directory PHPStan runs from, and scans `vendor-prefixed/` there; the entry file still goes under `paths`.
@@ -120,10 +120,10 @@ To analyze code with no WordPress loaded, include `phpstan.base.dist.neon` alone
 
 ```neon
 includes:
-    - vendor/szepeviktor/phpstan-wordpress/extension.neon
-    - vendor/johnbillion/wp-compat/extension.neon
-    - vendor/swissspidy/phpstan-no-private/rules.neon
-    - vendor/ahegyes/wordpress-configs/php/quality-assurance/phpstan.dist.neon
+	- vendor/szepeviktor/phpstan-wordpress/extension.neon
+	- vendor/johnbillion/wp-compat/extension.neon
+	- vendor/swissspidy/phpstan-no-private/rules.neon
+	- vendor/ahegyes/wordpress-configs/php/quality-assurance/phpstan.dist.neon
 ```
 
 The package installs `phpstan-deprecation-rules`, `phpstan-strict-rules`, `szepeviktor/phpstan-wordpress` (WordPress signatures and types), `johnbillion/wp-compat` (WordPress version compatibility) and `swissspidy/phpstan-no-private` (private WordPress APIs).
@@ -136,9 +136,9 @@ Require php-scoper in the plugin itself, because Composer does not install this 
 
 ```json
 {
-  "require-dev": {
-    "humbug/php-scoper": "^0.18"
-  }
+	"require-dev": {
+		"humbug/php-scoper": "^0.18"
+	}
 }
 ```
 
@@ -146,19 +146,19 @@ Declare the scoping prefix, load the generated autoloader, and scope after every
 
 ```json
 {
-  "autoload": {
-    "files": [
-      "vendor-prefixed/scoper-autoload.php"
-    ]
-  },
-  "scripts": {
-    "post-autoload-dump": [
-      "DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::postAutoloadDump"
-    ]
-  },
-  "extra": {
-    "scoping-prefix": "YourVendor\\YourPlugin\\Scoped"
-  }
+	"autoload": {
+		"files": [
+			"vendor-prefixed/scoper-autoload.php"
+		]
+	},
+	"scripts": {
+		"post-autoload-dump": [
+			"DeepWebSolutions\\Config\\Composer\\ScopePhpDependencies::postAutoloadDump"
+		]
+	},
+	"extra": {
+		"scoping-prefix": "YourVendor\\YourPlugin\\Scoped"
+	}
 }
 ```
 
@@ -194,13 +194,13 @@ The project or a scoped package declares the stubs files of the host symbols the
 
 ```json
 {
-  "extra": {
-    "scoping-stubs": [
-      "php-stubs/woocommerce-stubs",
-      "php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php",
-      "./stubs/host-plugin.php"
-    ]
-  }
+	"extra": {
+		"scoping-stubs": [
+			"php-stubs/woocommerce-stubs",
+			"php-stubs/woocommerce-stubs:woocommerce-packages-stubs.php",
+			"./stubs/host-plugin.php"
+		]
+	}
 }
 ```
 
@@ -208,9 +208,9 @@ A package whose strings take the host plugin's text domain declares the domain i
 
 ```json
 {
-  "extra": {
-    "scoping-text-domain": "your-library"
-  }
+	"extra": {
+		"scoping-text-domain": "your-library"
+	}
 }
 ```
 
@@ -235,8 +235,8 @@ TypeScript extends the base by path:
 
 ```json
 {
-  "extends": "@ahegyes/wordpress-configs/node/tsconfig.base.json",
-  "include": ["client/**/*"]
+	"extends": "@ahegyes/wordpress-configs/node/tsconfig.base.json",
+	"include": ["client/**/*"]
 }
 ```
 
