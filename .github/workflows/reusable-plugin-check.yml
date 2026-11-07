@@ -31,7 +31,7 @@ permissions: {}
 
 jobs:
   plugin-check:
-    name: Plugin Check
+    name: Run Plugin Check
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions: {}
@@ -39,7 +39,7 @@ jobs:
       # The action starts its own wp-env without a phpVersion, and WordPress refuses to activate a plugin whose Requires PHP the default image does not meet.
       WP_ENV_PHP_VERSION: ${{ inputs.php-version }}
     steps:
-      - name: Validate plugin-slug
+      - name: Validate the plugin-slug input
         env:
           PLUGIN_SLUG: ${{ inputs.plugin-slug }}
         run: |

@@ -58,7 +58,7 @@ permissions: {}
 
 jobs:
   phpunit:
-    name: PHPUnit (PHP ${{ inputs.php-version }} / WP ${{ inputs.wp-env-core != '' && inputs.wp-env-core || inputs.wp-version != '' && inputs.wp-version || (inputs.needs-wp-env && 'consumer-default' || 'no-wp-env') }})
+    name: Run PHPUnit (PHP ${{ inputs.php-version }} / WP ${{ inputs.wp-env-core != '' && inputs.wp-env-core || inputs.wp-version != '' && inputs.wp-version || (inputs.needs-wp-env && 'consumer-default' || 'no-wp-env') }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -71,7 +71,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup PHP
+      - name: Set up PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ inputs.php-version }}
@@ -88,7 +88,7 @@ jobs:
             exit 1
           fi
 
-      - name: Setup Node.js (for wp-env)
+      - name: Set up Node.js
         if: ${{ inputs.needs-wp-env }}
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -152,7 +152,7 @@ jobs:
           fi
           ./node_modules/.bin/wp-env start "${args[@]}"
 
-      - name: Run tests
+      - name: Run the tests
         working-directory: ${{ inputs.project-path }}
         env:
           COMPOSER_SCRIPT: ${{ inputs.composer-script }}

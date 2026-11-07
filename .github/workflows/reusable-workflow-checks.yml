@@ -13,14 +13,13 @@ permissions: {}
 
 jobs:
   actionlint:
-    name: Actionlint
+    name: Run actionlint
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -92,7 +91,7 @@ jobs:
           done
 
   zizmor:
-    name: Zizmor
+    name: Run zizmor
     needs: detect-ghas
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -105,8 +104,7 @@ jobs:
       # repo's findings never differ by which branch it takes.
       ZIZMOR_VERSION: '1.31.1'
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 

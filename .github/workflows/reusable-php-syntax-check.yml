@@ -53,7 +53,7 @@ jobs:
           fi
 
   syntax:
-    name: Syntax (PHP ${{ matrix.php-version }})
+    name: Check syntax (PHP ${{ matrix.php-version }})
     needs: validate-inputs
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -76,7 +76,7 @@ jobs:
         with:
           name: ${{ inputs.artifact }}
 
-      - name: Setup PHP
+      - name: Set up PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ matrix.php-version }}

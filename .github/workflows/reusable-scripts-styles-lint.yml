@@ -33,7 +33,7 @@ jobs:
           fi
 
   lint:
-    name: ${{ matrix.script }}
+    name: Run ${{ matrix.script }}
     needs: validate-inputs
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -57,7 +57,7 @@ jobs:
             exit 1
           fi
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: ${{ inputs.project-path }}/package.json
@@ -68,7 +68,7 @@ jobs:
         working-directory: ${{ inputs.project-path }}
         run: npm ci
 
-      - name: npm run ${{ matrix.script }}
+      - name: Run npm run ${{ matrix.script }}
         working-directory: ${{ inputs.project-path }}
         env:
           SCRIPT: ${{ matrix.script }}

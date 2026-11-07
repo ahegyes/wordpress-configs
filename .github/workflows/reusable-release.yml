@@ -63,7 +63,7 @@ permissions: {}
 
 jobs:
   build:
-    name: Build artifact
+    name: Build the artifact
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -79,7 +79,7 @@ jobs:
       requires-scoped: ${{ steps.scoping.outputs.requires-scoped }}
       version: ${{ steps.versions.outputs.version }}
     steps:
-      - name: Enforce release inputs
+      - name: Enforce the release inputs
         id: release-inputs
         env:
           REF_TYPE: ${{ github.ref_type }}
@@ -131,7 +131,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Verify .distignore exists
+      - name: Verify that .distignore exists
         working-directory: ${{ inputs.project-path }}
         run: |
           if [ ! -f .distignore ]; then
@@ -222,7 +222,7 @@ jobs:
           requires_scoped=$(jq -r 'if (.extra["scoping-prefix"] | type) == "string" then "true" else "false" end' composer.json)
           echo "requires-scoped=$requires_scoped" >> "$GITHUB_OUTPUT"
 
-      - name: Setup PHP
+      - name: Set up PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ inputs.php-version }}
@@ -238,14 +238,14 @@ jobs:
             exit 1
           fi
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: ${{ inputs.project-path }}/package.json
           package-manager-cache: false
 
-      # A plain install restores no dependency cache, which another workflow could have written and Composer cannot check without dist checksums.
-      - name: Install Composer dependencies (dev — runs the scoping pipeline)
+      # A development install runs the scoping pipeline, and this plain one restores no dependency cache, which another workflow could have written and Composer cannot check without dist checksums.
+      - name: Install the development dependencies
         working-directory: ${{ inputs.project-path }}
         run: composer install --no-interaction --no-progress --prefer-dist --ignore-platform-req=php+
 
@@ -264,13 +264,13 @@ jobs:
           composer install --working-dir="$tools" --no-interaction --no-progress --prefer-dist --ignore-platform-req=php+
           echo "$tools/vendor/bin" >> "$GITHUB_PATH"
 
-      - name: Build assets
+      - name: Build the assets
         working-directory: ${{ inputs.project-path }}
         run: |
           npm ci
           npm run build --if-present
 
-      - name: Generate POT
+      - name: Generate the POT file
         if: ${{ inputs.generate-pot }}
         working-directory: ${{ inputs.project-path }}
         run: |
@@ -289,7 +289,7 @@ jobs:
           fi
 
       # --no-scripts avoids invoking handlers that were just pruned from require-dev.
-      - name: Prune to production dependencies
+      - name: Prune to the production dependencies
         working-directory: ${{ inputs.project-path }}
         run: composer install --no-dev --no-interaction --no-progress --prefer-dist --ignore-platform-req=php+ --optimize-autoloader --no-scripts
 
@@ -410,11 +410,11 @@ jobs:
           exit( array() === $errors ? 0 : 1 );
           PHP
 
-      - name: Create plugin archive
+      - name: Create the plugin archive
         working-directory: ${{ inputs.project-path }}
         run: wp dist-archive . "./$PLUGIN_SLUG.zip" --plugin-dirname="$PLUGIN_SLUG"
 
-      - name: Assert required files present
+      - name: Assert the archive holds the required files
         working-directory: ${{ inputs.project-path }}
         run: |
           entries=$(unzip -Z1 "$PLUGIN_SLUG.zip")
@@ -431,7 +431,7 @@ jobs:
           done
           exit "$status"
 
-      - name: Assert scoped packages bundled
+      - name: Assert the archive bundles the scoped packages
         if: ${{ steps.scoping.outputs.requires-scoped == 'true' }}
         working-directory: ${{ inputs.project-path }}
         run: |
@@ -448,7 +448,7 @@ jobs:
             exit 1
           fi
 
-      - name: Assert forbidden entries absent
+      - name: Assert the archive holds no forbidden entries
         working-directory: ${{ inputs.project-path }}
         run: |
           entries=$(unzip -Z1 "$PLUGIN_SLUG.zip")
@@ -481,14 +481,14 @@ jobs:
           done <<< "$entries"
           exit "$status"
 
-      - name: Record archive digest
+      - name: Record the archive digest
         id: archive-digest
         working-directory: ${{ inputs.project-path }}
         run: |
           digest=$(sha256sum "$PLUGIN_SLUG.zip" | awk '{print $1}')
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
-      - name: Prepare Plugin Check build
+      - name: Prepare the Plugin Check build
         if: ${{ inputs.plugin-check }}
         working-directory: ${{ inputs.project-path }}
         run: |
@@ -507,14 +507,14 @@ jobs:
           # An empty token skips the pull request comment, which this job's token has no permission to post.
           repo-token: ''
 
-      - name: Upload zip artifact
+      - name: Upload the zip artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ inputs.plugin-slug }}-zip
           path: ${{ inputs.project-path }}/${{ inputs.plugin-slug }}.zip
           retention-days: 30
 
-      - name: Prepare wp.org assets artifact
+      - name: Prepare the wp.org assets artifact
         if: ${{ inputs.wp-org }}
         working-directory: ${{ inputs.project-path }}
         run: |
@@ -525,7 +525,7 @@ jobs:
           fi
           touch wp-org-assets-artifact/__artifact_keep__
 
-      - name: Upload wp.org assets artifact
+      - name: Upload the wp.org assets artifact
         if: ${{ inputs.wp-org }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -534,7 +534,7 @@ jobs:
           retention-days: 30
 
   test:
-    name: Test built artifact
+    name: Test the built artifact
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -550,13 +550,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Download built artifact
+      - name: Download the built artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ inputs.plugin-slug }}-zip
           path: ./dist
 
-      - name: Verify artifact digest
+      - name: Verify the artifact digest
         env:
           EXPECTED_DIGEST: ${{ needs.build.outputs.digest }}
         run: |
@@ -566,27 +566,27 @@ jobs:
             exit 1
           fi
 
-      - name: Extract artifact
+      - name: Extract the artifact
         run: unzip -q "./dist/$PLUGIN_SLUG.zip" -d ./built-test
 
-      - name: Setup PHP
+      - name: Set up PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ inputs.php-version }}
           coverage: none
           tools: composer:v2
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: ${{ inputs.project-path }}/package.json
           package-manager-cache: false
 
-      - name: Install Composer dependencies (E2E harness)
+      - name: Install Composer dependencies
         working-directory: ${{ inputs.project-path }}
         run: composer install --no-interaction --no-progress --prefer-dist --ignore-platform-req=php+
 
-      - name: Install npm dependencies (E2E runner)
+      - name: Install npm dependencies
         working-directory: ${{ inputs.project-path }}
         run: |
           npm ci
@@ -595,7 +595,7 @@ jobs:
             exit 1
           fi
 
-      - name: Redirect wp-env at built artifact
+      - name: Point wp-env at the built artifact
         working-directory: ${{ inputs.project-path }}
         env:
           BUILT_PATH: ${{ github.workspace }}/built-test/${{ inputs.plugin-slug }}
@@ -663,7 +663,7 @@ jobs:
           port=$(jq -r -s 'reduce .[] as $file ({}; . * $file) | .env.development.port // .port // 8888' "${files[@]}")
           curl --fail --silent --show-error --output /dev/null "http://localhost:${port}/"
 
-      - name: Run E2E tests against built artifact
+      - name: Run the E2E tests against the built artifact
         working-directory: ${{ inputs.project-path }}
         run: |
           if [ -d node_modules/@playwright/test ]; then
@@ -672,7 +672,7 @@ jobs:
           npm run test:e2e --if-present
 
   provenance:
-    name: Verify release provenance
+    name: Verify the release provenance
     # A dispatched dry run rehearses this check; a pull request's merge commit has no push runs, and a push-triggered dry run would race the runs it looks up.
     if: ${{ inputs.publish || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
@@ -681,7 +681,7 @@ jobs:
       actions: read
     steps:
       # A release reuses the suites proven at the exact released commit instead of running them again.
-      - name: Verify required workflows passed
+      - name: Verify the required workflows passed
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -715,7 +715,7 @@ jobs:
           fi
 
   release:
-    name: Publish GitHub release
+    name: Publish the GitHub release
     needs: [build, test, provenance]
     if: ${{ inputs.publish }}
     runs-on: ubuntu-latest
@@ -727,13 +727,13 @@ jobs:
     env:
       PLUGIN_SLUG: ${{ inputs.plugin-slug }}
     steps:
-      - name: Download built artifact
+      - name: Download the built artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ inputs.plugin-slug }}-zip
           path: ./dist
 
-      - name: Verify artifact digest
+      - name: Verify the artifact digest
         env:
           EXPECTED_DIGEST: ${{ needs.build.outputs.digest }}
         run: |
@@ -782,19 +782,19 @@ jobs:
     env:
       PLUGIN_SLUG: ${{ inputs.plugin-slug }}
     steps:
-      - name: Download built artifact
+      - name: Download the built artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ inputs.plugin-slug }}-zip
           path: ./dist
 
-      - name: Download wp.org assets artifact
+      - name: Download the wp.org assets artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ inputs.plugin-slug }}-wp-org-assets
           path: ./wp-org-assets
 
-      - name: Verify artifact digest
+      - name: Verify the artifact digest
         env:
           EXPECTED_DIGEST: ${{ needs.build.outputs.digest }}
         run: |
@@ -805,12 +805,12 @@ jobs:
           fi
 
       # The deploy re-checks its own ref, so no change to the build's checks lets a branch or prerelease ref reach SVN.
-      - name: Re-verify version tag before deploy
+      - name: Verify the version tag before the deploy
         env:
           REF_NAME: ${{ github.ref_name }}
         run: printf '%s' "$REF_NAME" | grep -Eq '^v(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}$' || { echo "::error::Refusing to deploy from non-version ref '$REF_NAME'."; exit 1; }
 
-      - name: Verify SVN credentials
+      - name: Verify the SVN credentials
         env:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
@@ -820,14 +820,14 @@ jobs:
             exit 1
           fi
 
-      - name: Extract verified artifact for publish
+      - name: Extract the verified artifact
         run: |
           rm -rf ./publish
           mkdir -p ./publish
           unzip -q "./dist/$PLUGIN_SLUG.zip" -d ./publish
           test -d "./publish/$PLUGIN_SLUG"
 
-      - name: Prepare wp.org assets
+      - name: Prepare the wp.org assets
         run: |
           find ./wp-org-assets -type f -name __artifact_keep__ -delete
           if ! find ./wp-org-assets -mindepth 1 -print -quit | grep -q .; then

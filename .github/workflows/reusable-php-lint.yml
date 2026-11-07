@@ -43,7 +43,7 @@ jobs:
           fi
 
   composer-validate:
-    name: composer validate
+    name: Validate composer.json
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -52,17 +52,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ inputs.php-version }}
           coverage: none
           tools: composer:v2
-      - name: composer validate --strict
+      - name: Run composer validate --strict
         working-directory: ${{ inputs.project-path }}
         run: composer validate --strict
 
   lint:
-    name: ${{ matrix.script }}
+    name: Run ${{ matrix.script }}
     needs: validate-inputs
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -76,16 +77,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ inputs.php-version }}
           coverage: none
           tools: composer:v2
-      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
+      - name: Install Composer dependencies
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
         with:
           working-directory: ${{ inputs.project-path }}
           composer-options: ${{ inputs.composer-options }}
-      - name: composer ${{ matrix.script }}
+      - name: Run composer ${{ matrix.script }}
         working-directory: ${{ inputs.project-path }}
         env:
           SCRIPT: ${{ matrix.script }}
