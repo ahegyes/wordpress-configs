@@ -44,7 +44,7 @@ final class CurrentPost {
 
 		$wpdb->flush();
 
-		return null === $post ? '' : $post->post_title;
+		return \is_null( $post ) ? '' : $post->post_title;
 	}
 }
 
