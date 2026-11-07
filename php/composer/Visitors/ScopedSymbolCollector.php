@@ -166,7 +166,7 @@ final class ScopedSymbolCollector extends NodeVisitorAbstract {
 				'name'     => $name,
 				'location' => $this->file . ':' . $node->getStartLine(),
 				'keys'     => \array_combine( $kinds, \array_map( static fn ( string $kind ): string => self::key( $kind, $name ), $kinds ) ),
-				'checked'  => $call instanceof Node\Expr\FuncCall && $call->name instanceof Node\Name && 'function_exists' === $call->name->toString(),
+				'checked'  => $call instanceof Node\Expr\FuncCall && $call->name instanceof Node\Name && 'function_exists' === $call->name->toString(), // Only a lowercase function_exists() call gets the twin php-scoper adds.
 			);
 		}
 	}

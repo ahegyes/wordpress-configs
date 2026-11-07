@@ -35,6 +35,7 @@ final class GlobalSymbols {
 	 * @param   list<string> $dropped_dirs The directories of the packages that stay unscoped.
 	 *
 	 * @throws  \RuntimeException Thrown when a declared stubs file is missing, or a file cannot be read or does not parse.
+	 * @throws  \JsonException Thrown when a manifest or a symbol list is not valid JSON.
 	 *
 	 * @return  array{classes: list<string>, functions: list<string>, constants: list<string>, namespaces: list<string>}
 	 */
@@ -112,6 +113,7 @@ final class GlobalSymbols {
 	 * @param   string $file The path of the file.
 	 *
 	 * @throws  \RuntimeException Thrown when the file cannot be read or holds no list.
+	 * @throws  \JsonException Thrown when the file is not valid JSON.
 	 *
 	 * @return  list<string>
 	 */
