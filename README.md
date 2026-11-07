@@ -7,7 +7,7 @@ Shared PHPCS, PHPStan and php-scoper configurations, Node tool baselines and reu
 - PHP at the floor `composer.json`'s `require.php` names, and Composer 2.
 - For the Node baselines only, the Node and npm versions `package.json`'s `engines` names, and the tools its `peerDependencies` list.
 
-The shared PHPCS profiles check code against the PHP and WordPress floors that `php/quality-assurance/phpcs.base.dist.xml` sets in `testVersion` and `minimum_wp_version`, and the PHPStan profile against the WordPress floor that `php/quality-assurance/phpstan.dist.neon` sets in `requiresAtLeast`; a project with lower floors lowers them as [the scripts contract](docs/scripts-contract.md#lowering-the-floors) shows for PHPCS and [its PHPStan section](docs/scripts-contract.md#phpstan) for PHPStan.
+The shared PHPCS profiles check code against the PHP and WordPress floors that `php/quality-assurance/phpcs.base.dist.xml` sets in `testVersion` and `minimum_wp_version`, and the PHPStan profile against the WordPress floor that `php/quality-assurance/phpstan.dist.neon` sets in `WPCompat.requiresAtLeast`; a project with lower floors lowers them as [the scripts contract](docs/scripts-contract.md#lowering-the-floors) shows for PHPCS and [its PHPStan section](docs/scripts-contract.md#phpstan) for PHPStan.
 
 ## Installation
 
@@ -178,10 +178,12 @@ return ( require __DIR__ . '/vendor/ahegyes/wordpress-configs/php/php-scoper/sco
 
 `node/` holds one baseline per tool, which a project extends and overrides. The package declares the tools behind them as `>=` peer dependencies, floored at the versions it is tested against: `@wordpress/scripts`, `@wordpress/eslint-plugin`, `@wordpress/stylelint-config`, `@playwright/test` and `typescript`, whose defaults `node/tsconfig.base.json` builds on. `typescript` stays below 7, because typescript-eslint, which the ESLint base loads, refuses TypeScript 7.
 
+The package depends on `prettier` as an alias of `wp-prettier`, so a consumer's `wp-scripts format` runs WordPress's fork of Prettier.
+
 | Baseline | Holds |
 | --- | --- |
-| `node/tsconfig.base.json` | The deltas from TypeScript's defaults: `react-jsx`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `isolatedModules`, `resolveJsonModule`, `skipLibCheck` and `noEmit` |
-| `node/eslint.config.base.mjs` | `@wordpress/eslint-plugin`'s recommended flat config, with its unit-test and Playwright presets scoped to test globs |
+| `node/tsconfig.base.json` | TypeScript's strict defaults, tightened for returns and switch cases and set up for code that wp-scripts bundles and `tsc` only type-checks |
+| `node/eslint.config.base.mjs` | `@wordpress/eslint-plugin`'s recommended flat config, with its unit-test and Playwright presets scoped to test globs, and `console.warn` and `console.error` allowed while other console calls warn |
 | `node/stylelint.config.base.js` | `@wordpress/stylelint-config/scss-stylistic`, WordPress's SCSS and formatting rules, with generated trees ignored, `selector-class-pattern` off, and reports on needless, descriptionless and invalid-scope disable comments |
 | `node/playwright.config.base.js` | A factory over the `@wordpress/scripts` Playwright config, taking the project's wp-env `port` |
 
@@ -204,12 +206,12 @@ import baseConfig from '@ahegyes/wordpress-configs/node/eslint.config.base.mjs';
 export default [ ...baseConfig ];
 ```
 
-Stylelint spreads the base and its rules, because Stylelint ignores the `ignoreFiles` of a config loaded through `extends`:
+Stylelint spreads the base, because Stylelint ignores the `ignoreFiles` of a config loaded through `extends`:
 
 ```js
 const baseConfig = require( '@ahegyes/wordpress-configs/node/stylelint.config.base.js' );
 
-module.exports = { ...baseConfig, rules: { ...baseConfig.rules } };
+module.exports = { ...baseConfig };
 ```
 
 Playwright calls the factory with the port the wp-env config serves on (8888 when it sets none) and spreads nested keys individually, or the top-level spread drops the WordPress defaults:
