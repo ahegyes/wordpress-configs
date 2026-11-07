@@ -14,7 +14,7 @@ wordpress-configs/
 │   └── release/                # the manifest and lock of the WP-CLI commands reusable-release.yml installs, which Dependabot keeps current
 ├── node/                       # tsconfig, ESLint, Stylelint and Playwright baselines
 │   └── block-json/             # the manifest and lock of the ajv-cli reusable-block-json-check.yml installs, which the npm package leaves out
-├── docs/                       # workflows.md (input reference) and scripts-contract.md (scripts, files, floors)
+├── docs/                       # workflows.md (input reference), scripts-contract.md (scripts, files, floors) and scoping.md (the scoping contract)
 ├── tests/
 │   ├── Unit/                   # PHPUnit tests that run the real tools
 │   ├── Support/                # RunsWorkflowStepsTrait, which runs a workflow step's script, and RecordsInstalledPackagesTrait
@@ -46,7 +46,7 @@ zizmor --config .github/zizmor.yml .github/
 - Workflow-step tests find a step by its job and `name` and run it with `bash -e`, as GitHub Actions does for a step that names no shell; renaming a tested step breaks its test.
 - Every reusable-workflow input has a `description:`; shipped input names, types and defaults change only as a coordinated migration (CONTRIBUTING.md).
 - Self-CI calls the reusable workflows through `./`, and `.github/zizmor.yml` turns off zizmor's `self-repository` audit until actionlint accepts `$/`.
-- The README is an index; workflow inputs live in `docs/workflows.md`, script and file contracts in `docs/scripts-contract.md`, test tiers in `tests/README.md`. A behavior change updates them in the same change.
+- The README is an index; workflow inputs live in `docs/workflows.md`, script and file contracts in `docs/scripts-contract.md`, the scoping contract in `docs/scoping.md`, test tiers in `tests/README.md`. A behavior change updates them in the same change.
 - The README names each floor by the file and key that hold it (`composer.json`'s `require.php`, `package.json`'s `engines`, `phpcs.base.dist.xml`'s `testVersion` and `minimum_wp_version`, `phpstan.dist.neon`'s `requiresAtLeast`), never by its number, so a floor change edits only those files.
 - Class and method docblocks open with one third-person sentence naming the role, such as "Returns …", and add a second paragraph only for a non-obvious why; property and constant docblocks open with "The …". A function or method docblock ends with `@return`, `@return  void` included, unless it documents a constructor or opens with `{@inheritDoc}`. Each `@param` stays on one line, `@throws` reads "Thrown when …", members are `protected` rather than `private`, and class bodies outside `tests/` group members in `// region NAME` blocks.
 - Inline comments state a non-obvious why in one capitalized sentence, and every file describes the present, never the change.
