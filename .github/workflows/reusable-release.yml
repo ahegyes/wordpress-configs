@@ -9,7 +9,7 @@ on:
         type: string
         required: true
       project-path:
-        description: 'Path to the project (relative to repo root). npm ci runs here, so package.json and package-lock.json are required, declaring a Node version and @wordpress/env, whose locked version runs the built-artifact test.'
+        description: 'Path to the project, relative to the repository root. npm ci runs here, so package.json and package-lock.json are required, declaring a Node version and @wordpress/env, whose locked version runs the built-artifact test.'
         type: string
         required: false
         default: '.'
@@ -24,7 +24,7 @@ on:
         required: false
         default: ''
       plugin-check:
-        description: 'Whether to run WordPress Plugin Check against the built plugin archive'
+        description: 'Whether to run WordPress Plugin Check against the built plugin archive.'
         type: boolean
         required: false
         default: true
@@ -34,7 +34,7 @@ on:
         required: false
         default: ''
       generate-pot:
-        description: 'Regenerate languages/<plugin-slug>.pot via wp i18n make-pot before archive creation; set false only for plugins with no translatable strings'
+        description: 'Whether to regenerate languages/<plugin-slug>.pot with wp i18n make-pot before the archive is built. Set false only for a plugin with no translatable strings.'
         type: boolean
         required: false
         default: true

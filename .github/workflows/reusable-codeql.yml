@@ -5,7 +5,7 @@ on:
     inputs:
       languages:
         # CodeQL ships no PHP analyzer; PHP is statically analysed by PHPStan in the Quality workflow.
-        description: 'Non-empty JSON array of CodeQL languages'
+        description: 'Non-empty JSON array of CodeQL languages.'
         type: string
         required: false
         default: '["actions"]'

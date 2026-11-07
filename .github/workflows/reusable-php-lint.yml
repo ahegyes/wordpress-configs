@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       scripts:
-        description: 'Non-empty JSON array of composer scripts; each runs as its own parallel job.'
+        description: 'Non-empty JSON array of Composer scripts; each runs as its own parallel job.'
         type: string
         required: true
       php-version:
@@ -13,7 +13,7 @@ on:
         required: false
         default: '8.5'
       project-path:
-        description: 'Path to the project (relative to repo root).'
+        description: 'Path to the project, relative to the repository root.'
         type: string
         required: false
         default: '.'

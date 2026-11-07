@@ -8,7 +8,7 @@ on:
         type: string
         required: true
       project-path:
-        description: 'Path to the project (relative to repo root). npm ci runs here, so package.json and a package-lock.json must be present, and package.json must declare the Node version.'
+        description: 'Path to the project, relative to the repository root. npm ci runs here, so package.json and a package-lock.json must be present, and package.json must declare the Node version.'
         type: string
         required: false
         default: '.'

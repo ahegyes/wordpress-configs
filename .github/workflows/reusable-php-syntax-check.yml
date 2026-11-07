@@ -4,12 +4,12 @@ on:
   workflow_call:
     inputs:
       project-path:
-        description: 'Path to the project (relative to repo root)'
+        description: 'Path to the project, relative to the repository root.'
         type: string
         required: false
         default: '.'
       php-versions:
-        description: 'Non-empty JSON array of PHP versions to check (e.g. [\"8.5\",\"8.6\"])'
+        description: 'Non-empty JSON array of PHP versions to check, such as ["8.5", "8.6"].'
         type: string
         required: false
         default: '["8.5", "8.6"]'

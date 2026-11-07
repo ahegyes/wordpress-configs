@@ -150,8 +150,8 @@ Installs Composer and npm dependencies, builds assets, installs Chromium, starts
 | `project-path` | `string` | No | `'.'` | Path to the project, relative to the repository root. |
 | `artifact-slug` | `string` | Yes | — | Label for the uploaded failure-report artifact. |
 | `php-version` | `string` | No | `'8.5'` | PHP for Composer, for any suite outside wp-env, and for the site when the wp-env config pins no `phpVersion`. |
-| `wp-version` | `string` | No | `''` | WordPress release tag. Empty defers to the wp-env config's `core`. |
-| `wp-env-core` | `string` | No | `''` | Full `WP_ENV_CORE` value. Overrides `wp-version`. |
+| `wp-version` | `string` | No | `''` | WordPress release tag, such as `'6.9.4'`. Empty defers to the wp-env config's `core`, or wp-env's latest stable release. |
+| `wp-env-core` | `string` | No | `''` | Full `WP_ENV_CORE` value, such as a repository ref or a zip URL. Overrides `wp-version`. |
 | `composer-options` | `string` | No | `'--prefer-dist --ignore-platform-req=php+'` | Options for the dependency install, which includes development packages so a scoping pipeline runs. |
 | `build-script` | `string` | No | `'build'` | npm script that builds assets before wp-env starts. Empty skips the build. |
 | `wp-env-config-file` | `string` | No | `''` | wp-env config file relative to `project-path`. Empty uses `.wp-env.json`. |

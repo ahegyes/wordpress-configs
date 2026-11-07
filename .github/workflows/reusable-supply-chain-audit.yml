@@ -4,32 +4,32 @@ on:
   workflow_call:
     inputs:
       project-path:
-        description: 'Path to the project (relative to repo root). Its composer.lock and package-lock.json are audited as committed; nothing is installed.'
+        description: 'Path to the project, relative to the repository root. Its composer.lock and package-lock.json are audited as committed; nothing is installed.'
         type: string
         required: false
         default: '.'
       composer-audit:
-        description: 'Run `composer audit` against composer.lock, so the lockfile is required. Set false for repos without composer.json. At least one of composer-audit / npm-audit must stay enabled.'
+        description: 'Whether to run composer audit against composer.lock, so the lockfile is required. Set false for a project without composer.json. At least one of composer-audit and npm-audit stays enabled.'
         type: boolean
         required: false
         default: true
       npm-audit:
-        description: 'Run `npm audit` against package-lock.json, so the lockfile is required. Set false for repos without package.json. At least one of composer-audit / npm-audit must stay enabled.'
+        description: 'Whether to run npm audit against package-lock.json, so the lockfile is required. Set false for a project without package.json. At least one of composer-audit and npm-audit stays enabled.'
         type: boolean
         required: false
         default: true
       composer-audit-flags:
-        description: 'Extra flags passed to `composer audit`. Defaults to --abandoned=report — audits the full graph (dev/build deps included) and fails on security advisories, but reports abandoned packages instead of failing on them. Pass --no-dev to audit production deps only.'
+        description: 'Extra composer audit flags. The default, --abandoned=report, audits the full graph, development and build dependencies included, and fails on security advisories but only reports abandoned packages. Pass --no-dev to audit the production dependencies only.'
         type: string
         required: false
         default: '--abandoned=report'
       npm-audit-flags:
-        description: 'Extra flags passed to `npm audit`. The default audits production dependencies only and fails on high and critical advisories, surfacing low and moderate ones without failing; drop --omit=dev to audit development dependencies too.'
+        description: 'Extra npm audit flags. The default audits production dependencies only and fails on high and critical advisories, surfacing low and moderate ones without failing; drop --omit=dev to audit development dependencies too.'
         type: string
         required: false
         default: '--omit=dev --audit-level=high'
       fail-on-findings:
-        description: 'Fail the job when an audit reports findings. Set false to run the audit advisory-only — findings are surfaced in the logs without blocking, except a Composer filter-list match such as the malware list, which always fails.'
+        description: 'Whether findings fail the job. Set false to run the audit advisory-only, surfacing findings in the logs without blocking, except a Composer filter-list match such as the malware list, which always fails.'
         type: boolean
         required: false
         default: true
