@@ -1,6 +1,6 @@
 # wordpress-configs
 
-Shared PHPCS, PHPStan and php-scoper configurations, Node tool baselines and reusable GitHub Actions workflows for WordPress plugins, themes and sites.
+Shared tooling that lets WordPress projects be checked, scoped and released the same way.
 
 ## Requirements
 

@@ -2,7 +2,7 @@
 	"name": "ahegyes/wordpress-configs",
 	"type": "library",
 
-	"description": "Shared PHPCS, PHPStan and php-scoper configurations and reusable GitHub Actions workflows for WordPress projects.",
+	"description": "Shared tooling that lets WordPress projects be checked, scoped and released the same way.",
 	"license": "MIT",
 	"authors": [
 		{
