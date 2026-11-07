@@ -1,12 +1,12 @@
 <?php declare( strict_types=1 );
 /**
  * Plugin Name: Plugin Stub
- * Description: Minimal WP plugin header used only to give the shared PHPCS baseline something real to scan in CI.
+ * Description: Fixture plugin for the PHPCS smoke.
  * Version: 1.0.0
  * Author: Acme
  * Text Domain: plugin-stub
  * Requires PHP: 8.5
- * Requires at least: 7.0
+ * Requires at least: 7.1
  *
  * @package Acme
  */
