@@ -614,6 +614,41 @@ final class ReleaseWorkflowTest extends TestCase {
 	}
 
 	/**
+	 * @return array<string, array{string, string, int}>
+	 */
+	public static function provide_unreleased_sections(): array {
+		return array(
+			'unreleased-section-on-a-release'            => array( "## 2.0.0 - unreleased\n\n- Rebuilt.\n", 'true', 1 ),
+			'bracketed-unreleased-section-on-a-release'  => array( "## [2.0.0] - Unreleased\n\n- Rebuilt.\n", 'true', 1 ),
+			'unreleased-section-on-a-rehearsal'          => array( "## 2.0.0 - unreleased\n\n- Rebuilt.\n", 'false', 0 ),
+			'dated-section-on-a-release'                 => array( "## 2.0.0 - 2026-11-27\n\n- Rebuilt.\n", 'true', 0 ),
+			'unreleased-section-of-another-version'      => array( "## 2.1.0 - unreleased\n\n- Later.\n\n## 2.0.0 - 2026-11-27\n\n- Rebuilt.\n", 'true', 0 ),
+			'unreleased-in-the-notes-of-a-dated-section' => array( "## 2.0.0 - 2026-11-27\n\n- Dropped the unreleased beta's option.\n", 'true', 0 ),
+		);
+	}
+
+	#[DataProvider( 'provide_unreleased_sections' )]
+	public function test_a_publishing_run_refuses_a_changelog_section_still_unreleased( string $changelog, string $publish, int $expected_status ): void {
+		$this->write_project( array( 'CHANGELOG.md' => $changelog ) );
+
+		$result = $this->run_build_step(
+			'Verify the changelog section',
+			array(
+				'VERSION' => '2.0.0',
+				'PUBLISH' => $publish,
+			)
+		);
+
+		self::assertSame( $expected_status, $result['status'], $result['output'] );
+		if ( 1 === $expected_status ) {
+			self::assertMatchesRegularExpression( '/^::error::.*2\.0\.0.*unreleased.*changelogger write --amend/m', $result['output'] );
+			return;
+		}
+
+		self::assertArrayHasKey( 'release-notes', $result['outputs'] );
+	}
+
+	/**
 	 * @return array<string, array{string, string, list<string>, list<string>}>
 	 */
 	public static function provide_release_notes(): array {
