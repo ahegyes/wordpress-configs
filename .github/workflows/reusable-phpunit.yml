@@ -9,10 +9,15 @@ on:
         required: false
         default: '.'
       php-version:
-        description: 'PHP version for Composer and any suite outside wp-env, and for the site in wp-env when its config and override file pin no phpVersion.'
+        description: 'PHP version for Composer and any suite outside wp-env, and for the site in wp-env when wp-env-php-version is empty and its config and override file pin no phpVersion.'
         type: string
         required: false
         default: '8.5'
+      wp-env-php-version:
+        description: 'PHP version for the site in wp-env, such as "8.6", over any phpVersion its config and override file pin. Empty defers to that phpVersion, or to php-version where none is pinned.'
+        type: string
+        required: false
+        default: ''
       wp-version:
         description: 'WordPress release tag, such as "6.9.4". Empty defers to the wp-env config''s core, or wp-env''s latest stable release.'
         type: string
@@ -127,6 +132,16 @@ jobs:
             fi
           done
           echo "WP_ENV_PHP_VERSION=$PHP_VERSION" >> "$GITHUB_ENV"
+
+      # Written after the resolve step, this value replaces its export, so the input moves a pinned site too.
+      - name: Override the site's PHP
+        if: ${{ inputs.needs-wp-env }}
+        env:
+          SITE_PHP_VERSION: ${{ inputs.wp-env-php-version }}
+        run: |
+          if [ -n "$SITE_PHP_VERSION" ]; then
+            echo "WP_ENV_PHP_VERSION=$SITE_PHP_VERSION" >> "$GITHUB_ENV"
+          fi
 
       - name: Start wp-env
         if: ${{ inputs.needs-wp-env }}

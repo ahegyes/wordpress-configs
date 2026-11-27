@@ -76,6 +76,42 @@ final class PhpunitWorkflowTest extends TestCase {
 		self::assertSame( $exported, $result['env'] );
 	}
 
+	/**
+	 * @return array<string, array{string, array<string, string>}>
+	 */
+	public static function provide_site_php_versions(): array {
+		return array(
+			'set'   => array( '8.6', array( 'WP_ENV_PHP_VERSION' => '8.6' ) ),
+			'empty' => array( '', array() ),
+		);
+	}
+
+	/**
+	 * @param array<string, string> $exported
+	 */
+	#[DataProvider( 'provide_site_php_versions' )]
+	public function test_wp_env_php_version_is_exported_as_the_site_s_php_unless_empty( string $site_php_version, array $exported ): void {
+		$result = $this->run_step( 'reusable-phpunit.yml', 'phpunit', "Override the site's PHP", array( 'SITE_PHP_VERSION' => $site_php_version ) );
+
+		self::assertSame( 0, $result['status'], $result['output'] );
+		self::assertSame( $exported, $result['env'] );
+	}
+
+	public function test_the_site_s_php_override_runs_after_the_resolved_php_and_before_the_start(): void {
+		$steps = self::job( 'reusable-phpunit.yml', 'phpunit' )['steps'] ?? null;
+		self::assertIsArray( $steps );
+
+		$order = array( "Resolve the site's PHP", "Override the site's PHP", 'Start wp-env' );
+		$names = array();
+		foreach ( $steps as $step ) {
+			if ( \is_array( $step ) && \in_array( $step['name'] ?? null, $order, true ) ) {
+				$names[] = $step['name'];
+			}
+		}
+
+		self::assertSame( $order, $names );
+	}
+
 	public function test_the_end_to_end_workflow_resolves_the_site_s_php_with_this_workflow_s_step(): void {
 		$phpunit = self::job( 'reusable-phpunit.yml', 'phpunit' );
 		$e2e     = self::job( 'reusable-playwright-e2e.yml', 'e2e' );
