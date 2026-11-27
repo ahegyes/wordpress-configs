@@ -184,19 +184,26 @@ jobs:
         working-directory: ${{ inputs.project-path }}
         env:
           VERSION: ${{ steps.versions.outputs.version }}
+          PUBLISH: ${{ inputs.publish }}
         run: |
           if [ ! -f CHANGELOG.md ]; then
             exit 0
           fi
           notes=$(mktemp)
+          heading=$(mktemp)
           # The heading is matched as literal text with index(), so a dot in the version matches only a dot.
-          awk -v v="$VERSION" '
-            $0 == "## " v || index($0, "## " v " ") == 1 || index($0, "## [" v "]") == 1 { capture = 1; next }
+          awk -v v="$VERSION" -v heading="$heading" '
+            $0 == "## " v || index($0, "## " v " ") == 1 || index($0, "## [" v "]") == 1 { capture = 1; print > heading; next }
             capture && /^## / { exit }
             capture { print }
           ' CHANGELOG.md > "$notes"
           if ! grep -q '[^[:space:]]' "$notes"; then
             echo "::error::CHANGELOG.md has no section for $VERSION, or only a blank one, so the release would describe nothing."
+            exit 1
+          fi
+          # A rehearsal runs while the version's section is still unreleased, so only a publishing run needs it dated.
+          if [ "$PUBLISH" = "true" ] && grep -qiw 'unreleased' "$heading"; then
+            echo "::error::CHANGELOG.md's $VERSION heading reads unreleased, so the release would publish it undated — date the section first, such as with changelogger write --amend."
             exit 1
           fi
           delimiter="notes-$(openssl rand -hex 16)"

@@ -235,6 +235,7 @@ The `build` job fails when:
 - the project root holds no PHP file with a `Plugin Name:` header in its first 8 KB, or more than one;
 - the main plugin file's `Version:` header differs from the tag, or, for a stable version, from the `Stable tag:` of `readme.txt` when that file exists; a wp.org release requires `readme.txt`;
 - `CHANGELOG.md` exists without a section for the version, a `## <version>` or `## [<version>]` heading, or that section is blank;
+- `publish` is on and that heading holds the word `unreleased` in any case, such as changelogger's `## 2.0.0 - unreleased`, while a dry run passes on it;
 - the main plugin file's `Text Domain:` header, or `extra.text-domain` in `composer.json` when declared, differs from `plugin-slug`;
 - `vendor-prefixed/` carries strings in the plugin's text domain but the regenerated POT has none of them;
 - `Requires PHP` is below the PHP floor of a shipped package, the highest lower bound of the `require.php` constraints of the project's own `composer.json`, the production packages in Composer's vendor directory and the scoped packages in `vendor-prefixed/`;
