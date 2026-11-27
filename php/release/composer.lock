@@ -67,16 +67,16 @@
         },
         {
             "name": "gettext/gettext",
-            "version": "v4.8.12",
+            "version": "v4.8.13",
             "source": {
                 "type": "git",
                 "url": "https://github.com/php-gettext/Gettext.git",
-                "reference": "11af89ee6c087db3cf09ce2111a150bca5c46e12"
+                "reference": "d5b707149f6cf056b375ad50d2d0224102038ce6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/php-gettext/Gettext/zipball/11af89ee6c087db3cf09ce2111a150bca5c46e12",
-                "reference": "11af89ee6c087db3cf09ce2111a150bca5c46e12",
+                "url": "https://api.github.com/repos/php-gettext/Gettext/zipball/d5b707149f6cf056b375ad50d2d0224102038ce6",
+                "reference": "d5b707149f6cf056b375ad50d2d0224102038ce6",
                 "shasum": ""
             },
             "require": {
@@ -128,7 +128,7 @@
             "support": {
                 "email": "oom@oscarotero.com",
                 "issues": "https://github.com/oscarotero/Gettext/issues",
-                "source": "https://github.com/php-gettext/Gettext/tree/v4.8.12"
+                "source": "https://github.com/php-gettext/Gettext/tree/v4.8.13"
             },
             "funding": [
                 {
@@ -144,8 +144,8 @@
                     "type": "patreon"
                 }
             ],
-            "time": "2024-05-18T10:25:07+00:00",
-            "published-time": "2024-05-18T10:26:21+00:00"
+            "time": "2026-11-18T12:39:25+00:00",
+            "published-time": "2026-11-18T12:39:53+00:00"
         },
         {
             "name": "gettext/languages",
@@ -275,16 +275,16 @@
         },
         {
             "name": "mck89/peast",
-            "version": "v1.18.1",
+            "version": "v1.18.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/mck89/peast.git",
-                "reference": "70881e535f519aba943b6200411d2888d6c50dec"
+                "reference": "53b82702c25d709b4d51d10709412e090f6eb878"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/mck89/peast/zipball/70881e535f519aba943b6200411d2888d6c50dec",
-                "reference": "70881e535f519aba943b6200411d2888d6c50dec",
+                "url": "https://api.github.com/repos/mck89/peast/zipball/53b82702c25d709b4d51d10709412e090f6eb878",
+                "reference": "53b82702c25d709b4d51d10709412e090f6eb878",
                 "shasum": ""
             },
             "require": {
@@ -298,7 +298,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-master": "1.18.1-dev"
+                    "dev-master": "1.18.3-dev"
                 }
             },
             "autoload": {
@@ -319,10 +319,10 @@
             "description": "Peast is PHP library that generates AST for JavaScript code",
             "support": {
                 "issues": "https://github.com/mck89/peast/issues",
-                "source": "https://github.com/mck89/peast/tree/v1.18.1"
+                "source": "https://github.com/mck89/peast/tree/v1.18.3"
             },
-            "time": "2026-09-15T06:27:15+00:00",
-            "published-time": "2026-09-15T06:27:47+00:00"
+            "time": "2026-11-25T12:29:06+00:00",
+            "published-time": "2026-11-25T12:30:02+00:00"
         },
         {
             "name": "symfony/deprecation-contracts",
